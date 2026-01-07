@@ -346,7 +346,7 @@ async def send_long_message(client, chat_id, text, max_length=4000):
     
     if len(text) <= max_length:
         logger.info(f"消息长度未超过限制，直接发送")
-        await client.send_message(chat_id, text)
+        await client.send_message(chat_id, text, link_preview=False)
         return
     
     # 提取频道名称用于分段消息标题
@@ -388,7 +388,7 @@ async def send_long_message(client, chat_id, text, max_length=4000):
     # 发送所有部分
     for i, part in enumerate(parts):
         logger.info(f"正在发送第 {i+1}/{len(parts)} 段，长度: {len(part)}字符")
-        await client.send_message(chat_id, f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}")
+        await client.send_message(chat_id, f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}", link_preview=False)
         logger.debug(f"成功发送第 {i+1}/{len(parts)} 段")
 
 async def handle_manual_summary(event):
@@ -936,7 +936,7 @@ async def main():
                 
                 # 发送重启成功消息
                 logger.info(f"检测到重启标记，向用户 {restart_user_id} 发送重启成功消息")
-                await client.send_message(restart_user_id, "机器人已成功重启！")
+                await client.send_message(restart_user_id, "机器人已成功重启！", link_preview=False)
                 
                 # 删除重启标记文件
                 os.remove(RESTART_FLAG_FILE)
