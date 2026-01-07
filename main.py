@@ -9,8 +9,28 @@ from openai import OpenAI
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # 配置日志
+# 默认日志级别
+DEFAULT_LOG_LEVEL = logging.DEBUG
+
+# 日志级别映射
+LOG_LEVEL_MAP = {
+    'DEBUG': logging.DEBUG,
+    'INFO': logging.INFO,
+    'WARNING': logging.WARNING,
+    'ERROR': logging.ERROR,
+    'CRITICAL': logging.CRITICAL
+}
+
+# 日志级别转换函数
+def get_log_level(level_str):
+    """将字符串日志级别转换为logging模块对应的级别常量"""
+    if not level_str:
+        return DEFAULT_LOG_LEVEL
+    return LOG_LEVEL_MAP.get(level_str.upper(), DEFAULT_LOG_LEVEL)
+
+# 初始配置日志
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=DEFAULT_LOG_LEVEL,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -105,6 +125,9 @@ LLM_API_KEY = os.getenv('LLM_API_KEY', os.getenv('DEEPSEEK_API_KEY'))
 LLM_BASE_URL = os.getenv('LLM_BASE_URL', 'https://api.deepseek.com')
 LLM_MODEL = os.getenv('LLM_MODEL', 'deepseek-chat')
 TARGET_CHANNEL = os.getenv('TARGET_CHANNEL')
+# 日志级别 - 从环境变量获取默认值
+LOG_LEVEL_FROM_ENV = os.getenv('LOG_LEVEL')
+logger.debug(f"从环境变量读取的日志级别: {LOG_LEVEL_FROM_ENV}")
 
 logger.debug(f"从环境变量加载的配置: API_ID={'***' if API_ID else '未设置'}, API_HASH={'***' if API_HASH else '未设置'}, BOT_TOKEN={'***' if BOT_TOKEN else '未设置'}")
 logger.debug(f"AI配置 - 环境变量默认值: Base URL={LLM_BASE_URL}, Model={LLM_MODEL}")
@@ -133,9 +156,25 @@ if config:
     LLM_API_KEY = config.get('api_key', LLM_API_KEY)
     LLM_BASE_URL = config.get('base_url', LLM_BASE_URL)
     LLM_MODEL = config.get('model', LLM_MODEL)
+    # 从配置文件读取日志级别
+    LOG_LEVEL_FROM_CONFIG = config.get('log_level')
     logger.info("已使用配置文件覆盖AI配置默认值")
 else:
     logger.info("未找到配置文件或配置文件为空，使用默认配置")
+    LOG_LEVEL_FROM_CONFIG = None
+
+# 确定最终日志级别（配置文件优先于环境变量）
+final_log_level_str = LOG_LEVEL_FROM_CONFIG or LOG_LEVEL_FROM_ENV
+final_log_level = get_log_level(final_log_level_str)
+
+# 获取根日志记录器并设置级别
+root_logger = logging.getLogger()
+current_level = root_logger.getEffectiveLevel()
+if current_level != final_log_level:
+    root_logger.setLevel(final_log_level)
+    logger.info(f"日志级别已从 {logging.getLevelName(current_level)} 更改为 {logging.getLevelName(final_log_level)}")
+else:
+    logger.info(f"当前日志级别: {logging.getLevelName(current_level)}")
 
 # 初始化 AI 客户端
 logger.info("开始初始化AI客户端...")
@@ -509,6 +548,69 @@ async def handle_ai_config_input(event):
         logger.info(f"用户 {sender_id} 完成了AI配置设置")
         await event.reply(config_info)
 
+async def handle_show_log_level(event):
+    """处理/showloglevel命令，显示当前日志级别"""
+    sender_id = event.sender_id
+    command = event.text
+    logger.info(f"收到命令: {command}，发送者: {sender_id}")
+    
+    # 检查发送者是否为管理员
+    if sender_id not in ADMIN_LIST and ADMIN_LIST != ['me']:
+        logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command}")
+        await event.reply("您没有权限执行此命令")
+        return
+    
+    # 获取当前日志级别
+    root_logger = logging.getLogger()
+    current_level = root_logger.getEffectiveLevel()
+    level_name = logging.getLevelName(current_level)
+    
+    logger.info(f"执行命令 {command} 成功")
+    await event.reply(f"当前日志级别：{level_name}\n\n可用日志级别：DEBUG, INFO, WARNING, ERROR, CRITICAL")
+
+async def handle_set_log_level(event):
+    """处理/setloglevel命令，设置日志级别"""
+    sender_id = event.sender_id
+    command = event.text
+    logger.info(f"收到命令: {command}，发送者: {sender_id}")
+    
+    # 检查发送者是否为管理员
+    if sender_id not in ADMIN_LIST and ADMIN_LIST != ['me']:
+        logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command}")
+        await event.reply("您没有权限执行此命令")
+        return
+    
+    # 解析命令参数
+    try:
+        _, level_str = command.split(maxsplit=1)
+        level_str = level_str.strip().upper()
+        
+        # 检查日志级别是否有效
+        if level_str not in LOG_LEVEL_MAP:
+            await event.reply(f"无效的日志级别: {level_str}\n\n可用日志级别：DEBUG, INFO, WARNING, ERROR, CRITICAL")
+            return
+        
+        # 设置日志级别
+        root_logger = logging.getLogger()
+        old_level = root_logger.getEffectiveLevel()
+        new_level = LOG_LEVEL_MAP[level_str]
+        root_logger.setLevel(new_level)
+        
+        # 更新配置文件
+        config = load_config()
+        config['log_level'] = level_str
+        save_config(config)
+        
+        logger.info(f"日志级别已从 {logging.getLevelName(old_level)} 更改为 {logging.getLevelName(new_level)}")
+        await event.reply(f"日志级别已成功更改为：{level_str}\n\n之前的级别：{logging.getLevelName(old_level)}")
+        
+    except ValueError:
+        # 没有提供日志级别参数
+        await event.reply("请提供有效的日志级别，例如：/setloglevel INFO\n\n可用日志级别：DEBUG, INFO, WARNING, ERROR, CRITICAL")
+    except Exception as e:
+        logger.error(f"设置日志级别时出错: {type(e).__name__}: {e}", exc_info=True)
+        await event.reply(f"设置日志级别时出错: {e}")
+
 async def main():
     logger.info("开始初始化机器人服务...")
     
@@ -533,6 +635,9 @@ async def main():
         client.add_event_handler(handle_set_prompt, NewMessage(pattern='/setprompt|/set_prompt|/设置提示词'))
         client.add_event_handler(handle_show_ai_config, NewMessage(pattern='/showaicfg|/show_aicfg|/查看AI配置'))
         client.add_event_handler(handle_set_ai_config, NewMessage(pattern='/setaicfg|/set_aicfg|/设置AI配置'))
+        # 添加日志级别命令
+        client.add_event_handler(handle_show_log_level, NewMessage(pattern='/showloglevel|/show_log_level|/查看日志级别'))
+        client.add_event_handler(handle_set_log_level, NewMessage(pattern='/setloglevel|/set_log_level|/设置日志级别'))
         # 只处理非命令消息作为提示词或AI配置输入
         client.add_event_handler(handle_prompt_input, NewMessage(func=lambda e: not e.text.startswith('/')))
         client.add_event_handler(handle_ai_config_input, NewMessage(func=lambda e: True))
@@ -553,7 +658,9 @@ async def main():
             BotCommand(command="showprompt", description="查看当前提示词"),
             BotCommand(command="setprompt", description="设置自定义提示词"),
             BotCommand(command="showaicfg", description="查看AI配置"),
-            BotCommand(command="setaicfg", description="设置AI配置")
+            BotCommand(command="setaicfg", description="设置AI配置"),
+            BotCommand(command="showloglevel", description="查看当前日志级别"),
+            BotCommand(command="setloglevel", description="设置日志级别")
         ]
         
         await client(SetBotCommandsRequest(
