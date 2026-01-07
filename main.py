@@ -130,8 +130,9 @@ LLM_MODEL = os.getenv('LLM_MODEL', 'deepseek-chat')
 TARGET_CHANNEL = os.getenv('TARGET_CHANNEL')
 CHANNELS = []
 if TARGET_CHANNEL:
-    CHANNELS = [TARGET_CHANNEL]
-    logger.info(f"已从环境变量加载单频道配置: {CHANNELS}")
+    # 支持多个频道，用逗号分隔
+    CHANNELS = [channel.strip() for channel in TARGET_CHANNEL.split(',')]
+    logger.info(f"已从环境变量加载频道配置: {CHANNELS}")
 
 # 日志级别 - 从环境变量获取默认值
 LOG_LEVEL_FROM_ENV = os.getenv('LOG_LEVEL')
