@@ -555,12 +555,12 @@ async def handle_set_ai_config(event):
     setting_ai_config_users.add(sender_id)
     logger.info(f"添加用户 {sender_id} 到AI配置设置集合")
     
-    # 初始化当前配置
+    # 初始化当前配置，使用None值来标识未处理的参数
     global current_ai_config
     current_ai_config = {
-        'api_key': LLM_API_KEY,
-        'base_url': LLM_BASE_URL,
-        'model': LLM_MODEL
+        'api_key': None,
+        'base_url': None,
+        'model': None
     }
     
     logger.info(f"开始执行 {command} 命令")
@@ -568,6 +568,9 @@ async def handle_set_ai_config(event):
 
 async def handle_ai_config_input(event):
     """处理用户输入的AI配置参数"""
+    # 声明全局变量
+    global LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, client_llm
+    
     # 检查发送者是否在设置AI配置的集合中
     sender_id = event.sender_id
     input_text = event.text
@@ -585,9 +588,24 @@ async def handle_ai_config_input(event):
         await event.reply("已取消AI配置设置")
         return
     
-    # 获取当前配置状态
-    global current_ai_config
-    config_step = len([k for k, v in current_ai_config.items() if v is not None]) + 1
+    # 检查是否是其他命令
+    if input_text.startswith('/') and input_text != '/skip':
+        # 如果是其他命令，提示用户先完成当前配置或取消
+        await event.reply("您正在设置AI配置中，请先完成当前配置或发送/cancel取消设置，然后再执行其他命令")
+        return
+    
+    # 重新计算配置步骤：找到第一个为None的参数
+    config_order = ['api_key', 'base_url', 'model']
+    config_step = None
+    
+    for i, param in enumerate(config_order):
+        if current_ai_config[param] is None:
+            config_step = i + 1
+            break
+    
+    if config_step is None:
+        config_step = 4  # 所有参数都已设置
+    
     logger.debug(f"当前AI配置步骤: {config_step}")
     
     # 根据当前步骤处理输入
@@ -596,25 +614,33 @@ async def handle_ai_config_input(event):
         if input_text != '/skip':
             current_ai_config['api_key'] = input_text.strip()
             logger.debug(f"用户 {sender_id} 设置了新的API Key: {'***' if input_text.strip() else '未设置'}")
+        else:
+            # 使用当前值
+            current_ai_config['api_key'] = LLM_API_KEY
         await event.reply(f"API Key已设置为：{current_ai_config['api_key'][:10]}...{current_ai_config['api_key'][-10:] if len(current_ai_config['api_key']) > 20 else current_ai_config['api_key']}\n\n请发送Base URL，或发送/skip跳过")
     elif config_step == 2:
         # 处理Base URL
         if input_text != '/skip':
             current_ai_config['base_url'] = input_text.strip()
             logger.debug(f"用户 {sender_id} 设置了新的Base URL: {input_text.strip()}")
+        else:
+            # 使用当前值
+            current_ai_config['base_url'] = LLM_BASE_URL
         await event.reply(f"Base URL已设置为：{current_ai_config['base_url']}\n\n请发送Model，或发送/skip跳过")
     elif config_step == 3:
         # 处理Model
         if input_text != '/skip':
             current_ai_config['model'] = input_text.strip()
             logger.debug(f"用户 {sender_id} 设置了新的Model: {input_text.strip()}")
+        else:
+            # 使用当前值
+            current_ai_config['model'] = LLM_MODEL
         
         # 保存配置
         save_config(current_ai_config)
         logger.info("已保存AI配置到文件")
         
         # 更新全局变量
-        global LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, client_llm
         LLM_API_KEY = current_ai_config['api_key']
         LLM_BASE_URL = current_ai_config['base_url']
         LLM_MODEL = current_ai_config['model']
@@ -639,6 +665,12 @@ async def handle_ai_config_input(event):
         
         logger.info(f"用户 {sender_id} 完成了AI配置设置")
         await event.reply(config_info)
+    elif config_step == 4:
+        # 所有参数都已设置，可能是重复输入，返回最终配置
+        await event.reply("AI配置已完成设置，当前配置：\n\n" + 
+                        f"API Key：{current_ai_config['api_key'][:10]}...{current_ai_config['api_key'][-10:] if len(current_ai_config['api_key']) > 20 else current_ai_config['api_key']}\n" +
+                        f"Base URL：{current_ai_config['base_url']}\n" +
+                        f"Model：{current_ai_config['model']}\n")
 
 async def handle_show_log_level(event):
     """处理/showloglevel命令，显示当前日志级别"""
