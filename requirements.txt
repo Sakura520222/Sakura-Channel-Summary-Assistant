@@ -1,0 +1,4 @@
+telethon
+openai
+apscheduler
+python-dotenv
