@@ -1,0 +1,41 @@
+# 环境变量文件
+.env
+
+# Python 缓存目录
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 日志文件
+*.log
+
+# 会话文件
+session_name*
+bot_session*
+
+# IDE配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 虚拟环境
+venv/
+env/
+.env/
+
+# 构建文件
+dist/
+build/
+*.egg-info/
+
+# 测试覆盖率报告
+htmlcov/
+.coverage
+.coverage.*
+.cache/
