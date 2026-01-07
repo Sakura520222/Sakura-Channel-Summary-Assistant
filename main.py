@@ -43,6 +43,7 @@ logger.info("已加载 .env 文件中的环境变量")
 # 配置文件
 PROMPT_FILE = "prompt.txt"
 CONFIG_FILE = "config.json"
+RESTART_FLAG_FILE = ".restart_flag"
 logger.debug(f"配置文件路径: 提示词文件={PROMPT_FILE}, 配置文件={CONFIG_FILE}")
 
 # 默认提示词
@@ -634,6 +635,11 @@ async def handle_restart(event):
     # 实现重启逻辑
     import sys
     import subprocess
+    import os
+    
+    # 创建重启标记文件，用于新进程识别重启操作
+    with open(RESTART_FLAG_FILE, 'w') as f:
+        f.write(str(sender_id))  # 写入发起重启的用户ID
     
     # 关闭当前进程，启动新进程
     python = sys.executable
@@ -711,6 +717,23 @@ async def main():
         # 启动调度器
         scheduler.start()
         logger.info("调度器已启动")
+        
+        # 检查是否是重启后的首次运行
+        import os
+        if os.path.exists(RESTART_FLAG_FILE):
+            try:
+                with open(RESTART_FLAG_FILE, 'r') as f:
+                    restart_user_id = int(f.read().strip())
+                
+                # 发送重启成功消息
+                logger.info(f"检测到重启标记，向用户 {restart_user_id} 发送重启成功消息")
+                await client.send_message(restart_user_id, "机器人已成功重启！")
+                
+                # 删除重启标记文件
+                os.remove(RESTART_FLAG_FILE)
+                logger.info("重启标记文件已删除")
+            except Exception as e:
+                logger.error(f"处理重启标记时出错: {type(e).__name__}: {e}", exc_info=True)
         
         # 保持客户端运行
         await client.run_until_disconnected()
