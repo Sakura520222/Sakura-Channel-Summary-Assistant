@@ -611,6 +611,37 @@ async def handle_set_log_level(event):
         logger.error(f"设置日志级别时出错: {type(e).__name__}: {e}", exc_info=True)
         await event.reply(f"设置日志级别时出错: {e}")
 
+async def handle_restart(event):
+    """处理/restart命令，重启机器人"""
+    sender_id = event.sender_id
+    command = event.text
+    logger.info(f"收到命令: {command}，发送者: {sender_id}")
+    
+    # 检查发送者是否为管理员
+    if sender_id not in ADMIN_LIST and ADMIN_LIST != ['me']:
+        logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command}")
+        await event.reply("您没有权限执行此命令")
+        return
+    
+    logger.info(f"开始执行 {command} 命令")
+    
+    # 发送重启确认消息
+    await event.reply("正在重启机器人...")
+    
+    # 记录重启日志
+    logger.info("机器人重启命令已执行，正在重启...")
+    
+    # 实现重启逻辑
+    import sys
+    import subprocess
+    
+    # 关闭当前进程，启动新进程
+    python = sys.executable
+    subprocess.Popen([python] + sys.argv)
+    
+    # 退出当前进程
+    sys.exit(0)
+
 async def main():
     logger.info("开始初始化机器人服务...")
     
@@ -638,6 +669,8 @@ async def main():
         # 添加日志级别命令
         client.add_event_handler(handle_show_log_level, NewMessage(pattern='/showloglevel|/show_log_level|/查看日志级别'))
         client.add_event_handler(handle_set_log_level, NewMessage(pattern='/setloglevel|/set_log_level|/设置日志级别'))
+        # 添加重启命令
+        client.add_event_handler(handle_restart, NewMessage(pattern='/restart|/重启'))
         # 只处理非命令消息作为提示词或AI配置输入
         client.add_event_handler(handle_prompt_input, NewMessage(func=lambda e: not e.text.startswith('/')))
         client.add_event_handler(handle_ai_config_input, NewMessage(func=lambda e: True))
@@ -660,7 +693,8 @@ async def main():
             BotCommand(command="showaicfg", description="查看AI配置"),
             BotCommand(command="setaicfg", description="设置AI配置"),
             BotCommand(command="showloglevel", description="查看当前日志级别"),
-            BotCommand(command="setloglevel", description="设置日志级别")
+            BotCommand(command="setloglevel", description="设置日志级别"),
+            BotCommand(command="restart", description="重启机器人")
         ]
         
         await client(SetBotCommandsRequest(

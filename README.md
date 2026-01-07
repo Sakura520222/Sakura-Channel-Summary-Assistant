@@ -86,6 +86,7 @@ python main.py
 | `/setaicfg` | `/设置AI配置` | 设置自定义AI配置（API Key、Base URL、Model） |
 | `/showloglevel` | `/查看日志级别` | 查看当前日志级别 |
 | `/setloglevel <级别>` | `/设置日志级别 <级别>` | 设置日志级别（支持DEBUG、INFO、WARNING、ERROR、CRITICAL） |
+| `/restart` | `/重启` | 重启机器人 |
 
 ### 自定义提示词
 
