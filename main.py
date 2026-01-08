@@ -82,12 +82,13 @@ def save_prompt(prompt):
 
 # 读取上次总结时间函数
 
-def load_last_summary_time(channel=None):
-    """从文件中读取上次总结的时间，如果文件不存在则返回None
+def load_last_summary_time(channel=None, include_report_ids=False):
+    """从文件中读取上次总结的时间和报告消息ID
     
     Args:
-        channel: 可选，指定频道。如果提供，只返回该频道的上次总结时间；
-                如果不提供，返回所有频道的上次总结时间字典
+        channel: 可选，指定频道。如果提供，只返回该频道的信息；
+                如果不提供，返回所有频道的信息字典
+        include_report_ids: 可选，是否包含报告消息ID。默认False只返回时间，True返回包含时间和消息ID的字典
     """
     logger.info(f"开始读取上次总结时间文件: {LAST_SUMMARY_FILE}")
     try:
@@ -95,24 +96,39 @@ def load_last_summary_time(channel=None):
             import json
             content = f.read().strip()
             if content:
-                last_times = json.loads(content)
-                logger.info(f"成功读取所有频道的上次总结时间: {last_times}")
+                last_data = json.loads(content)
+                logger.info(f"成功读取所有频道的上次总结数据: {last_data}")
+                
                 if channel:
-                    # 返回指定频道的时间，如果不存在则返回None
-                    channel_time = last_times.get(channel)
-                    if channel_time:
-                        channel_time_obj = datetime.fromisoformat(channel_time)
-                        logger.info(f"成功读取频道 {channel} 的上次总结时间: {channel_time_obj}")
-                        return channel_time_obj
+                    # 返回指定频道的信息
+                    channel_data = last_data.get(channel)
+                    if channel_data:
+                        if include_report_ids:
+                            # 返回包含时间对象和消息ID列表的字典
+                            return {
+                                "time": datetime.fromisoformat(channel_data["time"]),
+                                "report_message_ids": channel_data.get("report_message_ids", [])
+                            }
+                        else:
+                            # 只返回时间对象
+                            time_obj = datetime.fromisoformat(channel_data["time"])
+                            logger.info(f"成功读取频道 {channel} 的上次总结时间: {time_obj}")
+                            return time_obj
                     else:
                         logger.warning(f"频道 {channel} 的上次总结时间不存在")
                         return None
                 else:
-                    # 转换所有时间字符串为datetime对象并返回
-                    converted_times = {}
-                    for ch, time_str in last_times.items():
-                        converted_times[ch] = datetime.fromisoformat(time_str)
-                    return converted_times
+                    # 返回所有频道的信息
+                    converted_data = {}
+                    for ch, data in last_data.items():
+                        if include_report_ids:
+                            converted_data[ch] = {
+                                "time": datetime.fromisoformat(data["time"]),
+                                "report_message_ids": data.get("report_message_ids", [])
+                            }
+                        else:
+                            converted_data[ch] = datetime.fromisoformat(data["time"])
+                    return converted_data
             else:
                 logger.warning(f"上次总结时间文件 {LAST_SUMMARY_FILE} 内容为空")
                 return None if channel else {}
@@ -125,12 +141,13 @@ def load_last_summary_time(channel=None):
 
 # 保存上次总结时间函数
 
-def save_last_summary_time(channel, time_to_save):
-    """将指定频道的上次总结时间保存到文件中
+def save_last_summary_time(channel, time_to_save, report_message_ids=None):
+    """将指定频道的上次总结时间和报告消息ID保存到文件中
     
     Args:
         channel: 频道标识
         time_to_save: 要保存的时间对象
+        report_message_ids: 发送到源频道的报告消息ID列表，可选
     """
     logger.info(f"开始保存频道 {channel} 的上次总结时间到文件: {LAST_SUMMARY_FILE}")
     try:
@@ -143,14 +160,18 @@ def save_last_summary_time(channel, time_to_save):
                 if content:
                     existing_data = json.loads(content)
         
-        # 更新指定频道的时间
-        existing_data[channel] = time_to_save.isoformat()
+        # 更新指定频道的时间和报告消息ID
+        channel_data = {
+            "time": time_to_save.isoformat(),
+            "report_message_ids": report_message_ids or []
+        }
+        existing_data[channel] = channel_data
         
         # 写入文件
         with open(LAST_SUMMARY_FILE, "w", encoding="utf-8") as f:
             json.dump(existing_data, f, ensure_ascii=False, indent=2)
         
-        logger.info(f"成功保存频道 {channel} 的上次总结时间: {time_to_save}")
+        logger.info(f"成功保存频道 {channel} 的上次总结时间: {time_to_save}，报告消息ID: {report_message_ids}")
     except Exception as e:
         logger.error(f"保存上次总结时间到文件 {LAST_SUMMARY_FILE} 时出错: {type(e).__name__}: {e}", exc_info=True)
 
@@ -285,12 +306,13 @@ client_llm = OpenAI(
 
 logger.info("AI客户端初始化完成")
 
-async def fetch_last_week_messages(channels_to_fetch=None, start_time=None):
+async def fetch_last_week_messages(channels_to_fetch=None, start_time=None, report_message_ids=None):
     """抓取指定时间范围的频道消息
     
     Args:
         channels_to_fetch: 可选，要抓取的频道列表。如果为None，则抓取所有配置的频道。
         start_time: 可选，开始抓取的时间。如果为None，则默认抓取过去一周的消息。
+        report_message_ids: 可选，要排除的报告消息ID列表，按频道分组。
     """
     # 确保 API_ID 是整数
     logger.info("开始抓取指定时间范围的频道消息")
@@ -302,6 +324,7 @@ async def fetch_last_week_messages(channels_to_fetch=None, start_time=None):
             logger.info(f"未提供开始时间，默认抓取过去一周的消息")
         
         messages_by_channel = {}  # 按频道分组的消息字典
+        report_message_ids = report_message_ids or {}
         
         # 确定要抓取的频道
         if channels_to_fetch and isinstance(channels_to_fetch, list):
@@ -322,11 +345,23 @@ async def fetch_last_week_messages(channels_to_fetch=None, start_time=None):
         for channel in channels:
             channel_messages = []
             channel_message_count = 0
+            skipped_report_count = 0
             logger.info(f"开始抓取频道: {channel}")
+            
+            # 获取当前频道要排除的报告消息ID列表
+            exclude_ids = report_message_ids.get(channel, [])
+            logger.info(f"频道 {channel} 要排除的报告消息ID列表: {exclude_ids}")
             
             async for message in client.iter_messages(channel, offset_date=start_time, reverse=True):
                 total_message_count += 1
                 channel_message_count += 1
+                
+                # 跳过报告消息
+                if message.id in exclude_ids:
+                    skipped_report_count += 1
+                    logger.debug(f"跳过报告消息，ID: {message.id}")
+                    continue
+                
                 if message.text:
                     # 动态获取频道名用于生成链接
                     channel_part = channel.split('/')[-1]
@@ -339,7 +374,7 @@ async def fetch_last_week_messages(channels_to_fetch=None, start_time=None):
             
             # 将当前频道的消息添加到字典中
             messages_by_channel[channel] = channel_messages
-            logger.info(f"频道 {channel} 抓取完成，共处理 {channel_message_count} 条消息，其中 {len(channel_messages)} 条包含文本内容")
+            logger.info(f"频道 {channel} 抓取完成，共处理 {channel_message_count} 条消息，其中 {len(channel_messages)} 条包含文本内容，跳过了 {skipped_report_count} 条报告消息")
         
         logger.info(f"所有指定频道消息抓取完成，共处理 {total_message_count} 条消息")
         return messages_by_channel
@@ -386,9 +421,15 @@ async def send_report(summary_text, source_channel=None, client=None):
         summary_text: 报告内容
         source_channel: 源频道，可选。如果提供，将向该频道发送报告
         client: 可选。已存在的Telegram客户端实例，如果不提供，将创建一个新实例
+    
+    Returns:
+        list: 发送到源频道的消息ID列表
     """
     logger.info("开始发送报告")
     logger.debug(f"报告长度: {len(summary_text)}字符")
+    
+    # 存储发送到源频道的消息ID
+    report_message_ids = []
     
     # 如果提供了客户端实例，直接使用它；否则创建新实例
     if client:
@@ -406,8 +447,47 @@ async def send_report(summary_text, source_channel=None, client=None):
         if source_channel and SEND_REPORT_TO_SOURCE:
             try:
                 logger.info(f"正在向源频道 {source_channel} 发送报告")
-                await send_long_message(client, source_channel, summary_text)
-                logger.info(f"成功向源频道 {source_channel} 发送报告")
+                # 直接调用client.send_message并收集消息ID，因为send_long_message不返回消息ID
+                if len(summary_text) <= 4000:
+                    # 短消息直接发送
+                    msg = await client.send_message(source_channel, summary_text, link_preview=False)
+                    report_message_ids.append(msg.id)
+                else:
+                    # 长消息分段发送，收集每个分段的消息ID
+                    # 提取频道名称用于分段消息标题
+                    channel_title = "频道周报汇总"
+                    if "**" in summary_text and "** " in summary_text:
+                        start_idx = summary_text.index("**") + 2
+                        end_idx = summary_text.index("** ", start_idx)
+                        channel_title = summary_text[start_idx:end_idx]
+                    
+                    # 分段发送
+                    parts = []
+                    current_part = ""
+                    
+                    for line in summary_text.split('\n'):
+                        if len(current_part) + len(line) + 1 <= 4000:
+                            current_part += line + '\n'
+                        else:
+                            if current_part:
+                                parts.append(current_part.strip())
+                            if len(line) > 4000:
+                                # 对超长行进行进一步分割
+                                for i in range(0, len(line), 4000):
+                                    parts.append(line[i:i+4000])
+                            else:
+                                current_part = line + '\n'
+                    
+                    if current_part:
+                        parts.append(current_part.strip())
+                    
+                    # 发送所有部分并收集消息ID
+                    for i, part in enumerate(parts):
+                        part_text = f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}"
+                        msg = await client.send_message(source_channel, part_text, link_preview=False)
+                        report_message_ids.append(msg.id)
+                
+                logger.info(f"成功向源频道 {source_channel} 发送报告，消息ID: {report_message_ids}")
             except Exception as e:
                 logger.error(f"向源频道 {source_channel} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
     else:
@@ -430,10 +510,50 @@ async def send_report(summary_text, source_channel=None, client=None):
             if source_channel and SEND_REPORT_TO_SOURCE:
                 try:
                     logger.info(f"正在向源频道 {source_channel} 发送报告")
-                    await send_long_message(client, source_channel, summary_text)
-                    logger.info(f"成功向源频道 {source_channel} 发送报告")
+                    # 直接调用client.send_message并收集消息ID
+                    if len(summary_text) <= 4000:
+                        # 短消息直接发送
+                        msg = await client.send_message(source_channel, summary_text, link_preview=False)
+                        report_message_ids.append(msg.id)
+                    else:
+                        # 长消息分段发送，收集每个分段的消息ID
+                        # 提取频道名称用于分段消息标题
+                        channel_title = "频道周报汇总"
+                        if "**" in summary_text and "** " in summary_text:
+                            start_idx = summary_text.index("**") + 2
+                            end_idx = summary_text.index("** ", start_idx)
+                            channel_title = summary_text[start_idx:end_idx]
+                        
+                        # 分段发送
+                        parts = []
+                        current_part = ""
+                        
+                        for line in summary_text.split('\n'):
+                            if len(current_part) + len(line) + 1 <= 4000:
+                                current_part += line + '\n'
+                            else:
+                                if current_part:
+                                    parts.append(current_part.strip())
+                                if len(line) > 4000:
+                                    for i in range(0, len(line), 4000):
+                                        parts.append(line[i:i+4000])
+                                else:
+                                    current_part = line + '\n'
+                        
+                        if current_part:
+                            parts.append(current_part.strip())
+                        
+                        # 发送所有部分并收集消息ID
+                        for i, part in enumerate(parts):
+                            part_text = f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}"
+                            msg = await client.send_message(source_channel, part_text, link_preview=False)
+                            report_message_ids.append(msg.id)
+                    
+                    logger.info(f"成功向源频道 {source_channel} 发送报告，消息ID: {report_message_ids}")
                 except Exception as e:
                     logger.error(f"向源频道 {source_channel} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
+    
+    return report_message_ids
 
 async def main_job():
     start_time = datetime.now()
@@ -444,11 +564,21 @@ async def main_job():
         for channel in CHANNELS:
             logger.info(f"开始处理频道: {channel}")
             
-            # 读取该频道的上次总结时间
-            channel_last_summary_time = load_last_summary_time(channel)
+            # 读取该频道的上次总结时间和报告消息ID
+            channel_summary_data = load_last_summary_time(channel, include_report_ids=True)
+            if channel_summary_data:
+                channel_last_summary_time = channel_summary_data["time"]
+                report_message_ids_to_exclude = channel_summary_data["report_message_ids"]
+            else:
+                channel_last_summary_time = None
+                report_message_ids_to_exclude = []
             
-            # 抓取该频道从上次总结时间开始的消息
-            messages_by_channel = await fetch_last_week_messages([channel], start_time=channel_last_summary_time)
+            # 抓取该频道从上次总结时间开始的消息，排除已发送的报告消息
+            messages_by_channel = await fetch_last_week_messages(
+                [channel], 
+                start_time=channel_last_summary_time,
+                report_message_ids={channel: report_message_ids_to_exclude}
+            )
             
             # 获取该频道的消息
             messages = messages_by_channel.get(channel, [])
@@ -459,13 +589,14 @@ async def main_job():
                 channel_name = channel.split('/')[-1]
                 report_text = f"📋 **{channel_name} 频道汇总**\n\n{summary}"
                 # 发送报告给管理员，并根据配置决定是否发送回源频道
+                sent_report_ids = []
                 if SEND_REPORT_TO_SOURCE:
-                    await send_report(report_text, channel)
+                    sent_report_ids = await send_report(report_text, channel)
                 else:
                     await send_report(report_text)
                 
-                # 保存该频道的本次总结时间
-                save_last_summary_time(channel, datetime.now(timezone.utc))
+                # 保存该频道的本次总结时间和报告消息ID
+                save_last_summary_time(channel, datetime.now(timezone.utc), sent_report_ids)
             else:
                 logger.info(f"频道 {channel} 没有新消息需要总结")
         
@@ -585,11 +716,21 @@ async def handle_manual_summary(event):
         
         # 按频道分别处理
         for channel in channels_to_process:
-            # 读取该频道的上次总结时间
-            channel_last_summary_time = load_last_summary_time(channel)
+            # 读取该频道的上次总结时间和报告消息ID
+            channel_summary_data = load_last_summary_time(channel, include_report_ids=True)
+            if channel_summary_data:
+                channel_last_summary_time = channel_summary_data["time"]
+                report_message_ids_to_exclude = channel_summary_data["report_message_ids"]
+            else:
+                channel_last_summary_time = None
+                report_message_ids_to_exclude = []
             
-            # 抓取该频道从上次总结时间开始的消息
-            messages_by_channel = await fetch_last_week_messages([channel], start_time=channel_last_summary_time)
+            # 抓取该频道从上次总结时间开始的消息，排除已发送的报告消息
+            messages_by_channel = await fetch_last_week_messages(
+                [channel], 
+                start_time=channel_last_summary_time,
+                report_message_ids={channel: report_message_ids_to_exclude}
+            )
             
             # 获取该频道的消息
             messages = messages_by_channel.get(channel, [])
@@ -602,13 +743,14 @@ async def handle_manual_summary(event):
                 # 向请求者发送总结
                 await send_long_message(event.client, sender_id, report_text)
                 # 根据配置决定是否向源频道发送总结，传递现有客户端实例避免数据库锁定
+                sent_report_ids = []
                 if SEND_REPORT_TO_SOURCE:
-                    await send_report(report_text, channel, event.client)
+                    sent_report_ids = await send_report(report_text, channel, event.client)
                 else:
                     await send_report(report_text, None, event.client)
                 
-                # 保存该频道的本次总结时间
-                save_last_summary_time(channel, datetime.now(timezone.utc))
+                # 保存该频道的本次总结时间和报告消息ID
+                save_last_summary_time(channel, datetime.now(timezone.utc), sent_report_ids)
             else:
                 logger.info(f"频道 {channel} 没有新消息需要总结")
                 await send_long_message(event.client, sender_id, f"📋 **{channel.split('/')[-1]} 频道汇总**\n\n该频道自上次总结以来没有新消息。")
