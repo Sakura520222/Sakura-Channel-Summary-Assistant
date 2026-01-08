@@ -226,3 +226,4 @@ config.json
 prompt.txt
 .gitignore
 .last_summary_time
+.last_summary_time.json

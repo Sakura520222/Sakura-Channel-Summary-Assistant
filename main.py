@@ -44,7 +44,7 @@ logger.info("已加载 .env 文件中的环境变量")
 PROMPT_FILE = "prompt.txt"
 CONFIG_FILE = "config.json"
 RESTART_FLAG_FILE = ".restart_flag"
-LAST_SUMMARY_FILE = ".last_summary_time"
+LAST_SUMMARY_FILE = ".last_summary_time.json"
 logger.debug(f"配置文件路径: 提示词文件={PROMPT_FILE}, 配置文件={CONFIG_FILE}, 上次总结时间文件={LAST_SUMMARY_FILE}")
 
 # 默认提示词
@@ -81,34 +81,76 @@ def save_prompt(prompt):
         logger.error(f"保存提示词到文件 {PROMPT_FILE} 时出错: {type(e).__name__}: {e}", exc_info=True)
 
 # 读取上次总结时间函数
-def load_last_summary_time():
-    """从文件中读取上次总结的时间，如果文件不存在则返回None"""
+
+def load_last_summary_time(channel=None):
+    """从文件中读取上次总结的时间，如果文件不存在则返回None
+    
+    Args:
+        channel: 可选，指定频道。如果提供，只返回该频道的上次总结时间；
+                如果不提供，返回所有频道的上次总结时间字典
+    """
     logger.info(f"开始读取上次总结时间文件: {LAST_SUMMARY_FILE}")
     try:
         with open(LAST_SUMMARY_FILE, "r", encoding="utf-8") as f:
+            import json
             content = f.read().strip()
             if content:
-                last_time = datetime.fromisoformat(content)
-                logger.info(f"成功读取上次总结时间: {last_time}")
-                return last_time
+                last_times = json.loads(content)
+                logger.info(f"成功读取所有频道的上次总结时间: {last_times}")
+                if channel:
+                    # 返回指定频道的时间，如果不存在则返回None
+                    channel_time = last_times.get(channel)
+                    if channel_time:
+                        channel_time_obj = datetime.fromisoformat(channel_time)
+                        logger.info(f"成功读取频道 {channel} 的上次总结时间: {channel_time_obj}")
+                        return channel_time_obj
+                    else:
+                        logger.warning(f"频道 {channel} 的上次总结时间不存在")
+                        return None
+                else:
+                    # 转换所有时间字符串为datetime对象并返回
+                    converted_times = {}
+                    for ch, time_str in last_times.items():
+                        converted_times[ch] = datetime.fromisoformat(time_str)
+                    return converted_times
             else:
                 logger.warning(f"上次总结时间文件 {LAST_SUMMARY_FILE} 内容为空")
-                return None
+                return None if channel else {}
     except FileNotFoundError:
         logger.warning(f"上次总结时间文件 {LAST_SUMMARY_FILE} 不存在")
-        return None
+        return None if channel else {}
     except Exception as e:
         logger.error(f"读取上次总结时间文件 {LAST_SUMMARY_FILE} 时出错: {type(e).__name__}: {e}", exc_info=True)
-        return None
+        return None if channel else {}
 
 # 保存上次总结时间函数
-def save_last_summary_time(time_to_save):
-    """将上次总结的时间保存到文件中"""
-    logger.info(f"开始保存上次总结时间到文件: {LAST_SUMMARY_FILE}")
+
+def save_last_summary_time(channel, time_to_save):
+    """将指定频道的上次总结时间保存到文件中
+    
+    Args:
+        channel: 频道标识
+        time_to_save: 要保存的时间对象
+    """
+    logger.info(f"开始保存频道 {channel} 的上次总结时间到文件: {LAST_SUMMARY_FILE}")
     try:
+        import json
+        # 先读取现有数据
+        existing_data = {}
+        if os.path.exists(LAST_SUMMARY_FILE):
+            with open(LAST_SUMMARY_FILE, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if content:
+                    existing_data = json.loads(content)
+        
+        # 更新指定频道的时间
+        existing_data[channel] = time_to_save.isoformat()
+        
+        # 写入文件
         with open(LAST_SUMMARY_FILE, "w", encoding="utf-8") as f:
-            f.write(time_to_save.isoformat())
-        logger.info(f"成功保存上次总结时间: {time_to_save}")
+            json.dump(existing_data, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"成功保存频道 {channel} 的上次总结时间: {time_to_save}")
     except Exception as e:
         logger.error(f"保存上次总结时间到文件 {LAST_SUMMARY_FILE} 时出错: {type(e).__name__}: {e}", exc_info=True)
 
@@ -398,27 +440,34 @@ async def main_job():
     logger.info(f"定时任务启动: {start_time}")
     
     try:
-        # 读取上次总结时间
-        last_summary_time = load_last_summary_time()
-        
-        # 抓取消息，从上次总结时间开始
-        messages_by_channel = await fetch_last_week_messages(start_time=last_summary_time)
-        
-        # 按频道分别生成和发送总结报告
-        for channel, messages in messages_by_channel.items():
-            logger.info(f"开始处理频道 {channel} 的消息")
-            summary = analyze_with_ai(messages)
-            # 获取频道名称用于报告标题
-            channel_name = channel.split('/')[-1]
-            report_text = f"📋 **{channel_name} 频道汇总**\n\n{summary}"
-            # 发送报告给管理员，并根据配置决定是否发送回源频道
-            if SEND_REPORT_TO_SOURCE:
-                await send_report(report_text, channel)
+        # 按频道分别处理
+        for channel in CHANNELS:
+            logger.info(f"开始处理频道: {channel}")
+            
+            # 读取该频道的上次总结时间
+            channel_last_summary_time = load_last_summary_time(channel)
+            
+            # 抓取该频道从上次总结时间开始的消息
+            messages_by_channel = await fetch_last_week_messages([channel], start_time=channel_last_summary_time)
+            
+            # 获取该频道的消息
+            messages = messages_by_channel.get(channel, [])
+            if messages:
+                logger.info(f"开始处理频道 {channel} 的消息")
+                summary = analyze_with_ai(messages)
+                # 获取频道名称用于报告标题
+                channel_name = channel.split('/')[-1]
+                report_text = f"📋 **{channel_name} 频道汇总**\n\n{summary}"
+                # 发送报告给管理员，并根据配置决定是否发送回源频道
+                if SEND_REPORT_TO_SOURCE:
+                    await send_report(report_text, channel)
+                else:
+                    await send_report(report_text)
+                
+                # 保存该频道的本次总结时间
+                save_last_summary_time(channel, datetime.now(timezone.utc))
             else:
-                await send_report(report_text)
-        
-        # 保存本次总结时间
-        save_last_summary_time(datetime.now(timezone.utc))
+                logger.info(f"频道 {channel} 没有新消息需要总结")
         
         end_time = datetime.now()
         processing_time = (end_time - start_time).total_seconds()
@@ -504,9 +553,6 @@ async def handle_manual_summary(event):
     
     # 解析命令参数，支持指定频道
     try:
-        # 读取上次总结时间
-        last_summary_time = load_last_summary_time()
-        
         # 分割命令和参数
         parts = command.split()
         if len(parts) > 1:
@@ -532,29 +578,40 @@ async def handle_manual_summary(event):
                 await event.reply("没有找到有效的指定频道")
                 return
             
-            # 执行总结任务，只处理指定的有效频道，从上次总结时间开始
-            messages_by_channel = await fetch_last_week_messages(valid_channels, start_time=last_summary_time)
+            channels_to_process = valid_channels
         else:
-            # 没有指定频道，处理所有配置的频道，从上次总结时间开始
-            messages_by_channel = await fetch_last_week_messages(start_time=last_summary_time)
+            # 没有指定频道，处理所有配置的频道
+            channels_to_process = CHANNELS
         
-        # 按频道分别生成和发送总结报告
-        for channel, messages in messages_by_channel.items():
-            logger.info(f"开始处理频道 {channel} 的消息")
-            summary = analyze_with_ai(messages)
-            # 获取频道名称用于报告标题
-            channel_name = channel.split('/')[-1]
-            report_text = f"📋 **{channel_name} 频道汇总**\n\n{summary}"
-            # 向请求者发送总结
-            await send_long_message(event.client, sender_id, report_text)
-            # 根据配置决定是否向源频道发送总结，传递现有客户端实例避免数据库锁定
-            if SEND_REPORT_TO_SOURCE:
-                await send_report(report_text, channel, event.client)
+        # 按频道分别处理
+        for channel in channels_to_process:
+            # 读取该频道的上次总结时间
+            channel_last_summary_time = load_last_summary_time(channel)
+            
+            # 抓取该频道从上次总结时间开始的消息
+            messages_by_channel = await fetch_last_week_messages([channel], start_time=channel_last_summary_time)
+            
+            # 获取该频道的消息
+            messages = messages_by_channel.get(channel, [])
+            if messages:
+                logger.info(f"开始处理频道 {channel} 的消息")
+                summary = analyze_with_ai(messages)
+                # 获取频道名称用于报告标题
+                channel_name = channel.split('/')[-1]
+                report_text = f"📋 **{channel_name} 频道汇总**\n\n{summary}"
+                # 向请求者发送总结
+                await send_long_message(event.client, sender_id, report_text)
+                # 根据配置决定是否向源频道发送总结，传递现有客户端实例避免数据库锁定
+                if SEND_REPORT_TO_SOURCE:
+                    await send_report(report_text, channel, event.client)
+                else:
+                    await send_report(report_text, None, event.client)
+                
+                # 保存该频道的本次总结时间
+                save_last_summary_time(channel, datetime.now(timezone.utc))
             else:
-                await send_report(report_text, None, event.client)
-        
-        # 保存本次总结时间
-        save_last_summary_time(datetime.now(timezone.utc))
+                logger.info(f"频道 {channel} 没有新消息需要总结")
+                await send_long_message(event.client, sender_id, f"📋 **{channel.split('/')[-1]} 频道汇总**\n\n该频道自上次总结以来没有新消息。")
         
         logger.info(f"命令 {command} 执行成功")
     except Exception as e:
@@ -991,7 +1048,9 @@ async def handle_delete_channel(event):
         await event.reply(f"删除频道时出错: {e}")
 
 async def handle_clear_summary_time(event):
-    """处理/clearsummarytime命令，清除上次总结时间记录"""
+    """处理/clearsummarytime命令，清除上次总结时间记录
+    支持清除所有频道或特定频道的时间记录
+    """
     sender_id = event.sender_id
     command = event.text
     logger.info(f"收到命令: {command}，发送者: {sender_id}")
@@ -1003,12 +1062,43 @@ async def handle_clear_summary_time(event):
         return
     
     try:
-        # 检查文件是否存在
+        # 解析命令参数
+        parts = command.split()
+        specific_channel = None
+        if len(parts) > 1:
+            # 有指定频道参数
+            channel_part = parts[1]
+            if channel_part.startswith('http'):
+                specific_channel = channel_part
+            else:
+                specific_channel = f"https://t.me/{channel_part}"
+        
+        import json
         if os.path.exists(LAST_SUMMARY_FILE):
-            # 删除文件以清除时间记录
-            os.remove(LAST_SUMMARY_FILE)
-            logger.info(f"已清除上次总结时间记录，文件 {LAST_SUMMARY_FILE} 已删除")
-            await event.reply("已成功清除上次总结时间记录。下次总结将重新抓取过去一周的消息。")
+            if specific_channel:
+                # 清除特定频道的时间记录
+                with open(LAST_SUMMARY_FILE, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        existing_data = json.loads(content)
+                        if specific_channel in existing_data:
+                            del existing_data[specific_channel]
+                            # 写回文件
+                            with open(LAST_SUMMARY_FILE, "w", encoding="utf-8") as f_write:
+                                json.dump(existing_data, f_write, ensure_ascii=False, indent=2)
+                            logger.info(f"已清除频道 {specific_channel} 的上次总结时间记录")
+                            await event.reply(f"已成功清除频道 {specific_channel} 的上次总结时间记录。")
+                        else:
+                            logger.info(f"频道 {specific_channel} 的上次总结时间记录不存在，无需清除")
+                            await event.reply(f"频道 {specific_channel} 的上次总结时间记录不存在，无需清除。")
+                    else:
+                        logger.info(f"上次总结时间记录文件 {LAST_SUMMARY_FILE} 内容为空，无需清除")
+                        await event.reply("上次总结时间记录文件内容为空，无需清除。")
+            else:
+                # 清除所有频道的时间记录
+                os.remove(LAST_SUMMARY_FILE)
+                logger.info(f"已清除所有频道的上次总结时间记录，文件 {LAST_SUMMARY_FILE} 已删除")
+                await event.reply("已成功清除所有频道的上次总结时间记录。下次总结将重新抓取过去一周的消息。")
         else:
             logger.info(f"上次总结时间记录文件 {LAST_SUMMARY_FILE} 不存在，无需清除")
             await event.reply("上次总结时间记录文件不存在，无需清除。")
