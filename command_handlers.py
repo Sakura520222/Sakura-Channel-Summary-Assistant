@@ -109,11 +109,13 @@ async def handle_manual_summary(event):
                 # 向请求者发送总结
                 await send_long_message(event.client, sender_id, report_text)
                 # 根据配置决定是否向源频道发送总结，传递现有客户端实例避免数据库锁定
+                # 如果请求者是管理员，跳过向管理员发送报告，避免重复发送
+                skip_admins = sender_id in ADMIN_LIST or ADMIN_LIST == ['me']
                 sent_report_ids = []
                 if SEND_REPORT_TO_SOURCE:
-                    sent_report_ids = await send_report(report_text, channel, event.client)
+                    sent_report_ids = await send_report(report_text, channel, event.client, skip_admins=skip_admins)
                 else:
-                    await send_report(report_text, None, event.client)
+                    await send_report(report_text, None, event.client, skip_admins=skip_admins)
                 
                 # 保存该频道的本次总结时间和报告消息ID
                 save_last_summary_time(channel, datetime.now(timezone.utc), sent_report_ids)

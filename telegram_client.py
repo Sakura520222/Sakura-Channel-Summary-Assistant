@@ -129,13 +129,14 @@ async def send_long_message(client, chat_id, text, max_length=4000):
         await client.send_message(chat_id, f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}", link_preview=False)
         logger.debug(f"成功发送第 {i+1}/{len(parts)} 段")
 
-async def send_report(summary_text, source_channel=None, client=None):
+async def send_report(summary_text, source_channel=None, client=None, skip_admins=False):
     """发送报告
     
     Args:
         summary_text: 报告内容
         source_channel: 源频道，可选。如果提供，将向该频道发送报告
         client: 可选。已存在的Telegram客户端实例，如果不提供，将创建一个新实例
+        skip_admins: 是否跳过向管理员发送报告，默认为False
     
     Returns:
         list: 发送到源频道的消息ID列表
@@ -149,14 +150,17 @@ async def send_report(summary_text, source_channel=None, client=None):
     # 如果提供了客户端实例，直接使用它；否则创建新实例
     if client:
         logger.info("使用现有客户端实例发送报告")
-        # 向所有管理员发送消息
-        for admin_id in ADMIN_LIST:
-            try:
-                logger.info(f"正在向管理员 {admin_id} 发送报告")
-                await send_long_message(client, admin_id, summary_text)
-                logger.info(f"成功向管理员 {admin_id} 发送报告")
-            except Exception as e:
-                logger.error(f"向管理员 {admin_id} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
+        # 向所有管理员发送消息（除非跳过）
+        if not skip_admins:
+            for admin_id in ADMIN_LIST:
+                try:
+                    logger.info(f"正在向管理员 {admin_id} 发送报告")
+                    await send_long_message(client, admin_id, summary_text)
+                    logger.info(f"成功向管理员 {admin_id} 发送报告")
+                except Exception as e:
+                    logger.error(f"向管理员 {admin_id} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
+        else:
+            logger.info("跳过向管理员发送报告")
         
         # 如果提供了源频道且配置允许，向源频道发送报告
         if source_channel and SEND_REPORT_TO_SOURCE:
@@ -212,14 +216,17 @@ async def send_report(summary_text, source_channel=None, client=None):
             await client.start(bot_token=BOT_TOKEN)
             logger.info("Telegram机器人客户端已启动")
             
-            # 向所有管理员发送消息
-            for admin_id in ADMIN_LIST:
-                try:
-                    logger.info(f"正在向管理员 {admin_id} 发送报告")
-                    await send_long_message(client, admin_id, summary_text)
-                    logger.info(f"成功向管理员 {admin_id} 发送报告")
-                except Exception as e:
-                    logger.error(f"向管理员 {admin_id} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
+            # 向所有管理员发送消息（除非跳过）
+            if not skip_admins:
+                for admin_id in ADMIN_LIST:
+                    try:
+                        logger.info(f"正在向管理员 {admin_id} 发送报告")
+                        await send_long_message(client, admin_id, summary_text)
+                        logger.info(f"成功向管理员 {admin_id} 发送报告")
+                    except Exception as e:
+                        logger.error(f"向管理员 {admin_id} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
+            else:
+                logger.info("跳过向管理员发送报告")
             
             # 如果提供了源频道且配置允许，向源频道发送报告
             if source_channel and SEND_REPORT_TO_SOURCE:
