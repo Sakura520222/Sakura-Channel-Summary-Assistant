@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.1] - 2026-01-09
+
+### 修复
+- 修复 GitHub Actions 工作流权限问题
+- 修复工作流语法错误（无效的 `workflows: write` 权限）
+- 修复工作流触发条件（同时支持 `main` 和 `master` 分支）
+- 改进标签创建逻辑，处理已存在标签的情况
+
 ## [1.0.0] - 2026-01-09
 
 ### 新增

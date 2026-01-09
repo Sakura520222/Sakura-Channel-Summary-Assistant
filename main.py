@@ -22,7 +22,7 @@ from command_handlers import (
 )
 
 # 版本信息
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 async def send_startup_message(client):
     """向所有管理员发送启动消息"""
