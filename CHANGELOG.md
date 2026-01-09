@@ -5,13 +5,6 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [1.0.2] - 2026-01-09
-
-### 修复
-- 修复 GitHub Actions Release 创建问题
-- 添加调试信息和工作流输出验证
-- 修复 Release 资源上传逻辑
-
 ## [1.0.1] - 2026-01-09
 
 ### 修复
