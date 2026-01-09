@@ -1,6 +1,28 @@
-# Sakura-频道总结助手
+# Sakura-频道总结助手 v1.1.3
 
 Sakura-频道总结助手是一个基于Telegram API和AI技术的智能频道内容管理工具，专为Telegram频道管理员设计，提供自动化的消息汇总和报告生成服务。支持多种OpenAI兼容的AI服务，包括DeepSeek、OpenAI等。
+
+## 最新更新 (v1.1.3)
+
+### 🚀 新增功能
+- **完整的Web管理界面**：提供直观的浏览器界面管理机器人所有功能
+- **Docker容器化支持**：Web管理界面完全支持Docker部署
+- **自动化发布流程**：GitHub工作流自动打包和发布
+
+### 🔧 技术改进
+- **线程安全通信**：Web界面和Telegram客户端通过队列安全通信
+- **全面的错误处理**：防止程序崩溃，提高系统稳定性
+- **生产就绪配置**：Docker Compose包含健康检查、资源限制、日志配置
+
+### 📦 部署方式
+- **本地运行**：`python main.py`，访问 http://localhost:8000
+- **Docker运行**：`docker-compose up -d`，访问 http://localhost:8000
+- **默认密码**：Sakura
+
+### 🐛 问题修复
+- 修复了Web管理界面触发总结时的数据库锁定问题
+- 修复了身份验证和事件循环冲突问题
+- 修复了控制台闪退和任务结果反馈问题
 
 ## 功能特性
 
@@ -292,7 +314,7 @@ Sakura-频道总结助手提供了完整的Web管理界面，可以通过浏览�
 
 ```
 e:/项目/tg-bot/
-├── web_app.py              # Web服务器主文件（v1.1.2，包含所有API端点）
+├── web_app.py              # Web服务器主文件
 ├── restart_bot_improved.py # 改进的重启脚本（精确停止进程）
 ├── main.py                 # 主程序（支持Web重启通知）
 ├── templates/              # HTML模板（7个完整页面）
