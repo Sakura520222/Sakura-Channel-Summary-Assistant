@@ -73,6 +73,7 @@ jobs:
       
       - name: Create new tag
         if: steps.check_version.outputs.CHANGED == 'true'
+        id: create_tag
         run: |
           CURRENT_VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
           TAG_NAME="v$CURRENT_VERSION"
@@ -96,6 +97,7 @@ jobs:
           
           echo "已创建并推送tag: $TAG_NAME"
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "TAG_CREATED=true" >> $GITHUB_OUTPUT
       
       - name: Log skip reason
         if: steps.check_version.outputs.CHANGED == 'false'
@@ -127,6 +129,12 @@ jobs:
       actions: write
     
     steps:
+      - name: Debug outputs
+        run: |
+          echo "CHANGED: ${{ needs.check-and-create-tag.outputs.CHANGED }}"
+          echo "TAG_NAME: ${{ needs.check-and-create-tag.outputs.TAG_NAME }}"
+          echo "PY_VERSION: ${{ needs.check-and-create-tag.outputs.PY_VERSION }}"
+      
       - name: Checkout code with tag
         uses: actions/checkout@v4
         with:
@@ -183,6 +191,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ needs.check-and-create-tag.outputs.TAG_NAME }}
           name: "Sakura频道总结助手 v${{ needs.check-and-create-tag.outputs.PY_VERSION }}"
           body: "${{ steps.generate_changelog.outputs.notes }}"
           draft: false
@@ -212,7 +221,10 @@ jobs:
         run: |
           # 创建发布包
           VERSION="${{ needs.check-and-create-tag.outputs.PY_VERSION }}"
+          TAG_NAME="${{ needs.check-and-create-tag.outputs.TAG_NAME }}"
           RELEASE_DIR="sakura-channel-summary-assistant-$VERSION"
+          
+          echo "创建发布包: 版本=$VERSION, 标签=$TAG_NAME"
           mkdir -p "$RELEASE_DIR"
           
           # 复制主要文件
@@ -222,8 +234,9 @@ jobs:
           tar -czf "sakura-channel-summary-assistant-$VERSION.tar.gz" "$RELEASE_DIR/"
           zip -r "sakura-channel-summary-assistant-$VERSION.zip" "$RELEASE_DIR/"
           
+          echo "上传发布资源到: $TAG_NAME"
           # 上传到release
-          gh release upload "v$VERSION" "sakura-channel-summary-assistant-$VERSION.tar.gz" "sakura-channel-summary-assistant-$VERSION.zip" --clobber
+          gh release upload "$TAG_NAME" "sakura-channel-summary-assistant-$VERSION.tar.gz" "sakura-channel-summary-assistant-$VERSION.zip" --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
