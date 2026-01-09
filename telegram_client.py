@@ -6,6 +6,19 @@ from error_handler import retry_with_backoff, record_error
 
 logger = logging.getLogger(__name__)
 
+# 全局变量，用于存储活动的Telegram客户端实例
+_active_client = None
+
+def set_active_client(client):
+    """设置活动的Telegram客户端实例"""
+    global _active_client
+    _active_client = client
+    logger.info("已设置活动的Telegram客户端实例")
+
+def get_active_client():
+    """获取活动的Telegram客户端实例"""
+    return _active_client
+
 @retry_with_backoff(
     max_retries=3,
     base_delay=2.0,
@@ -149,7 +162,7 @@ async def send_report(summary_text, source_channel=None, client=None, skip_admin
     Args:
         summary_text: 报告内容
         source_channel: 源频道，可选。如果提供，将向该频道发送报告
-        client: 可选。已存在的Telegram客户端实例，如果不提供，将创建一个新实例
+        client: 可选。已存在的Telegram客户端实例，如果不提供，将尝试使用活动的客户端实例或创建新实例
         skip_admins: 是否跳过向管理员发送报告，默认为False
     
     Returns:
@@ -161,81 +174,36 @@ async def send_report(summary_text, source_channel=None, client=None, skip_admin
     # 存储发送到源频道的消息ID
     report_message_ids = []
     
-    # 如果提供了客户端实例，直接使用它；否则创建新实例
-    if client:
-        logger.info("使用现有客户端实例发送报告")
-        # 向所有管理员发送消息（除非跳过）
-        if not skip_admins:
-            for admin_id in ADMIN_LIST:
-                try:
-                    logger.info(f"正在向管理员 {admin_id} 发送报告")
-                    await send_long_message(client, admin_id, summary_text)
-                    logger.info(f"成功向管理员 {admin_id} 发送报告")
-                except Exception as e:
-                    logger.error(f"向管理员 {admin_id} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
+    try:
+        # 确定使用哪个客户端实例
+        # 1. 如果提供了客户端实例，直接使用它
+        # 2. 否则，尝试使用活动的客户端实例
+        # 3. 否则，创建新实例
+        if client:
+            logger.info("使用提供的客户端实例发送报告")
+            use_client = client
+            # 如果提供了客户端实例，我们假设它已经启动并连接
+            use_existing_client = True
         else:
-            logger.info("跳过向管理员发送报告")
+            # 尝试获取活动的客户端实例
+            active_client = get_active_client()
+            if active_client:
+                logger.info("使用活动的客户端实例发送报告")
+                use_client = active_client
+                use_existing_client = True
+            else:
+                logger.info("没有活动的客户端实例，创建新客户端实例发送报告")
+                use_client = TelegramClient('bot_session', int(API_ID), API_HASH)
+                use_existing_client = False
         
-        # 如果提供了源频道且配置允许，向源频道发送报告
-        if source_channel and SEND_REPORT_TO_SOURCE:
-            try:
-                logger.info(f"正在向源频道 {source_channel} 发送报告")
-                # 直接调用client.send_message并收集消息ID，因为send_long_message不返回消息ID
-                if len(summary_text) <= 4000:
-                    # 短消息直接发送
-                    msg = await client.send_message(source_channel, summary_text, link_preview=False)
-                    report_message_ids.append(msg.id)
-                else:
-                    # 长消息分段发送，收集每个分段的消息ID
-                    # 提取频道名称用于分段消息标题
-                    channel_title = "频道周报汇总"
-                    if "**" in summary_text and "** " in summary_text:
-                        start_idx = summary_text.index("**") + 2
-                        end_idx = summary_text.index("** ", start_idx)
-                        channel_title = summary_text[start_idx:end_idx]
-                    
-                    # 分段发送
-                    parts = []
-                    current_part = ""
-                    
-                    for line in summary_text.split('\n'):
-                        if len(current_part) + len(line) + 1 <= 4000:
-                            current_part += line + '\n'
-                        else:
-                            if current_part:
-                                parts.append(current_part.strip())
-                            if len(line) > 4000:
-                                # 对超长行进行进一步分割
-                                for i in range(0, len(line), 4000):
-                                    parts.append(line[i:i+4000])
-                            else:
-                                current_part = line + '\n'
-                    
-                    if current_part:
-                        parts.append(current_part.strip())
-                    
-                    # 发送所有部分并收集消息ID
-                    for i, part in enumerate(parts):
-                        part_text = f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}"
-                        msg = await client.send_message(source_channel, part_text, link_preview=False)
-                        report_message_ids.append(msg.id)
-                
-                logger.info(f"成功向源频道 {source_channel} 发送报告，消息ID: {report_message_ids}")
-            except Exception as e:
-                logger.error(f"向源频道 {source_channel} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
-    else:
-        logger.info("创建新客户端实例发送报告")
-        client = TelegramClient('bot_session', int(API_ID), API_HASH)
-        async with client:
-            await client.start(bot_token=BOT_TOKEN)
-            logger.info("Telegram机器人客户端已启动")
-            
+        if use_existing_client:
+            # 使用现有的客户端实例（已经启动并连接）
             # 向所有管理员发送消息（除非跳过）
             if not skip_admins:
                 for admin_id in ADMIN_LIST:
                     try:
                         logger.info(f"正在向管理员 {admin_id} 发送报告")
-                        await send_long_message(client, admin_id, summary_text)
+                        await send_long_message(use_client, admin_id, summary_text)
                         logger.info(f"成功向管理员 {admin_id} 发送报告")
                     except Exception as e:
                         logger.error(f"向管理员 {admin_id} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
@@ -246,10 +214,10 @@ async def send_report(summary_text, source_channel=None, client=None, skip_admin
             if source_channel and SEND_REPORT_TO_SOURCE:
                 try:
                     logger.info(f"正在向源频道 {source_channel} 发送报告")
-                    # 直接调用client.send_message并收集消息ID
+                    # 直接调用use_client.send_message并收集消息ID
                     if len(summary_text) <= 4000:
                         # 短消息直接发送
-                        msg = await client.send_message(source_channel, summary_text, link_preview=False)
+                        msg = await use_client.send_message(source_channel, summary_text, link_preview=False)
                         report_message_ids.append(msg.id)
                     else:
                         # 长消息分段发送，收集每个分段的消息ID
@@ -282,11 +250,80 @@ async def send_report(summary_text, source_channel=None, client=None, skip_admin
                         # 发送所有部分并收集消息ID
                         for i, part in enumerate(parts):
                             part_text = f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}"
-                            msg = await client.send_message(source_channel, part_text, link_preview=False)
+                            msg = await use_client.send_message(source_channel, part_text, link_preview=False)
                             report_message_ids.append(msg.id)
                     
                     logger.info(f"成功向源频道 {source_channel} 发送报告，消息ID: {report_message_ids}")
                 except Exception as e:
                     logger.error(f"向源频道 {source_channel} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
-    
-    return report_message_ids
+        else:
+            # 创建新的客户端实例
+            async with use_client:
+                await use_client.start(bot_token=BOT_TOKEN)
+                logger.info("Telegram机器人客户端已启动")
+                
+                # 向所有管理员发送消息（除非跳过）
+                if not skip_admins:
+                    for admin_id in ADMIN_LIST:
+                        try:
+                            logger.info(f"正在向管理员 {admin_id} 发送报告")
+                            await send_long_message(use_client, admin_id, summary_text)
+                            logger.info(f"成功向管理员 {admin_id} 发送报告")
+                        except Exception as e:
+                            logger.error(f"向管理员 {admin_id} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
+                else:
+                    logger.info("跳过向管理员发送报告")
+                
+                # 如果提供了源频道且配置允许，向源频道发送报告
+                if source_channel and SEND_REPORT_TO_SOURCE:
+                    try:
+                        logger.info(f"正在向源频道 {source_channel} 发送报告")
+                        # 直接调用use_client.send_message并收集消息ID
+                        if len(summary_text) <= 4000:
+                            # 短消息直接发送
+                            msg = await use_client.send_message(source_channel, summary_text, link_preview=False)
+                            report_message_ids.append(msg.id)
+                        else:
+                            # 长消息分段发送，收集每个分段的消息ID
+                            # 提取频道名称用于分段消息标题
+                            channel_title = "频道周报汇总"
+                            if "**" in summary_text and "** " in summary_text:
+                                start_idx = summary_text.index("**") + 2
+                                end_idx = summary_text.index("** ", start_idx)
+                                channel_title = summary_text[start_idx:end_idx]
+                            
+                            # 分段发送
+                            parts = []
+                            current_part = ""
+                            
+                            for line in summary_text.split('\n'):
+                                if len(current_part) + len(line) + 1 <= 4000:
+                                    current_part += line + '\n'
+                                else:
+                                    if current_part:
+                                        parts.append(current_part.strip())
+                                    if len(line) > 4000:
+                                        for i in range(0, len(line), 4000):
+                                            parts.append(line[i:i+4000])
+                                    else:
+                                        current_part = line + '\n'
+                            
+                            if current_part:
+                                parts.append(current_part.strip())
+                            
+                            # 发送所有部分并收集消息ID
+                            for i, part in enumerate(parts):
+                                part_text = f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}"
+                                msg = await use_client.send_message(source_channel, part_text, link_preview=False)
+                                report_message_ids.append(msg.id)
+                        
+                        logger.info(f"成功向源频道 {source_channel} 发送报告，消息ID: {report_message_ids}")
+                    except Exception as e:
+                        logger.error(f"向源频道 {source_channel} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
+        
+        return report_message_ids
+        
+    except Exception as e:
+        logger.error(f"发送报告时发生严重错误: {type(e).__name__}: {e}", exc_info=True)
+        # 返回空列表，而不是让程序崩溃
+        return []

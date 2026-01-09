@@ -65,10 +65,15 @@ async def main_job(channel=None):
                 report_text = f"**{channel_name} 周报 {start_date_str}-{end_date_str}**\n\n{summary}"
                 # 发送报告给管理员，并根据配置决定是否发送回源频道
                 sent_report_ids = []
+                
+                # 尝试获取活动的客户端实例
+                from telegram_client import get_active_client
+                active_client = get_active_client()
+                
                 if SEND_REPORT_TO_SOURCE:
-                    sent_report_ids = await send_report(report_text, channel)
+                    sent_report_ids = await send_report(report_text, channel, client=active_client)
                 else:
-                    await send_report(report_text)
+                    await send_report(report_text, client=active_client)
                 
                 # 保存该频道的本次总结时间和报告消息ID
                 save_last_summary_time(channel, datetime.now(timezone.utc), sent_report_ids)

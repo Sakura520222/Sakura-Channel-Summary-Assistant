@@ -26,7 +26,7 @@ from error_handler import initialize_error_handling, get_health_checker, get_err
 from web_app import run_web_server
 
 # 版本信息
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 
 async def send_startup_message(client):
     """向所有管理员发送启动消息"""
@@ -126,6 +126,10 @@ async def main():
         # 启动机器人客户端，处理命令
         logger.info("开始初始化Telegram机器人客户端...")
         client = TelegramClient('bot_session', int(API_ID), API_HASH)
+        
+        # 设置活动的客户端实例，供其他模块使用
+        from telegram_client import set_active_client
+        set_active_client(client)
         
         # 添加命令处理，支持中英文命令
         logger.debug("开始添加命令处理器...")
@@ -239,6 +243,33 @@ async def main():
                 logger.info("重启标记文件已删除")
             except Exception as e:
                 logger.error(f"处理重启标记时出错: {type(e).__name__}: {e}", exc_info=True)
+        
+        # 启动一个后台任务来检查Web管理界面触发的总结任务
+        async def check_web_summary_tasks():
+            """检查Web管理界面触发的总结任务"""
+            from web_app import summary_task_queue
+            import asyncio
+            
+            while True:
+                try:
+                    # 检查队列中是否有任务
+                    if not summary_task_queue.empty():
+                        channel = summary_task_queue.get()
+                        logger.info(f"从Web管理界面接收到总结任务: {channel}")
+                        
+                        # 执行总结任务
+                        from scheduler import main_job
+                        await main_job(channel)
+                        
+                        logger.info(f"Web管理界面触发的总结任务完成: {channel}")
+                except Exception as e:
+                    logger.error(f"处理Web管理界面总结任务时出错: {e}")
+                
+                # 每秒检查一次
+                await asyncio.sleep(1)
+        
+        # 启动后台任务
+        asyncio.create_task(check_web_summary_tasks())
         
         # 保持客户端运行
         await client.run_until_disconnected()

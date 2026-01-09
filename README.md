@@ -292,7 +292,7 @@ Sakura-频道总结助手提供了完整的Web管理界面，可以通过浏览�
 
 ```
 e:/项目/tg-bot/
-├── web_app.py              # Web服务器主文件（v1.1.1，包含所有API端点）
+├── web_app.py              # Web服务器主文件（v1.1.2，包含所有API端点）
 ├── restart_bot_improved.py # 改进的重启脚本（精确停止进程）
 ├── main.py                 # 主程序（支持Web重启通知）
 ├── templates/              # HTML模板（7个完整页面）

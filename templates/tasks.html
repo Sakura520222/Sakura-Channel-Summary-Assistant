@@ -138,19 +138,18 @@
 <div class="row">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="bi bi-history me-2"></i>最近执行记录
                 </h5>
+                <button class="btn btn-outline-secondary btn-sm" onclick="refreshTaskHistory()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
             </div>
             <div class="card-body">
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle me-2"></i>
-                    任务执行记录功能需要配置日志系统。当前显示最近的任务状态。
-                </div>
-                
+                {% if recent_tasks %}
                 <div class="table-responsive">
-                    <table class="table table-sm">
+                    <table class="table table-sm table-hover">
                         <thead>
                             <tr>
                                 <th>时间</th>
@@ -161,16 +160,61 @@
                             </tr>
                         </thead>
                         <tbody>
+                            {% for task in recent_tasks|reverse %}
                             <tr>
-                                <td>--:--:--</td>
-                                <td>--</td>
-                                <td>--</td>
-                                <td>--</td>
-                                <td>--</td>
+                                <td>
+                                    <small>{{ task.timestamp.strftime('%H:%M:%S') }}</small>
+                                    <br>
+                                    <small class="text-muted">{{ task.timestamp.strftime('%m-%d') }}</small>
+                                </td>
+                                <td>
+                                    <code class="small">{{ task.channel|truncate(20) }}</code>
+                                </td>
+                                <td>
+                                    <span class="badge {% if task.task_type == '手动触发总结' %}bg-primary{% elif task.task_type == '定时任务' %}bg-info{% else %}bg-secondary{% endif %}">
+                                        {{ task.task_type }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if task.status == '成功' or task.status == '已触发' %}
+                                    <span class="badge bg-success">{{ task.status }}</span>
+                                    {% elif task.status == '失败' %}
+                                    <span class="badge bg-danger">{{ task.status }}</span>
+                                    {% elif task.status == '执行中' %}
+                                    <span class="badge bg-warning">{{ task.status }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ task.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ task.result|truncate(30) }}</small>
+                                    {% if task.result|length > 30 %}
+                                    <button class="btn btn-link btn-sm p-0 ms-1" onclick="showTaskDetails('{{ loop.index }}')" title="查看详情">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <div id="task-details-{{ loop.index }}" class="d-none">
+                                        {{ task.result }}
+                                    </div>
+                                    {% endif %}
+                                </td>
                             </tr>
-                            <!-- 这里可以动态添加执行记录 -->
+                            {% endfor %}
                         </tbody>
                     </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-clock-history text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3 text-muted">暂无执行记录</h5>
+                    <p class="text-muted">手动触发总结任务后，执行记录将显示在这里</p>
+                </div>
+                {% endif %}
+                
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        显示最近 {{ recent_tasks|length if recent_tasks else 0 }} 条执行记录
+                    </small>
                 </div>
             </div>
         </div>
@@ -404,23 +448,24 @@ function refreshTasks() {
 
 // 计算下次执行时间
 function calculateNextExecution(day, hour, minute) {
-    // 星期几映射
+    // 星期几映射到JavaScript的getDay()返回值
     const dayMap = {
+        'sun': 0, // 周日
         'mon': 1, // 周一
         'tue': 2, // 周二
         'wed': 3, // 周三
         'thu': 4, // 周四
         'fri': 5, // 周五
-        'sat': 6, // 周六
-        'sun': 0  // 周日
+        'sat': 6  // 周六
     };
     
     const now = new Date();
     const currentDay = now.getDay(); // 0=周日, 1=周一, ..., 6=周六
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
+    const currentSecond = now.getSeconds();
     
-    const targetDay = dayMap[day] || 1; // 默认为周一
+    const targetDay = dayMap[day] !== undefined ? dayMap[day] : 1; // 默认为周一
     const targetHour = parseInt(hour) || 9;
     const targetMinute = parseInt(minute) || 0;
     
@@ -437,8 +482,8 @@ function calculateNextExecution(day, hour, minute) {
     
     // 如果今天就是目标日，但时间已经过去，就等到下周
     if (daysToAdd === 0) {
-        const currentTime = now.getHours() * 60 + now.getMinutes();
-        const targetTime = targetHour * 60 + targetMinute;
+        const currentTime = currentHour * 3600 + currentMinute * 60 + currentSecond;
+        const targetTime = targetHour * 3600 + targetMinute * 60;
         if (currentTime >= targetTime) {
             targetDate.setDate(targetDate.getDate() + 7);
         }
@@ -535,6 +580,54 @@ document.addEventListener('DOMContentLoaded', function() {
     // 每分钟更新一次时间
     setInterval(updateNextExecutionTimes, 60000);
 });
+
+// 刷新任务历史记录
+function refreshTaskHistory() {
+    showToast('正在刷新任务历史记录...', 'info');
+    setTimeout(() => {
+        location.reload();
+    }, 500);
+}
+
+// 显示任务详情
+function showTaskDetails(taskIndex) {
+    const detailsDiv = document.getElementById(`task-details-${taskIndex}`);
+    if (detailsDiv) {
+        const details = detailsDiv.textContent;
+        // 使用Bootstrap模态框显示详情
+        const modalHtml = `
+            <div class="modal fade" id="taskDetailsModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">任务执行详情</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <pre class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;">${details}</pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 移除现有的模态框
+        const existingModal = document.getElementById('taskDetailsModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // 添加新的模态框
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // 显示模态框
+        const modal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
+        modal.show();
+    }
+}
 
 // 显示Toast通知
 function showToast(message, type = 'info') {
