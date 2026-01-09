@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      workflows: write
+      actions: write
     
     steps:
       - name: Checkout code
@@ -124,7 +124,7 @@ jobs:
     if: needs.check-and-create-tag.outputs.CHANGED == 'true'
     permissions:
       contents: write
-      workflows: write
+      actions: write
     
     steps:
       - name: Checkout code with tag
