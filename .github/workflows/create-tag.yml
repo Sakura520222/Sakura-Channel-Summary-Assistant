@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      workflows: write
     
     steps:
       - name: Checkout code
@@ -77,9 +78,15 @@ jobs:
           TAG_NAME="v$CURRENT_VERSION"
           COMMIT_MSG="${{ github.event.head_commit.message }}"
           
-          # 创建tag
+          # 配置git用户
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          
+          # 删除已存在的本地tag（如果存在）
+          git tag -d "$TAG_NAME" 2>/dev/null || true
+          
+          # 删除远程tag（如果存在）
+          git push origin --delete "$TAG_NAME" 2>/dev/null || true
           
           # 创建带注释的tag
           git tag -a "$TAG_NAME" -m "Release $TAG_NAME" -m "自动创建于: $(date)" -m "提交: $COMMIT_MSG"
@@ -117,6 +124,7 @@ jobs:
     if: needs.check-and-create-tag.outputs.CHANGED == 'true'
     permissions:
       contents: write
+      workflows: write
     
     steps:
       - name: Checkout code with tag
