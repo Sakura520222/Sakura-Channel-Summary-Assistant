@@ -2,9 +2,17 @@ import logging
 from datetime import datetime, timedelta, timezone
 from telethon import TelegramClient
 from config import API_ID, API_HASH, BOT_TOKEN, CHANNELS, ADMIN_LIST, SEND_REPORT_TO_SOURCE
+from error_handler import retry_with_backoff, record_error
 
 logger = logging.getLogger(__name__)
 
+@retry_with_backoff(
+    max_retries=3,
+    base_delay=2.0,
+    max_delay=60.0,
+    exponential_backoff=True,
+    retry_on_exceptions=(ConnectionError, TimeoutError, Exception)
+)
 async def fetch_last_week_messages(channels_to_fetch=None, start_time=None, report_message_ids=None):
     """抓取指定时间范围的频道消息
     
@@ -51,25 +59,31 @@ async def fetch_last_week_messages(channels_to_fetch=None, start_time=None, repo
             exclude_ids = report_message_ids.get(channel, [])
             logger.info(f"频道 {channel} 要排除的报告消息ID列表: {exclude_ids}")
             
-            async for message in client.iter_messages(channel, offset_date=start_time, reverse=True):
-                total_message_count += 1
-                channel_message_count += 1
-                
-                # 跳过报告消息
-                if message.id in exclude_ids:
-                    skipped_report_count += 1
-                    logger.debug(f"跳过报告消息，ID: {message.id}")
-                    continue
-                
-                if message.text:
-                    # 动态获取频道名用于生成链接
-                    channel_part = channel.split('/')[-1]
-                    msg_link = f"https://t.me/{channel_part}/{message.id}"
-                    channel_messages.append(f"内容: {message.text[:500]}\n链接: {msg_link}")
+            try:
+                async for message in client.iter_messages(channel, offset_date=start_time, reverse=True):
+                    total_message_count += 1
+                    channel_message_count += 1
                     
-                    # 每抓取10条消息记录一次日志
-                    if len(channel_messages) % 10 == 0:
-                        logger.debug(f"频道 {channel} 已抓取 {len(channel_messages)} 条有效消息")
+                    # 跳过报告消息
+                    if message.id in exclude_ids:
+                        skipped_report_count += 1
+                        logger.debug(f"跳过报告消息，ID: {message.id}")
+                        continue
+                    
+                    if message.text:
+                        # 动态获取频道名用于生成链接
+                        channel_part = channel.split('/')[-1]
+                        msg_link = f"https://t.me/{channel_part}/{message.id}"
+                        channel_messages.append(f"内容: {message.text[:500]}\n链接: {msg_link}")
+                        
+                        # 每抓取10条消息记录一次日志
+                        if len(channel_messages) % 10 == 0:
+                            logger.debug(f"频道 {channel} 已抓取 {len(channel_messages)} 条有效消息")
+            except Exception as e:
+                record_error(e, f"fetch_messages_channel_{channel}")
+                logger.error(f"抓取频道 {channel} 消息时出错: {e}")
+                # 继续处理其他频道
+                continue
             
             # 将当前频道的消息添加到字典中
             messages_by_channel[channel] = channel_messages

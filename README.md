@@ -17,6 +17,7 @@ Sakura-频道总结助手是一个基于Telegram API和AI技术的智能频道�
 - 📋 **频道管理命令**：提供便捷的指令用于查看、添加和删除频道，方便管理员管理频道列表
 - ⏱️ **智能总结时间记录**：自动记录每次总结的时间，下次总结时仅获取自上次总结以来的新消息，提高总结效率和准确性
 - ⏰ **频道级时间配置**：支持为每个频道单独配置自动总结时间，不同频道可在不同时间执行总结
+- 🛡️ **错误处理与恢复**：智能重试机制、错误统计、健康检查和优雅关闭，提高系统稳定性
 
 ## 技术栈
 
@@ -25,6 +26,7 @@ Sakura-频道总结助手是一个基于Telegram API和AI技术的智能频道�
 - OpenAI SDK（调用DeepSeek API）
 - APScheduler（定时任务调度）
 - python-dotenv（环境变量管理）
+- 自定义错误处理模块（智能重试、健康检查、优雅关闭）
 
 ## 快速开始
 
@@ -452,6 +454,7 @@ tg-bot/
 ├── telegram_client.py    # Telegram客户端模块
 ├── command_handlers.py   # 命令处理模块
 ├── scheduler.py          # 调度器模块
+├── error_handler.py      # 错误处理模块（新增）
 ├── prompt.txt            # 提示词存储文件
 ├── config.json           # AI配置存储文件（自动生成）
 ├── .env                  # 环境变量配置
@@ -461,6 +464,7 @@ tg-bot/
 ├── requirements.txt      # 依赖列表
 ├── README.md             # 项目说明文档
 ├── MODULE_SPLIT_SUMMARY.md # 模块拆分总结文档
+├── ERROR_HANDLING_IMPROVEMENTS.md # 错误处理改进文档（新增）
 ├── Dockerfile            # Docker镜像构建文件
 ├── docker-compose.yml    # Docker Compose配置文件
 └── docker-entrypoint.sh  # Docker容器启动脚本
@@ -476,6 +480,7 @@ tg-bot/
 - **telegram_client.py** - Telegram客户端，消息抓取和发送功能
 - **command_handlers.py** - 命令处理，处理所有Telegram命令
 - **scheduler.py** - 调度器，定时任务调度和执行
+- **error_handler.py** - 错误处理模块，提供智能重试、错误统计、健康检查和优雅关闭功能
 
 ### 模块依赖关系
 
@@ -488,6 +493,7 @@ main.py
 │   ├── summary_time_manager.py (时间管理)
 │   ├── ai_client.py (AI分析)
 │   └── telegram_client.py (Telegram操作)
+├── error_handler.py (错误处理)
 └── 其他第三方库依赖
 ```
 
@@ -502,6 +508,7 @@ main.py
 7. 通过指令设置的AI配置会保存到config.json文件中，重启后依然有效
 8. 环境变量和配置文件的优先级：config.json > 环境变量 > 默认值
 9. 项目已采用模块化架构，便于维护和扩展。各模块功能独立，便于单独测试和修改
+10. 增强的错误处理与恢复机制，提高系统稳定性和可靠性
 
 ## 许可证
 
