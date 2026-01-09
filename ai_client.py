@@ -1,6 +1,7 @@
 import logging
 from openai import OpenAI
 from config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+from error_handler import retry_with_backoff, record_error
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,13 @@ client_llm = OpenAI(
 
 logger.info("AI客户端初始化完成")
 
+@retry_with_backoff(
+    max_retries=3,
+    base_delay=1.0,
+    max_delay=30.0,
+    exponential_backoff=True,
+    retry_on_exceptions=(ConnectionError, TimeoutError, Exception)
+)
 def analyze_with_ai(messages, current_prompt):
     """调用 AI 进行汇总
     
@@ -53,5 +61,6 @@ def analyze_with_ai(messages, current_prompt):
         
         return response.choices[0].message.content
     except Exception as e:
+        record_error(e, "analyze_with_ai")
         logger.error(f"AI分析失败: {type(e).__name__}: {e}", exc_info=True)
         return f"AI 分析失败: {e}"

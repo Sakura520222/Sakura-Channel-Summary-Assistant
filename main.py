@@ -20,24 +20,25 @@ from command_handlers import (
     handle_delete_channel, handle_clear_summary_time, handle_set_send_to_source,
     handle_show_channel_schedule, handle_set_channel_schedule, handle_delete_channel_schedule
 )
+from error_handler import initialize_error_handling, get_health_checker, get_error_stats
 
 # 版本信息
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 async def send_startup_message(client):
     """向所有管理员发送启动消息"""
     try:
         # 构建帮助信息
-        help_text = f"""🤖 *Sakura频道总结助手 v{__version__} 已启动*
+        help_text = f"""🤖 **Sakura频道总结助手 v{__version__} 已启动**
 
-*核心功能*
+**核心功能**
 • 自动总结频道消息
 • 多频道管理
 • 自定义提示词
 • AI配置调整
 • 定时任务调度
 
-*可用命令*
+**可用命令**
 /summary - 立即生成本周频道消息汇总
 /showprompt - 查看当前提示词
 /setprompt - 设置自定义提示词
@@ -55,7 +56,7 @@ async def send_startup_message(client):
 /setchannelschedule - 设置频道自动总结时间
 /deletechannelschedule - 删除频道自动总结时间配置
 
-*版本信息*
+**版本信息**
 当前版本: v{__version__}
 查看更新日志: /changelog (待实现)
 
@@ -80,6 +81,11 @@ async def main():
     logger.info(f"开始初始化机器人服务 v{__version__}...")
     
     try:
+        # 初始化错误处理系统
+        logger.info("初始化错误处理系统...")
+        health_checker = initialize_error_handling()
+        logger.info("错误处理系统初始化完成")
+        
         # 初始化调度器
         scheduler = AsyncIOScheduler()
         
