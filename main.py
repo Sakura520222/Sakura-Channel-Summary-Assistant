@@ -9,7 +9,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import (
     API_ID, API_HASH, BOT_TOKEN, CHANNELS, LLM_API_KEY,
-    RESTART_FLAG_FILE, logger
+    RESTART_FLAG_FILE, logger, get_channel_schedule
 )
 from scheduler import main_job
 from command_handlers import (
@@ -17,7 +17,8 @@ from command_handlers import (
     handle_prompt_input, handle_show_ai_config, handle_set_ai_config,
     handle_ai_config_input, handle_show_log_level, handle_set_log_level,
     handle_restart, handle_show_channels, handle_add_channel,
-    handle_delete_channel, handle_clear_summary_time, handle_set_send_to_source
+    handle_delete_channel, handle_clear_summary_time, handle_set_send_to_source,
+    handle_show_channel_schedule, handle_set_channel_schedule, handle_delete_channel_schedule
 )
 
 async def main():
@@ -26,9 +27,31 @@ async def main():
     try:
         # 初始化调度器
         scheduler = AsyncIOScheduler()
-        # 每周一早 9 点执行
-        scheduler.add_job(main_job, 'cron', day_of_week='mon', hour=9, minute=0)
-        logger.info("定时任务已配置：每周一早上9点执行")
+        
+        # 为每个频道配置独立的定时任务
+        logger.info(f"开始为 {len(CHANNELS)} 个频道配置定时任务...")
+        for channel in CHANNELS:
+            # 获取频道的自动总结时间配置
+            schedule = get_channel_schedule(channel)
+            day = schedule['day']
+            hour = schedule['hour']
+            minute = schedule['minute']
+            
+            # 创建定时任务，传入频道参数
+            scheduler.add_job(
+                main_job,
+                'cron',
+                day_of_week=day,
+                hour=hour,
+                minute=minute,
+                args=[channel],  # 传入频道参数
+                id=f"summary_job_{channel}",  # 唯一ID，便于管理
+                replace_existing=True
+            )
+            
+            logger.info(f"频道 {channel} 的定时任务已配置：每周{day} {hour:02d}:{minute:02d}")
+        
+        logger.info(f"定时任务配置完成：共 {len(CHANNELS)} 个频道")
         
         # 启动机器人客户端，处理命令
         logger.info("开始初始化Telegram机器人客户端...")
@@ -54,6 +77,10 @@ async def main():
         client.add_event_handler(handle_clear_summary_time, NewMessage(pattern='/clearsummarytime|/clear_summary_time|/清除总结时间'))
         # 添加设置报告发送回源频道命令
         client.add_event_handler(handle_set_send_to_source, NewMessage(pattern='/setsendtosource|/set_send_to_source|/设置报告发送回源频道'))
+        # 添加频道时间配置命令
+        client.add_event_handler(handle_show_channel_schedule, NewMessage(pattern='/showchannelschedule|/show_channel_schedule|/查看频道时间配置'))
+        client.add_event_handler(handle_set_channel_schedule, NewMessage(pattern='/setchannelschedule|/set_channel_schedule|/设置频道时间配置'))
+        client.add_event_handler(handle_delete_channel_schedule, NewMessage(pattern='/deletechannelschedule|/delete_channel_schedule|/删除频道时间配置'))
         # 只处理非命令消息作为提示词或AI配置输入
         client.add_event_handler(handle_prompt_input, NewMessage(func=lambda e: not e.text.startswith('/')))
         client.add_event_handler(handle_ai_config_input, NewMessage(func=lambda e: True))
@@ -80,7 +107,10 @@ async def main():
             BotCommand(command="addchannel", description="添加频道"),
             BotCommand(command="deletechannel", description="删除频道"),
             BotCommand(command="clearsummarytime", description="清除上次总结时间记录"),
-            BotCommand(command="setsendtosource", description="设置是否将报告发送回源频道")
+            BotCommand(command="setsendtosource", description="设置是否将报告发送回源频道"),
+            BotCommand(command="showchannelschedule", description="查看频道自动总结时间配置"),
+            BotCommand(command="setchannelschedule", description="设置频道自动总结时间"),
+            BotCommand(command="deletechannelschedule", description="删除频道自动总结时间配置")
         ]
         
         await client(SetBotCommandsRequest(

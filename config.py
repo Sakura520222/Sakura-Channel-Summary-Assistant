@@ -157,3 +157,150 @@ if current_level != final_log_level:
     logger.info(f"日志级别已从 {logging.getLevelName(current_level)} 更改为 {logging.getLevelName(final_log_level)}")
 else:
     logger.info(f"当前日志级别: {logging.getLevelName(current_level)}")
+
+# 自动总结时间配置
+# 默认时间：每周一早上9点
+DEFAULT_SUMMARY_DAY = 'mon'  # 星期几：mon, tue, wed, thu, fri, sat, sun
+DEFAULT_SUMMARY_HOUR = 9     # 小时：0-23
+DEFAULT_SUMMARY_MINUTE = 0   # 分钟：0-59
+
+# 从配置文件读取频道级时间配置
+SUMMARY_SCHEDULES = {}
+if config:
+    summary_schedules_config = config.get('summary_schedules', {})
+    if isinstance(summary_schedules_config, dict):
+        SUMMARY_SCHEDULES = summary_schedules_config
+        logger.info(f"已从配置文件加载频道级时间配置: {len(SUMMARY_SCHEDULES)} 个频道")
+    else:
+        logger.warning("配置文件中的summary_schedules格式不正确，使用默认配置")
+
+# 获取频道的时间配置
+def get_channel_schedule(channel):
+    """获取指定频道的自动总结时间配置
+    
+    Args:
+        channel: 频道URL
+        
+    Returns:
+        dict: 包含day, hour, minute的配置字典
+    """
+    if channel in SUMMARY_SCHEDULES:
+        schedule = SUMMARY_SCHEDULES[channel]
+        return {
+            'day': schedule.get('day', DEFAULT_SUMMARY_DAY),
+            'hour': schedule.get('hour', DEFAULT_SUMMARY_HOUR),
+            'minute': schedule.get('minute', DEFAULT_SUMMARY_MINUTE)
+        }
+    else:
+        # 返回默认配置
+        return {
+            'day': DEFAULT_SUMMARY_DAY,
+            'hour': DEFAULT_SUMMARY_HOUR,
+            'minute': DEFAULT_SUMMARY_MINUTE
+        }
+
+# 设置频道的时间配置
+def set_channel_schedule(channel, day=None, hour=None, minute=None):
+    """设置指定频道的自动总结时间配置
+    
+    Args:
+        channel: 频道URL
+        day: 星期几（mon, tue, wed, thu, fri, sat, sun）
+        hour: 小时（0-23）
+        minute: 分钟（0-59）
+        
+    Returns:
+        bool: 是否成功保存配置
+    """
+    try:
+        # 加载当前配置
+        current_config = load_config()
+        
+        # 确保summary_schedules字段存在
+        if 'summary_schedules' not in current_config:
+            current_config['summary_schedules'] = {}
+        
+        # 获取或创建频道的配置
+        if channel not in current_config['summary_schedules']:
+            current_config['summary_schedules'][channel] = {}
+        
+        # 更新配置
+        if day is not None:
+            current_config['summary_schedules'][channel]['day'] = day
+        if hour is not None:
+            current_config['summary_schedules'][channel]['hour'] = hour
+        if minute is not None:
+            current_config['summary_schedules'][channel]['minute'] = minute
+        
+        # 保存配置
+        save_config(current_config)
+        
+        # 更新内存中的配置
+        global SUMMARY_SCHEDULES
+        SUMMARY_SCHEDULES = current_config.get('summary_schedules', {})
+        
+        logger.info(f"已更新频道 {channel} 的时间配置: day={day}, hour={hour}, minute={minute}")
+        return True
+    except Exception as e:
+        logger.error(f"设置频道时间配置时出错: {type(e).__name__}: {e}", exc_info=True)
+        return False
+
+# 删除频道的时间配置
+def delete_channel_schedule(channel):
+    """删除指定频道的自动总结时间配置
+    
+    Args:
+        channel: 频道URL
+        
+    Returns:
+        bool: 是否成功删除配置
+    """
+    try:
+        # 加载当前配置
+        current_config = load_config()
+        
+        # 检查是否存在配置
+        if 'summary_schedules' in current_config and channel in current_config['summary_schedules']:
+            # 删除频道配置
+            del current_config['summary_schedules'][channel]
+            
+            # 保存配置
+            save_config(current_config)
+            
+            # 更新内存中的配置
+            global SUMMARY_SCHEDULES
+            SUMMARY_SCHEDULES = current_config.get('summary_schedules', {})
+            
+            logger.info(f"已删除频道 {channel} 的时间配置")
+            return True
+        else:
+            logger.info(f"频道 {channel} 没有时间配置，无需删除")
+            return True
+    except Exception as e:
+        logger.error(f"删除频道时间配置时出错: {type(e).__name__}: {e}", exc_info=True)
+        return False
+
+# 验证时间配置
+def validate_schedule(day, hour, minute):
+    """验证时间配置是否有效
+    
+    Args:
+        day: 星期几
+        hour: 小时
+        minute: 分钟
+        
+    Returns:
+        tuple: (是否有效, 错误信息)
+    """
+    valid_days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+    
+    if day not in valid_days:
+        return False, f"无效的星期几: {day}，有效值: {', '.join(valid_days)}"
+    
+    if not isinstance(hour, int) or hour < 0 or hour > 23:
+        return False, f"无效的小时: {hour}，有效范围: 0-23"
+    
+    if not isinstance(minute, int) or minute < 0 or minute > 59:
+        return False, f"无效的分钟: {minute}，有效范围: 0-59"
+    
+    return True, "配置有效"
