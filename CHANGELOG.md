@@ -5,6 +5,18 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.3] - 2026-01-09
+
+### 新增
+- **/changelog 命令**：新增查看更新日志功能
+  - 支持 `/changelog` 和 `/更新日志` 两种命令格式
+  - 仅管理员可使用，读取并显示 CHANGELOG.md 文件内容
+  - 自动处理长消息分割，支持完整的错误处理
+
+### 改进
+- **启动消息更新**：将 `/changelog (待实现)` 改为 `/changelog`
+- **命令注册**：在机器人命令列表中添加 changelog 命令
+
 ## [1.0.2] - 2026-01-09
 
 ### 新增
