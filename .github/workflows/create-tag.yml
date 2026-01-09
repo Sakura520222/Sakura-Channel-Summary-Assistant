@@ -1,0 +1,133 @@
+name: Auto Create Tag
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'main.py'
+      - 'CHANGELOG.md'
+
+jobs:
+  check-and-create-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取所有提交历史
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Get current version from main.py
+        id: get_version
+        run: |
+          # 从main.py中提取版本号
+          if [ -f "main.py" ]; then
+            PY_VERSION=$(grep -o "__version__ = \"[^\"]*\"" main.py | cut -d'"' -f2)
+            echo "PY_VERSION=${PY_VERSION}" >> $GITHUB_OUTPUT
+            echo "从main.py中提取的版本号: ${PY_VERSION}"
+          else
+            echo "错误: main.py文件不存在"
+            exit 1
+          fi
+      
+      - name: Get latest tag
+        id: get_latest_tag
+        run: |
+          # 获取最新的tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          echo "最新的tag: ${LATEST_TAG:-无}"
+      
+      - name: Check if version changed
+        id: check_version
+        run: |
+          CURRENT_VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
+          LATEST_TAG="${{ steps.get_latest_tag.outputs.LATEST_TAG }}"
+          
+          if [ -z "$LATEST_TAG" ]; then
+            # 如果没有tag，说明是第一次发布
+            echo "CHANGED=true" >> $GITHUB_OUTPUT
+            echo "REASON=首次发布，当前版本: v$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            echo "检测到首次发布，需要创建tag v$CURRENT_VERSION"
+          elif [ "v$CURRENT_VERSION" != "$LATEST_TAG" ]; then
+            # 版本号与最新tag不同
+            echo "CHANGED=true" >> $GITHUB_OUTPUT
+            echo "REASON=版本号已更新: $LATEST_TAG -> v$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            echo "检测到版本更新: $LATEST_TAG -> v$CURRENT_VERSION"
+          else
+            # 版本号相同，不需要创建新tag
+            echo "CHANGED=false" >> $GITHUB_OUTPUT
+            echo "REASON=版本号未变化: $LATEST_TAG" >> $GITHUB_OUTPUT
+            echo "版本号未变化，跳过tag创建"
+          fi
+      
+      - name: Create new tag
+        if: steps.check_version.outputs.CHANGED == 'true'
+        run: |
+          CURRENT_VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
+          TAG_NAME="v$CURRENT_VERSION"
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          
+          # 创建tag
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # 创建带注释的tag
+          git tag -a "$TAG_NAME" -m "Release $TAG_NAME" -m "自动创建于: $(date)" -m "提交: $COMMIT_MSG"
+          
+          # 推送tag到远程仓库
+          git push origin "$TAG_NAME"
+          
+          echo "已创建并推送tag: $TAG_NAME"
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
+      
+      - name: Log skip reason
+        if: steps.check_version.outputs.CHANGED == 'false'
+        run: |
+          echo "跳过tag创建: ${{ steps.check_version.outputs.REASON }}"
+      
+      - name: Verify CHANGELOG
+        run: |
+          CURRENT_VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
+          
+          # 检查CHANGELOG.md中是否有当前版本的记录
+          if [ -f "CHANGELOG.md" ]; then
+            if grep -q "^## \[$CURRENT_VERSION\]" CHANGELOG.md; then
+              echo "✓ CHANGELOG.md中已记录版本 $CURRENT_VERSION"
+            else
+              echo "⚠ 警告: CHANGELOG.md中未找到版本 $CURRENT_VERSION 的记录"
+              echo "建议在创建tag前更新CHANGELOG.md"
+            fi
+          else
+            echo "⚠ 警告: CHANGELOG.md文件不存在"
+          fi
+
+  # 可选：发送通知
+  notify:
+    runs-on: ubuntu-latest
+    needs: check-and-create-tag
+    if: always()
+    
+    steps:
+      - name: Send tag creation status
+        run: |
+          if [ "${{ needs.check-and-create-tag.result }}" == "success" ]; then
+            if [ "${{ needs.check-and-create-tag.outputs.CHANGED }}" == "true" ]; then
+              echo "✅ 已成功创建新tag: ${{ needs.check-and-create-tag.outputs.TAG_NAME }}"
+              echo "原因: ${{ needs.check-and-create-tag.outputs.REASON }}"
+            else
+              echo "ℹ️ 未创建新tag"
+              echo "原因: ${{ needs.check-and-create-tag.outputs.REASON }}"
+            fi
+          else
+            echo "❌ tag创建失败"
+          fi
