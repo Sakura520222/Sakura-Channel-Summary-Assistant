@@ -3,8 +3,14 @@ services:
     build: .
     container_name: sakura-summary-bot
     restart: unless-stopped
+    ports:
+      # 暴露Web管理界面端口
+      - "8000:8000"
     environment:
       - TZ=Asia/Shanghai
+      # Web管理界面相关环境变量
+      - WEB_HOST=0.0.0.0
+      - WEB_PORT=8000
     env_file:
       - .env
     volumes:
@@ -13,20 +19,20 @@ services:
       # 持久化会话文件
       - ./bot_session.session:/app/bot_session.session
       - ./session_name.session:/app/session_name.session
-    # 健康检查
+    # 健康检查 - 同时检查Web服务
     healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      test: ["CMD", "python", "-c", "import requests; import sys; try: response = requests.get('http://localhost:8000/', timeout=5); sys.exit(0) if response.status_code in [200, 303] else sys.exit(1); except: sys.exit(1)"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-    # 资源限制
+      start_period: 60s  # 给Web服务更多启动时间
+    # 资源限制 - 增加内存限制以支持Web服务
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 768M
         reservations:
-          memory: 256M
+          memory: 384M
     # 日志配置
     logging:
       driver: "json-file"
