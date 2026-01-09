@@ -16,6 +16,7 @@ Sakura-频道总结助手是一个基于Telegram API和AI技术的智能频道�
 - 🌐 **多频道支持**：支持配置多个Telegram频道，同时监控和总结多个频道的内容
 - 📋 **频道管理命令**：提供便捷的指令用于查看、添加和删除频道，方便管理员管理频道列表
 - ⏱️ **智能总结时间记录**：自动记录每次总结的时间，下次总结时仅获取自上次总结以来的新消息，提高总结效率和准确性
+- ⏰ **频道级时间配置**：支持为每个频道单独配置自动总结时间，不同频道可在不同时间执行总结
 
 ## 技术栈
 
@@ -228,6 +229,9 @@ docker inspect --format='{{json .State.Health}}' sakura-summary-bot
 | `/addchannel <频道URL>` | `/添加频道 <频道URL>` | 添加新的频道到监控列表 |
 | `/deletechannel <频道URL>` | `/删除频道 <频道URL>` | 从监控列表中删除指定频道 |
 | `/clearsummarytime` | `/清除总结时间` | 清除上次总结时间记录，下次总结将重新抓取过去一周的消息 |
+| `/showchannelschedule` | `/查看频道时间配置` | 查看频道的自动总结时间配置 |
+| `/setchannelschedule <频道> <星期几> <小时> <分钟>` | `/设置频道时间配置 <频道> <星期几> <小时> <分钟>` | 设置频道的自动总结时间 |
+| `/deletechannelschedule <频道>` | `/删除频道时间配置 <频道>` | 删除频道的自动总结时间配置，恢复为默认时间 |
 
 ### 自定义提示词
 
@@ -346,6 +350,95 @@ docker inspect --format='{{json .State.Health}}' sakura-summary-bot
 **执行结果**：
 - 如果清除成功，机器人会回复："已成功清除上次总结时间记录。下次总结将重新抓取过去一周的消息。"
 - 如果记录文件不存在，机器人会回复："上次总结时间记录文件不存在，无需清除。"
+
+#### 频道级自动总结时间配置
+
+**功能说明**：支持为每个频道单独配置自动总结的执行时间，不同频道可以在不同的时间执行自动总结。
+
+**默认配置**：所有频道默认在每周一早上9点执行自动总结。
+
+**时间格式**：
+- **星期几**：使用英文缩写，支持 `mon`（周一）、`tue`（周二）、`wed`（周三）、`thu`（周四）、`fri`（周五）、`sat`（周六）、`sun`（周日）
+- **小时**：0-23（24小时制）
+- **分钟**：0-59
+
+##### 查看频道时间配置
+
+**命令**：`/showchannelschedule` 或 `/查看频道时间配置`
+
+**功能**：查看频道的自动总结时间配置
+
+**使用方法**：
+1. 发送`/showchannelschedule`或`/查看频道时间配置`命令
+2. 如果不指定频道，机器人会显示所有频道的配置
+3. 如果指定频道，机器人会显示该频道的详细配置
+
+**示例**：
+- `/showchannelschedule` - 查看所有频道的配置
+- `/showchannelschedule FireflyLeak` - 查看FireflyLeak频道的配置
+- `/showchannelschedule https://t.me/FireflyLeak` - 使用完整URL查看配置
+
+##### 设置频道时间配置
+
+**命令**：`/setchannelschedule <频道> <星期几> <小时> <分钟>` 或 `/设置频道时间配置 <频道> <星期几> <小时> <分钟>`
+
+**功能**：设置频道的自动总结时间
+
+**参数说明**：
+- `<频道>`：频道名称（如`FireflyLeak`）或完整URL（如`https://t.me/FireflyLeak`）
+- `<星期几>`：星期几的英文缩写（`mon`、`tue`、`wed`、`thu`、`fri`、`sat`、`sun`）
+- `<小时>`：0-23之间的整数
+- `<分钟>`：0-59之间的整数（可选，默认为0）
+
+**使用方法**：
+1. 发送`/setchannelschedule <频道> <星期几> <小时> <分钟>`命令
+2. 机器人会验证时间配置的有效性
+3. 如果配置有效，机器人会保存配置并确认
+
+**示例**：
+- `/setchannelschedule FireflyLeak tue 10 30` - 设置FireflyLeak频道每周二10:30执行自动总结
+- `/setchannelschedule Nahida_Leak fri 14` - 设置Nahida_Leak频道每周五14:00执行自动总结
+- `/setchannelschedule https://t.me/examplechannel wed 9 15` - 使用完整URL设置频道时间
+
+##### 删除频道时间配置
+
+**命令**：`/deletechannelschedule <频道>` 或 `/删除频道时间配置 <频道>`
+
+**功能**：删除频道的自动总结时间配置，恢复为默认时间（每周一9:00）
+
+**使用方法**：
+1. 发送`/deletechannelschedule <频道>`命令
+2. 机器人会删除该频道的时间配置
+3. 该频道将恢复使用默认时间配置
+
+**示例**：
+- `/deletechannelschedule FireflyLeak` - 删除FireflyLeak频道的时间配置
+- `/deletechannelschedule https://t.me/FireflyLeak` - 使用完整URL删除配置
+
+##### 配置存储
+- 所有频道的时间配置保存在`config.json`文件的`summary_schedules`字段中
+- 配置格式示例：
+  ```json
+  "summary_schedules": {
+    "https://t.me/FireflyLeak": {
+      "day": "tue",
+      "hour": 10,
+      "minute": 30
+    },
+    "https://t.me/Nahida_Leak": {
+      "day": "fri",
+      "hour": 14,
+      "minute": 0
+    }
+  }
+  ```
+- 未配置的频道使用默认时间：每周一9:00
+
+##### 调度器行为
+- 每个频道都有独立的定时任务
+- 调度器会根据每个频道的配置创建对应的cron任务
+- 任务ID格式：`summary_job_{频道URL}`
+- 修改配置后，需要重启机器人或等待下次调度器重新加载配置
 
 ## 项目结构
 

@@ -8,13 +8,24 @@ from summary_time_manager import load_last_summary_time, save_last_summary_time
 from ai_client import analyze_with_ai
 from telegram_client import fetch_last_week_messages, send_report
 
-async def main_job():
+async def main_job(channel=None):
+    """定时任务主函数
+    
+    Args:
+        channel: 可选，指定要处理的频道。如果为None，则处理所有频道
+    """
     start_time = datetime.now()
-    logger.info(f"定时任务启动: {start_time}")
+    
+    if channel:
+        logger.info(f"定时任务启动（单频道模式）: {start_time}，频道: {channel}")
+        channels_to_process = [channel]
+    else:
+        logger.info(f"定时任务启动（全频道模式）: {start_time}")
+        channels_to_process = CHANNELS
     
     try:
         # 按频道分别处理
-        for channel in CHANNELS:
+        for channel in channels_to_process:
             logger.info(f"开始处理频道: {channel}")
             
             # 读取该频道的上次总结时间和报告消息ID
@@ -66,8 +77,16 @@ async def main_job():
         
         end_time = datetime.now()
         processing_time = (end_time - start_time).total_seconds()
-        logger.info(f"定时任务完成: {end_time}，总处理时间: {processing_time:.2f}秒")
+        
+        if channel:
+            logger.info(f"定时任务完成（单频道模式）: {end_time}，频道: {channel}，处理时间: {processing_time:.2f}秒")
+        else:
+            logger.info(f"定时任务完成（全频道模式）: {end_time}，总处理时间: {processing_time:.2f}秒")
     except Exception as e:
         end_time = datetime.now()
         processing_time = (end_time - start_time).total_seconds()
-        logger.error(f"定时任务执行失败: {type(e).__name__}: {e}，开始时间: {start_time}，结束时间: {end_time}，处理时间: {processing_time:.2f}秒", exc_info=True)
+        
+        if channel:
+            logger.error(f"定时任务执行失败（单频道模式）: {type(e).__name__}: {e}，频道: {channel}，开始时间: {start_time}，结束时间: {end_time}，处理时间: {processing_time:.2f}秒", exc_info=True)
+        else:
+            logger.error(f"定时任务执行失败（全频道模式）: {type(e).__name__}: {e}，开始时间: {start_time}，结束时间: {end_time}，处理时间: {processing_time:.2f}秒", exc_info=True)
