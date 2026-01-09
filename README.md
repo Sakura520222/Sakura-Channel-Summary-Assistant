@@ -76,6 +76,140 @@ LOG_LEVEL=INFO
 python main.py
 ```
 
+## Docker 部署
+
+本项目提供完整的 Docker 部署方案，支持一键部署和持久化数据存储。
+
+### 环境要求
+
+- Docker 20.10+ 和 Docker Compose 2.0+
+- 已配置好的 `.env` 文件（参考上方配置文件部分）
+
+### 快速部署
+
+1. **准备环境文件**
+   ```bash
+   cp .env.example .env
+   # 编辑 .env 文件，填写您的配置
+   ```
+
+2. **使用 Docker Compose 一键部署**
+   ```bash
+   # 构建并启动容器
+   docker-compose up -d
+   
+   # 查看容器日志
+   docker-compose logs -f
+   
+   # 停止容器
+   docker-compose down
+   ```
+
+3. **首次运行登录**
+   - 首次运行需要Telegram登录授权
+   - 查看容器日志获取登录二维码或链接
+   ```bash
+   docker-compose logs -f
+   ```
+   - 按照提示完成登录流程
+
+### 手动构建 Docker 镜像
+
+```bash
+# 构建镜像
+docker build -t sakura-summary-bot .
+
+# 运行容器
+docker run -d \
+  --name sakura-summary-bot \
+  --restart unless-stopped \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/bot_session.session:/app/bot_session.session \
+  --env-file .env \
+  sakura-summary-bot
+```
+
+### 数据持久化
+
+容器使用以下卷进行数据持久化，所有数据都保存在本地主机上：
+
+| 本地路径 | 容器内路径 | 说明 |
+|----------|------------|------|
+| `./data/` | `/app/data` | 配置文件目录，包含：<br>- `config.json`: AI配置（API Key、Base URL、Model等）<br>- `prompt.txt`: 自定义提示词<br>- `.last_summary_time.json`: 上次总结时间记录 |
+| `./bot_session.session` | `/app/bot_session.session` | Telegram会话文件，避免重复登录 |
+
+#### 文件位置说明
+- **所有配置文件都保存在本地**：容器重启或重新部署时，配置不会丢失
+- **本地文件结构**：
+  ```
+  tg-bot/
+  ├── data/                    # 数据目录（自动创建）
+  │   ├── config.json         # AI配置
+  │   ├── prompt.txt          # 提示词
+  │   └── .last_summary_time.json # 总结时间记录
+  ├── bot_session.session     # Telegram会话文件
+  ├── .env                    # 环境变量配置
+  └── docker-compose.yml      # Docker部署配置
+  ```
+
+#### 配置文件管理
+1. **初始配置**：首次运行前，复制`.env.example`为`.env`并填写配置
+2. **运行时配置**：通过Telegram命令设置的AI配置会保存到`./data/config.json`
+3. **手动修改**：可以直接编辑本地文件，重启容器后生效
+4. **备份恢复**：备份`./data/`目录和`./bot_session.session`文件即可备份所有配置
+
+### 管理命令
+
+```bash
+# 查看容器状态
+docker-compose ps
+
+# 查看实时日志
+docker-compose logs -f
+
+# 进入容器
+docker-compose exec sakura-summary-bot bash
+
+# 重启服务
+docker-compose restart
+
+# 停止并删除容器
+docker-compose down
+
+# 更新服务（重新构建镜像）
+docker-compose up -d --build
+```
+
+### 健康检查
+
+容器包含健康检查机制，可通过以下命令查看健康状态：
+
+```bash
+docker inspect --format='{{json .State.Health}}' sakura-summary-bot
+```
+
+### 故障排除
+
+1. **容器启动失败**
+   ```bash
+   # 查看详细日志
+   docker-compose logs --tail=100
+   ```
+
+2. **Telegram登录问题**
+   - 确保 `.env` 文件中的 API 凭证正确
+   - 删除 `bot_session.session` 文件重新登录
+   ```bash
+   rm bot_session.session
+   docker-compose restart
+   ```
+
+3. **权限问题**
+   ```bash
+   # 修复数据目录权限
+   sudo chown -R $USER:$USER data/
+   ```
+
 ## 使用说明
 
 ### 命令列表
@@ -233,7 +367,10 @@ tg-bot/
 ├── .gitignore            # Git忽略规则
 ├── requirements.txt      # 依赖列表
 ├── README.md             # 项目说明文档
-└── MODULE_SPLIT_SUMMARY.md # 模块拆分总结文档
+├── MODULE_SPLIT_SUMMARY.md # 模块拆分总结文档
+├── Dockerfile            # Docker镜像构建文件
+├── docker-compose.yml    # Docker Compose配置文件
+└── docker-entrypoint.sh  # Docker容器启动脚本
 ```
 
 ### 模块说明

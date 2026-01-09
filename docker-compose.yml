@@ -1,0 +1,42 @@
+services:
+  sakura-summary-bot:
+    build: .
+    container_name: sakura-summary-bot
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    env_file:
+      - .env
+    volumes:
+      # 持久化数据目录
+      - ./data:/app/data
+      # 持久化会话文件
+      - ./bot_session.session:/app/bot_session.session
+      - ./session_name.session:/app/session_name.session
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 网络配置
+    networks:
+      - sakura-network
+
+networks:
+  sakura-network:
+    driver: bridge
