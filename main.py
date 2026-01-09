@@ -9,7 +9,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import (
     API_ID, API_HASH, BOT_TOKEN, CHANNELS, LLM_API_KEY,
-    RESTART_FLAG_FILE, logger, get_channel_schedule
+    RESTART_FLAG_FILE, logger, get_channel_schedule, ADMIN_LIST
 )
 from scheduler import main_job
 from command_handlers import (
@@ -21,8 +21,63 @@ from command_handlers import (
     handle_show_channel_schedule, handle_set_channel_schedule, handle_delete_channel_schedule
 )
 
+# 版本信息
+__version__ = "1.0.0"
+
+async def send_startup_message(client):
+    """向所有管理员发送启动消息"""
+    try:
+        # 构建帮助信息
+        help_text = f"""🤖 *Sakura频道总结助手 v{__version__} 已启动*
+
+*核心功能*
+• 自动总结频道消息
+• 多频道管理
+• 自定义提示词
+• AI配置调整
+• 定时任务调度
+
+*可用命令*
+/summary - 立即生成本周频道消息汇总
+/showprompt - 查看当前提示词
+/setprompt - 设置自定义提示词
+/showaicfg - 查看AI配置
+/setaicfg - 设置AI配置
+/showloglevel - 查看当前日志级别
+/setloglevel - 设置日志级别
+/restart - 重启机器人
+/showchannels - 查看当前频道列表
+/addchannel - 添加频道
+/deletechannel - 删除频道
+/clearsummarytime - 清除上次总结时间记录
+/setsendtosource - 设置是否将报告发送回源频道
+/showchannelschedule - 查看频道自动总结时间配置
+/setchannelschedule - 设置频道自动总结时间
+/deletechannelschedule - 删除频道自动总结时间配置
+
+*版本信息*
+当前版本: v{__version__}
+查看更新日志: /changelog (待实现)
+
+机器人运行正常，随时为您服务！"""
+
+        # 向所有管理员发送消息
+        for admin_id in ADMIN_LIST:
+            try:
+                await client.send_message(
+                    admin_id,
+                    help_text,
+                    parse_mode='markdown',
+                    link_preview=False
+                )
+                logger.info(f"已向管理员 {admin_id} 发送启动消息")
+            except Exception as e:
+                logger.error(f"向管理员 {admin_id} 发送启动消息失败: {type(e).__name__}: {e}")
+    except Exception as e:
+        logger.error(f"发送启动消息时出错: {type(e).__name__}: {e}", exc_info=True)
+
 async def main():
-    logger.info("开始初始化机器人服务...")
+    logger.info(f"开始初始化机器人服务 v{__version__}...")
     
     try:
         # 初始化调度器
@@ -128,6 +183,11 @@ async def main():
         scheduler.start()
         logger.info("调度器已启动")
         
+        # 向管理员发送启动消息
+        logger.info("开始向管理员发送启动消息...")
+        await send_startup_message(client)
+        logger.info("启动消息发送完成")
+        
         # 检查是否是重启后的首次运行
         if os.path.exists(RESTART_FLAG_FILE):
             try:
@@ -150,7 +210,7 @@ async def main():
         logger.critical(f"机器人服务初始化或运行失败: {type(e).__name__}: {e}", exc_info=True)
 
 if __name__ == "__main__":
-    logger.info("===== 机器人服务启动 ====")
+    logger.info(f"===== Sakura频道总结助手 v{__version__} 启动 ====")
     
     # 检查必要变量是否存在
     required_vars = [API_ID, API_HASH, BOT_TOKEN, LLM_API_KEY]
