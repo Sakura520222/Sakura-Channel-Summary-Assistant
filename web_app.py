@@ -18,7 +18,7 @@ from config import (
 from error_handler import get_health_checker, get_error_stats
 
 # 创建FastAPI应用
-app = FastAPI(title="Sakura频道总结助手管理界面", version="1.1.1")
+app = FastAPI(title="Sakura频道总结助手管理界面", version="1.1.2")
 
 # 配置会话中间件
 SECRET_KEY = os.getenv("WEB_SECRET_KEY", "sakura-channel-summary-secret-key-2026/01/09")
@@ -70,7 +70,7 @@ async def index(request: Request, user: str = Depends(require_auth)):
     context = {
         "request": request,
         "user": user,
-        "version": "1.1.1",
+        "version": "1.1.2",
         "channels_count": len(CHANNELS),
         "admin_count": len(ADMIN_LIST),
         "ai_model": LLM_MODEL,
@@ -141,11 +141,15 @@ async def config_management(request: Request, user: str = Depends(require_auth))
 @app.get("/tasks", response_class=HTMLResponse)
 async def tasks_management(request: Request, user: str = Depends(require_auth)):
     """任务管理页面"""
+    # 获取最近的任务执行记录
+    recent_tasks = get_recent_task_history(limit=10)
+    
     context = {
         "request": request,
         "user": user,
         "channels": CHANNELS,
-        "summary_schedules": SUMMARY_SCHEDULES
+        "summary_schedules": SUMMARY_SCHEDULES,
+        "recent_tasks": recent_tasks
     }
     return templates.TemplateResponse("tasks.html", context)
 
@@ -198,84 +202,20 @@ async def trigger_summary(channel: str = Form(...), user: str = Depends(require_
         # 记录触发事件
         logger.info(f"Web管理界面触发了频道 {channel} 的手动总结")
         
-        # 这里需要调用现有的总结功能
-        # 由于Web界面和Telegram客户端在不同的进程中，我们需要一种方式来触发总结
-        # 创建一个异步任务来执行总结
-        import asyncio
-        from datetime import datetime, timezone, timedelta
+        # 将任务放入队列，由主线程处理
+        summary_task_queue.put(channel)
         
-        # 导入必要的模块
-        from summary_time_manager import load_last_summary_time, save_last_summary_time
-        from ai_client import analyze_with_ai
-        from prompt_manager import load_prompt
-        from telegram_client import fetch_last_week_messages, send_long_message, send_report
-        from config import ADMIN_LIST, SEND_REPORT_TO_SOURCE
-        
-        # 在后台执行总结任务
-        async def execute_summary():
-            try:
-                # 读取该频道的上次总结时间和报告消息ID
-                channel_summary_data = load_last_summary_time(channel, include_report_ids=True)
-                if channel_summary_data:
-                    channel_last_summary_time = channel_summary_data["time"]
-                    report_message_ids_to_exclude = channel_summary_data["report_message_ids"]
-                else:
-                    channel_last_summary_time = None
-                    report_message_ids_to_exclude = []
-                
-                # 抓取该频道从上次总结时间开始的消息，排除已发送的报告消息
-                messages_by_channel = await fetch_last_week_messages(
-                    [channel], 
-                    start_time=channel_last_summary_time,
-                    report_message_ids={channel: report_message_ids_to_exclude}
-                )
-                
-                # 获取该频道的消息
-                messages = messages_by_channel.get(channel, [])
-                if messages:
-                    logger.info(f"开始处理频道 {channel} 的消息，共 {len(messages)} 条")
-                    current_prompt = load_prompt()
-                    summary = analyze_with_ai(messages, current_prompt)
-                    
-                    # 获取频道名称用于报告标题
-                    channel_name = channel.split('/')[-1]
-                    
-                    # 计算起始日期和终止日期
-                    end_date = datetime.now(timezone.utc)
-                    if channel_last_summary_time:
-                        start_date = channel_last_summary_time
-                    else:
-                        start_date = end_date - timedelta(days=7)
-                    
-                    # 格式化日期为 月.日 格式
-                    start_date_str = f"{start_date.month}.{start_date.day}"
-                    end_date_str = f"{end_date.month}.{end_date.day}"
-                    
-                    # 生成报告标题
-                    report_text = f"**{channel_name} 周报 {start_date_str}-{end_date_str}**\n\n{summary}"
-                    
-                    # 使用send_report函数发送总结（它会创建Telegram客户端实例）
-                    sent_report_ids = await send_report(report_text, channel if SEND_REPORT_TO_SOURCE else None, None, skip_admins=False)
-                    
-                    # 保存该频道的本次总结时间和报告消息ID
-                    save_last_summary_time(channel, datetime.now(timezone.utc), sent_report_ids)
-                    
-                    logger.info(f"频道 {channel} 的总结任务完成")
-                    return True, f"已成功为频道 {channel} 生成总结报告，共处理 {len(messages)} 条消息"
-                else:
-                    logger.info(f"频道 {channel} 没有新消息需要总结")
-                    return True, f"频道 {channel} 自上次总结以来没有新消息"
-                    
-            except Exception as e:
-                logger.error(f"执行总结任务时出错: {type(e).__name__}: {e}", exc_info=True)
-                return False, f"执行总结任务时出错: {str(e)}"
-        
-        # 在后台运行总结任务
-        asyncio.create_task(execute_summary())
+        # 立即记录任务触发
+        record_task_execution(
+            channel=channel,
+            task_type="手动触发总结",
+            status="已触发",
+            result_message="任务已触发，已加入队列等待主线程处理..."
+        )
         
         return {
             "status": "success", 
-            "message": f"已触发频道 {channel} 的总结任务，正在后台执行..."
+            "message": f"已触发频道 {channel} 的总结任务，已加入队列等待主线程处理..."
         }
         
     except Exception as e:
@@ -518,27 +458,92 @@ async def api_run_diagnosis(user: str = Depends(require_auth)):
         logger.error(f"运行系统诊断时出错: {e}")
         return {"status": "error", "message": f"系统诊断失败: {str(e)}"}
 
+# 全局变量，用于存储日志
+log_buffer = []
+MAX_LOG_LINES = 1000
+
+# 全局变量，用于存储任务执行记录
+task_history = []
+MAX_TASK_HISTORY = 50
+
+# 线程安全队列，用于Web管理界面触发总结任务
+import queue
+summary_task_queue = queue.Queue()
+
+# 自定义日志处理器，将日志存储到内存中
+class MemoryLogHandler(logging.Handler):
+    def __init__(self):
+        super().__init__()
+        self.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            log_buffer.append(msg)
+            # 限制缓冲区大小
+            if len(log_buffer) > MAX_LOG_LINES:
+                log_buffer.pop(0)
+        except Exception:
+            self.handleError(record)
+
+# 添加内存日志处理器到根日志记录器
+root_logger = logging.getLogger()
+memory_handler = MemoryLogHandler()
+memory_handler.setLevel(logging.INFO)
+root_logger.addHandler(memory_handler)
+
+# 任务执行记录函数
+def record_task_execution(channel, task_type, status, result_message):
+    """记录任务执行"""
+    import datetime
+    task_record = {
+        "timestamp": datetime.datetime.now(),
+        "channel": channel,
+        "task_type": task_type,
+        "status": status,
+        "result": result_message
+    }
+    task_history.append(task_record)
+    
+    # 限制历史记录大小
+    if len(task_history) > MAX_TASK_HISTORY:
+        task_history.pop(0)
+    
+    logger.info(f"记录任务执行: {channel} - {task_type} - {status}")
+
+def get_recent_task_history(limit=10):
+    """获取最近的任务执行记录"""
+    return task_history[-limit:] if len(task_history) > limit else task_history
+
 # 日志管理API端点
 @app.get("/api/get_logs")
 async def api_get_logs(lines: int = 100, user: str = Depends(require_auth)):
-    """获取日志"""
+    """获取日志 - 从内存缓冲区获取"""
     try:
-        # 尝试读取日志文件
-        log_file = "sakura_bot.log"
-        if os.path.exists(log_file):
-            with open(log_file, 'r', encoding='utf-8') as f:
-                all_lines = f.readlines()
-                # 获取最后指定行数的日志
-                log_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
-                log_content = ''.join(log_lines)
-        else:
-            # 如果没有日志文件，返回模拟日志
-            import datetime
-            log_content = f"{datetime.datetime.now()} - config - INFO - Web管理界面正在运行\n"
-            log_content += f"{datetime.datetime.now()} - web_app - INFO - 日志查看功能已启用\n"
-            log_content += f"{datetime.datetime.now()} - web_app - INFO - 当前时间: {datetime.datetime.now()}\n"
+        # 记录日志查看事件
+        logger.info(f"用户 {user} 查看了日志，请求行数: {lines}")
         
-        return log_content
+        # 从内存缓冲区获取日志
+        if log_buffer:
+            # 获取最后指定行数的日志
+            log_lines = log_buffer[-lines:] if len(log_buffer) > lines else log_buffer
+            # 确保每行日志都有换行符
+            log_content = '\n'.join(log_lines)
+            # 确保最后也有换行符
+            if not log_content.endswith('\n'):
+                log_content += '\n'
+        else:
+            # 如果缓冲区为空，返回当前状态
+            import datetime
+            log_content = f"{datetime.datetime.now()} - web_app - INFO - 日志缓冲区为空\n"
+            log_content += f"{datetime.datetime.now()} - web_app - INFO - Web管理界面正在运行\n"
+            log_content += f"{datetime.datetime.now()} - web_app - INFO - 当前时间: {datetime.datetime.now()}\n"
+            log_content += f"{datetime.datetime.now()} - web_app - INFO - 用户 {user} 查看了日志\n"
+            log_content += f"{datetime.datetime.now()} - web_app - INFO - 请求行数: {lines}\n"
+        
+        # 设置正确的Content-Type，确保换行符被正确解析
+        from fastapi.responses import Response
+        return Response(content=log_content, media_type="text/plain; charset=utf-8")
     except Exception as e:
         logger.error(f"获取日志时出错: {e}")
         return f"获取日志时出错: {str(e)}"
@@ -547,21 +552,19 @@ async def api_get_logs(lines: int = 100, user: str = Depends(require_auth)):
 async def api_clear_logs(user: str = Depends(require_auth)):
     """清空日志"""
     try:
-        log_file = "sakura_bot.log"
-        if os.path.exists(log_file):
-            # 备份当前日志
-            import shutil
-            import datetime
-            backup_file = f"sakura_bot.log.backup.{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            shutil.copy2(log_file, backup_file)
-            
-            # 清空日志文件
-            with open(log_file, 'w', encoding='utf-8') as f:
-                f.write(f"{datetime.datetime.now()} - web_app - INFO - 日志已清空\n")
-            
-            return {"status": "success", "message": "日志已清空并备份"}
-        else:
-            return {"status": "success", "message": "日志文件不存在，无需清空"}
+        # 清空内存缓冲区
+        global log_buffer
+        log_buffer.clear()
+        
+        # 记录清空操作
+        import datetime
+        logger.info(f"用户 {user} 清空了日志缓冲区")
+        
+        # 添加清空确认消息到缓冲区
+        clear_msg = f"{datetime.datetime.now()} - web_app - INFO - 日志缓冲区已清空"
+        log_buffer.append(clear_msg)
+        
+        return {"status": "success", "message": "日志缓冲区已清空"}
     except Exception as e:
         logger.error(f"清空日志时出错: {e}")
         return {"status": "error", "message": f"清空日志失败: {str(e)}"}
@@ -574,4 +577,3 @@ def run_web_server():
 
 if __name__ == "__main__":
     run_web_server()
-
