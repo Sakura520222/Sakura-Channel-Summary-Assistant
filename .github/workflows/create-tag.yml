@@ -74,7 +74,7 @@ jobs:
             # 查找CHANGELOG.md中对应版本的部分
             awk -v version="$VERSION" '
               BEGIN { in_section=0; found=0 }
-              /^## \['version'\]/ { in_section=1; found=1; print; next }
+              index($0, "## [" version "]") == 1 { in_section=1; found=1; print; next }
               /^## \[/ && in_section { in_section=0 }
               in_section { print }
             ' CHANGELOG.md > release_notes.md
