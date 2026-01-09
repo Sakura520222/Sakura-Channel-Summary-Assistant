@@ -81,20 +81,27 @@ jobs:
             
             if [ -s "release_notes.md" ]; then
               echo "从CHANGELOG.md成功提取版本 $VERSION 的更新日志"
-              # 将内容转换为单行，用于GitHub输出
-              NOTES=$(cat release_notes.md | sed ':a;N;$!ba;s/\n/\\n/g')
+              # 直接输出多行内容
               echo "notes<<EOF" >> $GITHUB_OUTPUT
-              echo "$NOTES" >> $GITHUB_OUTPUT
+              cat release_notes.md >> $GITHUB_OUTPUT
               echo "EOF" >> $GITHUB_OUTPUT
             else
               echo "警告: 在CHANGELOG.md中未找到版本 $VERSION 的更新日志"
               COMMIT_MSG="${{ github.event.head_commit.message }}"
-              echo "notes=## [$VERSION] - $(date +'%Y-%m-%d')\\n\\n基于提交: $COMMIT_MSG" >> $GITHUB_OUTPUT
+              echo "notes<<EOF" >> $GITHUB_OUTPUT
+              echo "## [$VERSION] - $(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+              echo "" >> $GITHUB_OUTPUT
+              echo "基于提交: $COMMIT_MSG" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
             fi
           else
             echo "警告: CHANGELOG.md文件不存在"
             COMMIT_MSG="${{ github.event.head_commit.message }}"
-            echo "notes=## [$VERSION] - $(date +'%Y-%m-%d')\\n\\n基于提交: $COMMIT_MSG" >> $GITHUB_OUTPUT
+            echo "notes<<EOF" >> $GITHUB_OUTPUT
+            echo "## [$VERSION] - $(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "基于提交: $COMMIT_MSG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
           fi
       
       - name: Create GitHub Release
