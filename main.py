@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import threading
 from telethon import TelegramClient
 from telethon.events import NewMessage
 from telethon.tl.functions.bots import SetBotCommandsRequest
@@ -22,9 +23,10 @@ from command_handlers import (
     handle_changelog
 )
 from error_handler import initialize_error_handling, get_health_checker, get_error_stats
+from web_app import run_web_server
 
 # 版本信息
-__version__ = "1.0.3"
+__version__ = "1.1.0"
 
 async def send_startup_message(client):
     """向所有管理员发送启动消息"""
@@ -82,6 +84,12 @@ async def main():
     logger.info(f"开始初始化机器人服务 v{__version__}...")
     
     try:
+        # 启动Web管理界面（在独立线程中）
+        logger.info("启动Web管理界面...")
+        web_thread = threading.Thread(target=run_web_server, daemon=True)
+        web_thread.start()
+        logger.info("Web管理界面已启动，访问地址: http://localhost:8000")
+        
         # 初始化错误处理系统
         logger.info("初始化错误处理系统...")
         health_checker = initialize_error_handling()
@@ -202,11 +210,29 @@ async def main():
         if os.path.exists(RESTART_FLAG_FILE):
             try:
                 with open(RESTART_FLAG_FILE, 'r') as f:
-                    restart_user_id = int(f.read().strip())
+                    content = f.read().strip()
                 
-                # 发送重启成功消息
-                logger.info(f"检测到重启标记，向用户 {restart_user_id} 发送重启成功消息")
-                await client.send_message(restart_user_id, "机器人已成功重启！", link_preview=False)
+                # 尝试解析为用户ID
+                try:
+                    restart_user_id = int(content)
+                    # 发送重启成功消息给特定用户
+                    logger.info(f"检测到重启标记，向用户 {restart_user_id} 发送重启成功消息")
+                    await client.send_message(restart_user_id, "机器人已成功重启！", link_preview=False)
+                except ValueError:
+                    # 如果不是整数，可能是特殊标识（如web_admin）
+                    logger.info(f"检测到重启标记，特殊标识: {content}")
+                    if content == "web_admin":
+                        # Web管理界面触发的重启，向所有管理员发送通知
+                        for admin_id in ADMIN_LIST:
+                            try:
+                                await client.send_message(
+                                    admin_id, 
+                                    "🤖 机器人已通过Web管理界面成功重启！", 
+                                    link_preview=False
+                                )
+                                logger.info(f"已向管理员 {admin_id} 发送Web重启通知")
+                            except Exception as e:
+                                logger.error(f"向管理员 {admin_id} 发送重启通知失败: {e}")
                 
                 # 删除重启标记文件
                 os.remove(RESTART_FLAG_FILE)

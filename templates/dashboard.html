@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}仪表板{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-speedometer2 me-2"></i>仪表板
+        </h1>
+    </div>
+</div>
+
+<!-- 状态卡片 -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">频道数量</h6>
+                        <h2 class="mb-0">{{ channels_count }}</h2>
+                    </div>
+                    <i class="bi bi-collection-play" style="font-size: 2.5rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">系统状态</h6>
+                        <h4 class="mb-0">
+                            {% if health_status == "healthy" %}
+                                <span class="badge bg-light text-success">健康</span>
+                            {% elif health_status == "warning" %}
+                                <span class="badge bg-light text-warning">警告</span>
+                            {% else %}
+                                <span class="badge bg-light text-danger">异常</span>
+                            {% endif %}
+                        </h4>
+                    </div>
+                    <i class="bi bi-heart-pulse" style="font-size: 2.5rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">AI模型</h6>
+                        <h5 class="mb-0">{{ ai_model }}</h5>
+                    </div>
+                    <i class="bi bi-cpu" style="font-size: 2.5rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card bg-warning text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">管理员数量</h6>
+                        <h2 class="mb-0">{{ admin_count }}</h2>
+                    </div>
+                    <i class="bi bi-people" style="font-size: 2.5rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 错误统计 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle me-2"></i>错误统计
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if error_stats %}
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="alert alert-danger">
+                            <h6>严重错误</h6>
+                            <h3>{{ error_stats.get('critical', 0) }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="alert alert-warning">
+                            <h6>一般错误</h6>
+                            <h3>{{ error_stats.get('error', 0) }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="alert alert-info">
+                            <h6>警告</h6>
+                            <h3>{{ error_stats.get('warning', 0) }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="alert alert-success">
+                            <h6>最近24小时</h6>
+                            <h3>{{ error_stats.get('last_24h', 0) }}</h3>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">暂无错误记录</h5>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 频道时间表 -->
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-clock-history me-2"></i>频道总结时间表
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>频道</th>
+                                <th>星期</th>
+                                <th>时间</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for channel, schedule in summary_schedules.items() %}
+                            <tr>
+                                <td>
+                                    <small>{{ channel[:30] }}{% if channel|length > 30 %}...{% endif %}</small>
+                                </td>
+                                <td>
+                                    {% set day_map = {'mon': '周一', 'tue': '周二', 'wed': '周三', 'thu': '周四', 'fri': '周五', 'sat': '周六', 'sun': '周日'} %}
+                                    <span class="badge bg-info">{{ day_map.get(schedule.day, schedule.day) }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ "%02d:%02d"|format(schedule.hour, schedule.minute) }}</span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-3">
+                                    暂无频道时间配置
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-gear me-2"></i>系统配置
+                </h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        报告发送到源频道
+                        <span class="badge {% if send_to_source %}bg-success{% else %}bg-danger{% endif %}">
+                            {% if send_to_source %}是{% else %}否{% endif %}
+                        </span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        AI基础URL
+                        <small class="text-muted">{{ ai_base_url }}</small>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        版本
+                        <span class="badge bg-info">v{{ version }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        配置更新时间
+                        <small class="text-muted">
+                            {% if config %}
+                                {{ config.get('last_updated', '未知') }}
+                            {% else %}
+                                未知
+                            {% endif %}
+                        </small>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 快速操作 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightning me-2"></i>快速操作
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <a href="/channels" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-plus-circle me-1"></i>添加频道
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/config" class="btn btn-outline-success w-100">
+                            <i class="bi bi-pencil me-1"></i>修改配置
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/tasks" class="btn btn-outline-info w-100">
+                            <i class="bi bi-play-circle me-1"></i>手动总结
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <button class="btn btn-outline-warning w-100" onclick="restartBot()">
+                            <i class="bi bi-arrow-clockwise me-1"></i>重启机器人
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function restartBot() {
+    if (confirm('确定要重启机器人吗？重启过程可能需要几秒钟。')) {
+        fetch('/api/restart_bot', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+        })
+        .catch(error => {
+            alert('重启失败: ' + error);
+        });
+    }
+}
+</script>
+{% endblock %}
