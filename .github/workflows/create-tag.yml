@@ -44,16 +44,24 @@ jobs:
         id: generate_release_info
         run: |
           VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
-          COMMIT_HASH=$(git rev-parse --short HEAD)
-          COMMIT_DATE=$(date +'%Y-%m-%d')
           
-          # 生成唯一的发布名称
-          RELEASE_NAME="v${VERSION}-${COMMIT_HASH}"
-          echo "RELEASE_NAME=${RELEASE_NAME}" >> $GITHUB_OUTPUT
-          echo "发布名称: ${RELEASE_NAME}"
+          # 检查标签是否已存在
+          TAG_NAME="v${VERSION}"
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "标签 $TAG_NAME 已存在，将更新现有发行版"
+            TAG_EXISTS=true
+          else
+            echo "标签 $TAG_NAME 不存在，将创建新标签"
+            TAG_EXISTS=false
+          fi
           
-          # 生成发布标题
-          RELEASE_TITLE="Sakura频道总结助手 v${VERSION} (${COMMIT_DATE})"
+          # 使用标准标签名称
+          echo "RELEASE_NAME=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "TAG_EXISTS=${TAG_EXISTS}" >> $GITHUB_OUTPUT
+          echo "发布标签: ${TAG_NAME}"
+          
+          # 生成标准发布标题
+          RELEASE_TITLE="Release v${VERSION}"
           echo "RELEASE_TITLE=${RELEASE_TITLE}" >> $GITHUB_OUTPUT
       
       - name: Generate release notes from CHANGELOG
@@ -98,13 +106,7 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: false
-          files: |
-            README.md
-            CHANGELOG.md
-            requirements.txt
-            docker-compose.yml
-            Dockerfile
-            *.py
+          # 不再上传单个文件，只通过后续步骤上传压缩包
       
       - name: Create release assets
         run: |
