@@ -835,3 +835,43 @@ async def handle_delete_channel_schedule(event):
     except Exception as e:
         logger.error(f"删除频道时间配置时出错: {type(e).__name__}: {e}", exc_info=True)
         await event.reply(f"删除频道时间配置时出错: {e}")
+
+async def handle_changelog(event):
+    """处理/changelog命令，显示更新日志"""
+    sender_id = event.sender_id
+    command = event.text
+    logger.info(f"收到命令: {command}，发送者: {sender_id}")
+    
+    # 检查发送者是否为管理员
+    if sender_id not in ADMIN_LIST and ADMIN_LIST != ['me']:
+        logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command}")
+        await event.reply("您没有权限执行此命令")
+        return
+    
+    try:
+        # 读取CHANGELOG.md文件
+        import os
+        changelog_file = "CHANGELOG.md"
+        
+        if not os.path.exists(changelog_file):
+            logger.error(f"更新日志文件 {changelog_file} 不存在")
+            await event.reply(f"更新日志文件 {changelog_file} 不存在")
+            return
+        
+        with open(changelog_file, "r", encoding="utf-8") as f:
+            changelog_content = f.read()
+        
+        if not changelog_content.strip():
+            logger.warning("更新日志文件内容为空")
+            await event.reply("更新日志文件内容为空")
+            return
+        
+        # 使用现有的send_long_message函数发送长消息
+        from telegram_client import send_long_message
+        await send_long_message(event.client, sender_id, changelog_content)
+        
+        logger.info(f"已向用户 {sender_id} 发送更新日志")
+        
+    except Exception as e:
+        logger.error(f"显示更新日志时出错: {type(e).__name__}: {e}", exc_info=True)
+        await event.reply(f"显示更新日志时出错: {e}")

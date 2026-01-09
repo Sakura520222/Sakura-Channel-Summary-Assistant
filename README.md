@@ -234,6 +234,7 @@ docker inspect --format='{{json .State.Health}}' sakura-summary-bot
 | `/showchannelschedule` | `/查看频道时间配置` | 查看频道的自动总结时间配置 |
 | `/setchannelschedule <频道> <星期几> <小时> <分钟>` | `/设置频道时间配置 <频道> <星期几> <小时> <分钟>` | 设置频道的自动总结时间 |
 | `/deletechannelschedule <频道>` | `/删除频道时间配置 <频道>` | 删除频道的自动总结时间配置，恢复为默认时间 |
+| `/changelog` | `/更新日志` | 查看更新日志 |
 
 ### 自定义提示词
 

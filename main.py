@@ -18,12 +18,13 @@ from command_handlers import (
     handle_ai_config_input, handle_show_log_level, handle_set_log_level,
     handle_restart, handle_show_channels, handle_add_channel,
     handle_delete_channel, handle_clear_summary_time, handle_set_send_to_source,
-    handle_show_channel_schedule, handle_set_channel_schedule, handle_delete_channel_schedule
+    handle_show_channel_schedule, handle_set_channel_schedule, handle_delete_channel_schedule,
+    handle_changelog
 )
 from error_handler import initialize_error_handling, get_health_checker, get_error_stats
 
 # 版本信息
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 async def send_startup_message(client):
     """向所有管理员发送启动消息"""
@@ -58,7 +59,7 @@ async def send_startup_message(client):
 
 **版本信息**
 当前版本: v{__version__}
-查看更新日志: /changelog (待实现)
+查看更新日志: /changelog
 
 机器人运行正常，随时为您服务！"""
 
@@ -142,6 +143,8 @@ async def main():
         client.add_event_handler(handle_show_channel_schedule, NewMessage(pattern='/showchannelschedule|/show_channel_schedule|/查看频道时间配置'))
         client.add_event_handler(handle_set_channel_schedule, NewMessage(pattern='/setchannelschedule|/set_channel_schedule|/设置频道时间配置'))
         client.add_event_handler(handle_delete_channel_schedule, NewMessage(pattern='/deletechannelschedule|/delete_channel_schedule|/删除频道时间配置'))
+        # 添加更新日志命令
+        client.add_event_handler(handle_changelog, NewMessage(pattern='/changelog|/更新日志'))
         # 只处理非命令消息作为提示词或AI配置输入
         client.add_event_handler(handle_prompt_input, NewMessage(func=lambda e: not e.text.startswith('/')))
         client.add_event_handler(handle_ai_config_input, NewMessage(func=lambda e: True))
@@ -171,7 +174,8 @@ async def main():
             BotCommand(command="setsendtosource", description="设置是否将报告发送回源频道"),
             BotCommand(command="showchannelschedule", description="查看频道自动总结时间配置"),
             BotCommand(command="setchannelschedule", description="设置频道自动总结时间"),
-            BotCommand(command="deletechannelschedule", description="删除频道自动总结时间配置")
+            BotCommand(command="deletechannelschedule", description="删除频道自动总结时间配置"),
+            BotCommand(command="changelog", description="查看更新日志")
         ]
         
         await client(SetBotCommandsRequest(
