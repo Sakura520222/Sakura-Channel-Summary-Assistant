@@ -18,7 +18,7 @@ from config import (
 from error_handler import get_health_checker, get_error_stats
 
 # 创建FastAPI应用
-app = FastAPI(title="Sakura频道总结助手管理界面", version="1.1.4")
+app = FastAPI(title="Sakura频道总结助手管理界面", version="1.1.5")
 
 # 配置会话中间件
 SECRET_KEY = os.getenv("WEB_SECRET_KEY", "sakura-channel-summary-secret-key-2026/01/09")
@@ -37,8 +37,8 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 默认管理员密码
-DEFAULT_ADMIN_PASSWORD = "Sakura"
+# 管理员密码配置（从环境变量读取，默认为"Sakura"）
+DEFAULT_ADMIN_PASSWORD = os.getenv("WEB_ADMIN_PASSWORD", "Sakura")
 
 # 认证相关函数
 def verify_password(password: str) -> bool:
@@ -70,7 +70,7 @@ async def index(request: Request, user: str = Depends(require_auth)):
     context = {
         "request": request,
         "user": user,
-        "version": "1.1.4",
+        "version": "1.1.5",
         "channels_count": len(CHANNELS),
         "admin_count": len(ADMIN_LIST),
         "ai_model": LLM_MODEL,

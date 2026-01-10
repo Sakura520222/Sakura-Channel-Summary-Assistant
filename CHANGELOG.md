@@ -5,6 +5,25 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.5] - 2026-01-10
+
+### 新增
+- **通过.env配置web管理界面登录密码**：支持通过环境变量自定义web管理界面登录密码
+  - 在`.env.example`中添加`WEB_ADMIN_PASSWORD`配置示例
+  - 修改`web_app.py`，使用`os.getenv("WEB_ADMIN_PASSWORD", "Sakura")`读取密码
+  - 更新`templates/login.html`，移除默认密码提示，改为显示配置说明
+
+### 改进
+- **安全性提升**：不再在登录页面显示默认密码，提高系统安全性
+- **配置灵活性**：用户可以通过.env文件自定义管理员密码，满足不同部署环境需求
+- **向后兼容性**：未设置`WEB_ADMIN_PASSWORD`环境变量时，默认使用密码`"Sakura"`
+- **文档更新**：更新README.md中的配置示例，添加`WEB_ADMIN_PASSWORD`配置项说明
+
+### 使用方式
+1. **自定义密码**：在.env文件中添加`WEB_ADMIN_PASSWORD=your_secure_password`即可使用自定义密码
+2. **默认行为**：未配置时使用默认密码`"Sakura"`
+3. **安全性建议**：生产环境建议设置强密码，避免使用默认密码
+
 ## [1.1.4] - 2026-01-10
 
 ### 新增
