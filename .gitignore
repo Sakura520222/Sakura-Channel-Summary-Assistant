@@ -230,3 +230,4 @@ prompt.txt
 备份/
 health_check.session
 .shutdown_flag
+test_session.session

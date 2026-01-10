@@ -64,3 +64,118 @@ def analyze_with_ai(messages, current_prompt):
         record_error(e, "analyze_with_ai")
         logger.error(f"AI分析失败: {type(e).__name__}: {e}", exc_info=True)
         return f"AI 分析失败: {e}"
+
+
+@retry_with_backoff(
+    max_retries=3,
+    base_delay=1.0,
+    max_delay=30.0,
+    exponential_backoff=True,
+    retry_on_exceptions=(ConnectionError, TimeoutError, Exception)
+)
+def generate_poll_from_summary(summary_text):
+    """根据总结内容生成投票
+    
+    Args:
+        summary_text: 总结文本
+    
+    Returns:
+        dict: 包含question和options的字典，格式为:
+            {"question": "投票问题", "options": ["选项1", "选项2", "选项3", "选项4"]}
+    """
+    logger.info("开始调用AI生成投票")
+    
+    if not summary_text or len(summary_text.strip()) < 10:
+        logger.warning("总结文本太短，无法生成有意义的投票")
+        return {
+            "question": "你对本周总结有什么看法？",
+            "options": ["非常满意", "比较满意", "一般", "有待改进"]
+        }
+    
+    # 使用用户提供的提示词格式
+    prompt = f"根据以下内容写一个有趣的单选投票。要求返回 JSON 格式：{{'question': '题目', 'options': ['选项1', '选项2', '选项3', '选项4']}}。内容如下：\n\n{summary_text}"
+    
+    logger.debug(f"投票生成请求配置: 模型={LLM_MODEL}, 提示词长度={len(prompt)}字符")
+    
+    try:
+        from datetime import datetime
+        import json
+        import re
+        
+        start_time = datetime.now()
+        response = client_llm.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[
+                {"role": "system", "content": "你是一个专业的投票生成助手，擅长根据内容生成有趣、相关的投票问题。"},
+                {"role": "user", "content": prompt},
+            ]
+        )
+        end_time = datetime.now()
+        
+        processing_time = (end_time - start_time).total_seconds()
+        logger.info(f"AI投票生成完成，处理时间: {processing_time:.2f}秒")
+        
+        response_text = response.choices[0].message.content
+        logger.debug(f"AI投票生成响应: {response_text}")
+        
+        # 尝试从响应中提取JSON
+        try:
+            # 查找JSON部分
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group()
+                poll_data = json.loads(json_str)
+                
+                # 验证数据结构
+                if 'question' in poll_data and 'options' in poll_data:
+                    if isinstance(poll_data['options'], list) and len(poll_data['options']) >= 2:
+                        # 验证投票问题长度（Telegram限制255字符）
+                        question = poll_data['question'].strip()
+                        if len(question) > 255:
+                            logger.warning(f"投票问题超长: {len(question)}字符，将截断")
+                            # 截断到255字符，确保不截断中文字符
+                            truncated = question[:255]
+                            while truncated and (truncated[-1].encode('utf-8') & 0xC0) == 0x80:
+                                truncated = truncated[:-1]
+                            poll_data['question'] = truncated + '...'
+                            logger.info(f"投票问题已截断为: {poll_data['question']}")
+                        
+                        # 验证选项长度（Telegram限制100字符）
+                        valid_options = []
+                        for i, option in enumerate(poll_data['options']):
+                            option_text = str(option).strip()
+                            if len(option_text) > 100:
+                                logger.warning(f"投票选项{i+1}超长: {len(option_text)}字符，将截断")
+                                # 截断到100字符
+                                truncated = option_text[:100]
+                                while truncated and (truncated[-1].encode('utf-8') & 0xC0) == 0x80:
+                                    truncated = truncated[:-1]
+                                valid_options.append(truncated + '...')
+                            else:
+                                valid_options.append(option_text)
+                        
+                        poll_data['options'] = valid_options
+                        logger.info(f"成功生成投票: {poll_data['question']}，选项数: {len(poll_data['options'])}")
+                        return poll_data
+                    else:
+                        logger.warning(f"投票选项格式不正确: {poll_data['options']}")
+                else:
+                    logger.warning(f"投票数据结构不完整: {poll_data}")
+        except json.JSONDecodeError as e:
+            logger.error(f"解析AI返回的JSON失败: {e}，原始响应: {response_text}")
+        
+        # 如果JSON解析失败，返回默认投票
+        logger.warning("使用默认投票作为备选")
+        return {
+            "question": "你对本周总结有什么看法？",
+            "options": ["非常满意", "比较满意", "一般", "有待改进"]
+        }
+        
+    except Exception as e:
+        record_error(e, "generate_poll_from_summary")
+        logger.error(f"AI投票生成失败: {type(e).__name__}: {e}", exc_info=True)
+        # 返回默认投票
+        return {
+            "question": "你对本周总结有什么看法？",
+            "options": ["非常满意", "比较满意", "一般", "有待改进"]
+        }
