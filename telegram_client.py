@@ -1,7 +1,9 @@
 import logging
+import asyncio
 from datetime import datetime, timedelta, timezone
 from telethon import TelegramClient
-from config import API_ID, API_HASH, BOT_TOKEN, CHANNELS, ADMIN_LIST, SEND_REPORT_TO_SOURCE
+from telethon.tl.types import PeerChannel
+from config import API_ID, API_HASH, BOT_TOKEN, CHANNELS, ADMIN_LIST, SEND_REPORT_TO_SOURCE, ENABLE_POLL
 from error_handler import retry_with_backoff, record_error
 
 logger = logging.getLogger(__name__)
@@ -260,6 +262,18 @@ async def send_report(summary_text, source_channel=None, client=None, skip_admin
                             report_message_ids.append(msg.id)
                     
                     logger.info(f"成功向源频道 {source_channel} 发送报告，消息ID: {report_message_ids}")
+                    
+                    # 如果启用了投票功能，发送投票到讨论组
+                    if ENABLE_POLL and report_message_ids:
+                        logger.info(f"开始处理投票发送，总结消息ID: {report_message_ids[0]}")
+                        # 使用第一个消息ID作为投票回复目标
+                        poll_success = await send_poll_to_discussion_group(
+                            use_client, source_channel, report_message_ids[0], summary_text
+                        )
+                        if poll_success:
+                            logger.info("投票成功发送到讨论组")
+                        else:
+                            logger.warning("投票发送失败，但总结消息已成功发送")
                 except Exception as e:
                     logger.error(f"向源频道 {source_channel} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
         else:
@@ -324,6 +338,18 @@ async def send_report(summary_text, source_channel=None, client=None, skip_admin
                                 report_message_ids.append(msg.id)
                         
                         logger.info(f"成功向源频道 {source_channel} 发送报告，消息ID: {report_message_ids}")
+                        
+                        # 如果启用了投票功能，发送投票到讨论组
+                        if ENABLE_POLL and report_message_ids:
+                            logger.info(f"开始处理投票发送，总结消息ID: {report_message_ids[0]}")
+                            # 使用第一个消息ID作为投票回复目标
+                            poll_success = await send_poll_to_discussion_group(
+                                use_client, source_channel, report_message_ids[0], summary_text
+                            )
+                            if poll_success:
+                                logger.info("投票成功发送到讨论组")
+                            else:
+                                logger.warning("投票发送失败，但总结消息已成功发送")
                     except Exception as e:
                         logger.error(f"向源频道 {source_channel} 发送报告失败: {type(e).__name__}: {e}", exc_info=True)
         
@@ -333,3 +359,209 @@ async def send_report(summary_text, source_channel=None, client=None, skip_admin
         logger.error(f"发送报告时发生严重错误: {type(e).__name__}: {e}", exc_info=True)
         # 返回空列表，而不是让程序崩溃
         return []
+
+
+async def send_poll_to_discussion_group(client, channel, summary_message_id, summary_text):
+    """发送投票到频道的讨论组（评论区）
+    
+    Args:
+        client: Telegram客户端实例
+        channel: 频道URL或ID
+        summary_message_id: 总结消息在频道中的ID
+        summary_text: 总结文本，用于生成投票内容
+    
+    Returns:
+        bool: 是否成功发送投票
+    """
+    logger.info(f"开始处理投票发送到讨论组: 频道={channel}, 消息ID={summary_message_id}")
+    
+    if not ENABLE_POLL:
+        logger.info("投票功能已禁用，跳过投票发送")
+        return False
+    
+    try:
+        # 获取频道实体
+        logger.info(f"获取频道实体: {channel}")
+        channel_entity = await client.get_entity(channel)
+        channel_id = channel_entity.id
+        
+        # 检查频道是否有绑定的讨论组
+        # 注意：Telethon的Channel对象可能没有linked_chat_id属性
+        # 需要尝试获取完整的频道信息
+        try:
+            # 尝试获取完整的频道信息
+            full_channel = await client.get_entity(channel)
+            
+            # 检查是否有linked_chat_id属性
+            if not hasattr(full_channel, 'linked_chat_id'):
+                logger.warning(f"频道 {channel} 的实体没有linked_chat_id属性，可能不是超级群组或未绑定讨论组")
+                # 尝试通过其他方式获取讨论组
+                logger.info(f"尝试通过GetFullChannel请求获取完整频道信息...")
+                try:
+                    from telethon.tl.functions.channels import GetFullChannelRequest
+                    full_info = await client(GetFullChannelRequest(full_channel))
+                    if hasattr(full_info.full_chat, 'linked_chat_id') and full_info.full_chat.linked_chat_id:
+                        discussion_group_id = full_info.full_chat.linked_chat_id
+                        logger.info(f"通过GetFullChannel获取到讨论组ID: {discussion_group_id}")
+                    else:
+                        logger.warning(f"频道 {channel} 没有绑定讨论组，无法发送投票到评论区")
+                        return False
+                except Exception as e:
+                    logger.warning(f"获取频道完整信息失败: {e}")
+                    logger.warning(f"频道 {channel} 可能未绑定讨论组或不是超级群组")
+                    return False
+            elif not full_channel.linked_chat_id:
+                logger.warning(f"频道 {channel} 没有绑定讨论组，无法发送投票到评论区")
+                return False
+            else:
+                discussion_group_id = full_channel.linked_chat_id
+                logger.info(f"频道 {channel} 绑定的讨论组ID: {discussion_group_id}")
+        except Exception as e:
+            logger.error(f"获取频道信息失败: {e}")
+            return False
+        
+        # 检查机器人是否在讨论组中
+        try:
+            # 转换讨论组ID为Telethon格式（超级群组以-100开头）
+            # 如果discussion_group_id是正数，需要转换为-100xxxxxxxxx格式
+            if discussion_group_id > 0:
+                # 转换为超级群组格式
+                discussion_group_id = -1000000000000 - discussion_group_id
+                logger.info(f"转换讨论组ID为超级群组格式: {discussion_group_id}")
+            
+            await client.get_permissions(discussion_group_id)
+            logger.info(f"机器人已在讨论组 {discussion_group_id} 中")
+        except Exception as e:
+            logger.warning(f"机器人未加入讨论组 {discussion_group_id} 或没有权限: {e}")
+            logger.warning("请将机器人添加到频道的讨论组（私人群组）中")
+            return False
+        
+        # 生成投票内容
+        logger.info("开始生成投票内容")
+        from ai_client import generate_poll_from_summary
+        poll_data = generate_poll_from_summary(summary_text)
+        
+        if not poll_data or 'question' not in poll_data or 'options' not in poll_data:
+            logger.error("生成投票内容失败，使用默认投票")
+            poll_data = {
+                "question": "你对本周总结有什么看法？",
+                "options": ["非常满意", "比较满意", "一般", "有待改进"]
+            }
+        
+        # 使用事件监听方式等待转发消息
+        logger.info(f"等待频道消息转发到讨论组...")
+        
+        # 创建事件Future来等待转发消息
+        from asyncio import Future
+        forward_message_future = Future()
+        
+        # 定义事件处理器
+        from telethon import events
+        
+        @client.on(events.NewMessage(chats=discussion_group_id))
+        async def on_discussion_message(event):
+            msg = event.message
+            
+            # 检查是否是转发消息
+            if (hasattr(msg, 'fwd_from') and msg.fwd_from and
+                hasattr(msg.fwd_from, 'from_id') and msg.fwd_from.from_id and
+                hasattr(msg.fwd_from.from_id, 'channel_id') and 
+                msg.fwd_from.from_id.channel_id == channel_id and
+                msg.fwd_from.channel_post == summary_message_id):
+                
+                logger.info(f"收到转发消息，讨论组消息ID: {msg.id}")
+                forward_message_future.set_result(msg)
+                
+                # 移除事件处理器
+                client.remove_event_handler(on_discussion_message)
+        
+        # 等待转发消息（最多10秒）
+        try:
+            forward_message = await asyncio.wait_for(forward_message_future, timeout=10)
+            logger.info(f"成功收到转发消息，ID: {forward_message.id}")
+            
+            # 发送投票作为回复
+            logger.info(f"发送投票到讨论组: {poll_data['question']}")
+            
+            # 终极解决方案：直接使用底层RPC调用SendMediaRequest
+            # 绕过send_message内部可能出错的自动转换逻辑
+            from telethon.tl.types import (
+                InputMediaPoll, Poll, PollAnswer, TextWithEntities,
+                InputReplyToMessage  # 必须导入这个
+            )
+            from telethon.tl.functions.messages import SendMediaRequest
+            
+            try:
+                # 1. 严格清洗并截断
+                question_text = str(poll_data.get('question', '频道调研')).strip()[:250]
+                
+                # 2. 构造选项，确保text字段被显式包装为TextWithEntities
+                # 这是为了适配2025/2026年最新的协议层要求
+                poll_answers = []
+                for i, opt in enumerate(poll_data.get('options', [])[:10]):
+                    opt_clean = str(opt).strip()[:100]
+                    poll_answers.append(PollAnswer(
+                        text=TextWithEntities(text=opt_clean, entities=[]),
+                        option=bytes([i])
+                    ))
+
+                # 3. 手动构造底层Poll对象
+                # 注意：question必须是TextWithEntities对象
+                poll_obj = Poll(
+                    id=0,  # 这里的id由Telegram分配，发出去时设为0
+                    question=TextWithEntities(text=question_text, entities=[]),
+                    answers=poll_answers,
+                    closed=False,
+                    public_voters=False,
+                    multiple_choice=False,
+                    quiz=False
+                )
+
+                # 4. 【关键修复】将reply_to包装为InputReplyToMessage对象
+                # 这里的forward_message.id是转发消息ID，例如47
+                reply_header = InputReplyToMessage(reply_to_msg_id=int(forward_message.id))
+
+                # 5. 【核心区别】直接通过client(...)发起SendMediaRequest
+                # 这会绕过send_message内部那些容易出错的自动转换逻辑
+                await client(SendMediaRequest(
+                    peer=int(discussion_group_id),  # 必须是int, 例如-1003311748800
+                    media=InputMediaPoll(poll=poll_obj),
+                    message='',  # 不要带任何消息文本，让它纯粹发投票
+                    reply_to=reply_header  # 传入包装后的对象，不再是int
+                ))
+                
+                logger.info(f"✅ [底层RPC模式] 投票发送成功: {question_text}")
+                return True
+                
+            except Exception as e:
+                logger.error(f"❌ 终极尝试依然失败: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                return False
+            
+            logger.info(f"成功发送投票到讨论组并回复到消息 {forward_message.id}")
+            return True
+            
+        except asyncio.TimeoutError:
+            logger.warning(f"等待转发消息超时（10秒），可能转发延迟或未成功")
+            # 移除事件处理器
+            client.remove_event_handler(on_discussion_message)
+            
+            # 尝试发送独立消息
+            try:
+                logger.info(f"尝试发送独立投票消息")
+                await client.send_message(
+                    discussion_group_id,
+                    f"📊 **投票：{poll_data['question']}**\n\n" +
+                    "\n".join([f"• {opt}" for opt in poll_data['options']])
+                )
+                logger.info("成功发送独立投票消息")
+                return True
+            except Exception as e:
+                logger.error(f"发送独立投票消息失败: {e}")
+                return False
+        
+    except Exception as e:
+        record_error(e, "send_poll_to_discussion_group")
+        logger.error(f"发送投票到讨论组失败: {type(e).__name__}: {e}", exc_info=True)
+        return False

@@ -66,6 +66,9 @@ if TARGET_CHANNEL:
 # 是否将报告发送回源频道的配置，默认为True
 SEND_REPORT_TO_SOURCE = True
 
+# 是否启用投票功能，默认为True
+ENABLE_POLL = True
+
 # 日志级别 - 从环境变量获取默认值
 LOG_LEVEL_FROM_ENV = os.getenv('LOG_LEVEL')
 logger.debug(f"从环境变量读取的日志级别: {LOG_LEVEL_FROM_ENV}")
@@ -146,6 +149,11 @@ def update_module_variables(config):
         SEND_REPORT_TO_SOURCE = config['send_report_to_source']
         logger.info(f"已更新内存中的发送报告到源频道的配置: {SEND_REPORT_TO_SOURCE}")
     
+    # 更新是否启用投票功能的配置
+    if 'enable_poll' in config:
+        ENABLE_POLL = config['enable_poll']
+        logger.info(f"已更新内存中的投票功能配置: {ENABLE_POLL}")
+    
     # 更新频道级时间配置
     summary_schedules_config = config.get('summary_schedules', {})
     if isinstance(summary_schedules_config, dict):
@@ -170,6 +178,10 @@ if config:
     # 从配置文件读取是否将报告发送回源频道的配置
     SEND_REPORT_TO_SOURCE = config.get('send_report_to_source', SEND_REPORT_TO_SOURCE)
     logger.info(f"已从配置文件加载发送报告到源频道的配置: {SEND_REPORT_TO_SOURCE}")
+    
+    # 从配置文件读取是否启用投票功能的配置
+    ENABLE_POLL = config.get('enable_poll', ENABLE_POLL)
+    logger.info(f"已从配置文件加载投票功能配置: {ENABLE_POLL}")
     
     # 从配置文件读取日志级别
     LOG_LEVEL_FROM_CONFIG = config.get('log_level')
