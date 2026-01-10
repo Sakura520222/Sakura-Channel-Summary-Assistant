@@ -119,8 +119,38 @@ def save_config(config):
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
         logger.info(f"成功保存配置到文件，配置项数量: {len(config)}")
+        
+        # 更新模块变量以保持一致性
+        update_module_variables(config)
+        
     except Exception as e:
         logger.error(f"保存配置到文件 {CONFIG_FILE} 时出错: {type(e).__name__}: {e}", exc_info=True)
+
+def update_module_variables(config):
+    """更新模块变量以匹配配置文件"""
+    global LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, CHANNELS, SEND_REPORT_TO_SOURCE, SUMMARY_SCHEDULES
+    
+    # 更新AI配置
+    LLM_API_KEY = config.get('api_key', LLM_API_KEY)
+    LLM_BASE_URL = config.get('base_url', LLM_BASE_URL)
+    LLM_MODEL = config.get('model', LLM_MODEL)
+    
+    # 更新频道列表
+    config_channels = config.get('channels')
+    if config_channels and isinstance(config_channels, list):
+        CHANNELS = config_channels
+        logger.info(f"已更新内存中的频道列表: {CHANNELS}")
+    
+    # 更新是否将报告发送回源频道的配置
+    if 'send_report_to_source' in config:
+        SEND_REPORT_TO_SOURCE = config['send_report_to_source']
+        logger.info(f"已更新内存中的发送报告到源频道的配置: {SEND_REPORT_TO_SOURCE}")
+    
+    # 更新频道级时间配置
+    summary_schedules_config = config.get('summary_schedules', {})
+    if isinstance(summary_schedules_config, dict):
+        SUMMARY_SCHEDULES = summary_schedules_config
+        logger.info(f"已更新内存中的频道级时间配置: {len(SUMMARY_SCHEDULES)} 个频道")
 
 # 加载配置文件，覆盖环境变量默认值
 logger.info("开始加载配置文件...")
@@ -270,12 +300,8 @@ def set_channel_schedule(channel, day=None, hour=None, minute=None):
         if minute is not None:
             current_config['summary_schedules'][channel]['minute'] = minute
         
-        # 保存配置
+        # 保存配置（save_config会自动更新模块变量）
         save_config(current_config)
-        
-        # 更新内存中的配置
-        global SUMMARY_SCHEDULES
-        SUMMARY_SCHEDULES = current_config.get('summary_schedules', {})
         
         logger.info(f"已更新频道 {channel} 的时间配置: day={day}, hour={hour}, minute={minute}")
         return True
@@ -302,12 +328,8 @@ def delete_channel_schedule(channel):
             # 删除频道配置
             del current_config['summary_schedules'][channel]
             
-            # 保存配置
+            # 保存配置（save_config会自动更新模块变量）
             save_config(current_config)
-            
-            # 更新内存中的配置
-            global SUMMARY_SCHEDULES
-            SUMMARY_SCHEDULES = current_config.get('summary_schedules', {})
             
             logger.info(f"已删除频道 {channel} 的时间配置")
             return True

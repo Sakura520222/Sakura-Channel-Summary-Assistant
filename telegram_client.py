@@ -114,47 +114,53 @@ async def send_long_message(client, chat_id, text, max_length=4000):
         await client.send_message(chat_id, text, link_preview=False)
         return
     
-    # 提取频道名称用于分段消息标题
-    channel_title = "频道周报汇总"
-    if "**" in text and "** " in text:
-        # 提取 ** 之间的频道名称
-        start_idx = text.index("**") + 2
-        end_idx = text.index("** ", start_idx)
-        channel_title = text[start_idx:end_idx]
+    # 确定标题
+    # 对于更新日志，使用固定标题
+    channel_title = "更新日志"
     
-    # 分段发送
+    # 计算标题长度
+    # 标题格式：📋 **{channel_title} ({i+1}/{len(parts)})**\n\n
+    # 计算最大可能标题长度
+    max_title_length = len(f"📋 **{channel_title} (99/99)**\n\n")
+    
+    # 实际可用于内容的最大长度
+    content_max_length = max_length - max_title_length
+    
+    logger.info(f"消息需要分段发送，开始分段处理，标题长度: {max_title_length}字符，内容最大长度: {content_max_length}字符")
+    
+    # 简单直接的分段方法：按字符数分割
     parts = []
-    current_part = ""
+    text_length = len(text)
     
-    logger.info(f"消息需要分段发送，开始分段处理")
-    for line in text.split('\n'):
-        # 检查添加当前行是否超过限制
-        if len(current_part) + len(line) + 1 <= max_length:
-            current_part += line + '\n'
-        else:
-            # 如果当前部分不为空，添加到列表
-            if current_part:
-                parts.append(current_part.strip())
-            # 检查当前行是否超过限制
-            if len(line) > max_length:
-                # 对超长行进行进一步分割
-                logger.warning(f"发现超长行，长度: {len(line)}字符，将进一步分割")
-                for i in range(0, len(line), max_length):
-                    parts.append(line[i:i+max_length])
-            else:
-                current_part = line + '\n'
-    
-    # 添加最后一部分
-    if current_part:
-        parts.append(current_part.strip())
+    for i in range(0, text_length, content_max_length):
+        part = text[i:i+content_max_length]
+        if part:
+            parts.append(part)
     
     logger.info(f"消息分段完成，共分成 {len(parts)} 段")
     
+    # 验证分段结果
+    total_content_length = sum(len(part) for part in parts)
+    logger.debug(f"分段后总内容长度: {total_content_length}字符，原始长度: {text_length}字符")
+    
     # 发送所有部分
     for i, part in enumerate(parts):
-        logger.info(f"正在发送第 {i+1}/{len(parts)} 段，长度: {len(part)}字符")
-        await client.send_message(chat_id, f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}", link_preview=False)
-        logger.debug(f"成功发送第 {i+1}/{len(parts)} 段")
+        # 构建完整消息，包含标题
+        full_message = f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}"
+        full_message_length = len(full_message)
+        logger.info(f"正在发送第 {i+1}/{len(parts)} 段，长度: {full_message_length}字符")
+        
+        # 验证消息长度不超过限制
+        if full_message_length > max_length:
+            logger.error(f"第 {i+1} 段消息长度 {full_message_length} 超过限制 {max_length}，将进行紧急分割")
+            # 紧急分割：直接按字符分割
+            for j in range(0, full_message_length, max_length):
+                emergency_part = full_message[j:j+max_length]
+                await client.send_message(chat_id, emergency_part, link_preview=False)
+                logger.warning(f"发送紧急分割段 {j//max_length + 1}")
+        else:
+            await client.send_message(chat_id, full_message, link_preview=False)
+            logger.debug(f"成功发送第 {i+1}/{len(parts)} 段")
 
 async def send_report(summary_text, source_channel=None, client=None, skip_admins=False):
     """发送报告

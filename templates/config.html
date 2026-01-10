@@ -158,6 +158,19 @@ document.addEventListener('DOMContentLoaded', function() {
 function updateAiConfig() {
     const formData = new FormData(document.getElementById('aiConfigForm'));
     
+    // 当只更新AI配置时，也需要包含当前的send_report_to_source状态
+    // 获取当前checkbox状态
+    const sendReportSwitch = document.getElementById('sendReportSwitch');
+    if (sendReportSwitch) {
+        // 确保send_report_to_source参数总是被发送
+        const value = sendReportSwitch.checked ? 'on' : 'off';
+        // 先删除可能存在的旧值（如果有的话）
+        if (formData.has('send_report_to_source')) {
+            formData.delete('send_report_to_source');
+        }
+        formData.append('send_report_to_source', value);
+    }
+    
     fetch('/api/update_config', {
         method: 'POST',
         body: formData
@@ -184,6 +197,18 @@ function updateAiConfig() {
 // 更新系统配置
 function updateSystemConfig() {
     const formData = new FormData(document.getElementById('systemConfigForm'));
+    
+    // 确保send_report_to_source参数总是被发送
+    // 如果checkbox未选中，手动添加值为"off"
+    const sendReportSwitch = document.getElementById('sendReportSwitch');
+    if (!sendReportSwitch.checked) {
+        // 如果checkbox未选中，确保formData中有send_report_to_source参数
+        // 先删除可能存在的旧值（如果有的话）
+        if (formData.has('send_report_to_source')) {
+            formData.delete('send_report_to_source');
+        }
+        formData.append('send_report_to_source', 'off');
+    }
     
     fetch('/api/update_config', {
         method: 'POST',
