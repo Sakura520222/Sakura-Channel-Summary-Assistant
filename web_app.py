@@ -18,7 +18,7 @@ from config import (
 from error_handler import get_health_checker, get_error_stats
 
 # 创建FastAPI应用
-app = FastAPI(title="Sakura频道总结助手管理界面", version="1.1.3")
+app = FastAPI(title="Sakura频道总结助手管理界面", version="1.1.4")
 
 # 配置会话中间件
 SECRET_KEY = os.getenv("WEB_SECRET_KEY", "sakura-channel-summary-secret-key-2026/01/09")
@@ -70,7 +70,7 @@ async def index(request: Request, user: str = Depends(require_auth)):
     context = {
         "request": request,
         "user": user,
-        "version": "1.1.3",
+        "version": "1.1.4",
         "channels_count": len(CHANNELS),
         "admin_count": len(ADMIN_LIST),
         "ai_model": LLM_MODEL,
@@ -516,6 +516,28 @@ def get_recent_task_history(limit=10):
     return task_history[-limit:] if len(task_history) > limit else task_history
 
 # 日志管理API端点
+@app.get("/api/get_recent_tasks")
+async def api_get_recent_tasks(limit: int = 10, user: str = Depends(require_auth)):
+    """获取最近的任务执行记录"""
+    try:
+        recent_tasks = get_recent_task_history(limit)
+        
+        # 将任务记录转换为可序列化的格式
+        serializable_tasks = []
+        for task in recent_tasks:
+            serializable_tasks.append({
+                "timestamp": task["timestamp"].isoformat(),
+                "channel": task["channel"],
+                "task_type": task["task_type"],
+                "status": task["status"],
+                "result": task["result"]
+            })
+        
+        return serializable_tasks
+    except Exception as e:
+        logger.error(f"获取任务执行记录时出错: {e}")
+        return {"status": "error", "message": f"获取任务执行记录失败: {str(e)}"}
+
 @app.get("/api/get_logs")
 async def api_get_logs(lines: int = 100, user: str = Depends(require_auth)):
     """获取日志 - 从内存缓冲区获取"""
