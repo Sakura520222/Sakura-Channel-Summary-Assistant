@@ -327,6 +327,9 @@ function triggerSummary() {
                 <div class="spinner-border spinner-border-sm me-2" role="status"></div>
                 <div>正在为频道 ${channel} 生成总结报告...</div>
             </div>
+            <div class="mt-2">
+                <small class="text-muted">任务已提交，正在等待执行结果...</small>
+            </div>
         </div>
     `;
     resultDiv.style.display = 'block';
@@ -347,11 +350,14 @@ function triggerSummary() {
                     <i class="bi bi-check-circle-fill me-2"></i>
                     ${data.message}
                     <div class="mt-2">
-                        <small class="text-muted">任务已提交，请查看机器人消息获取结果。</small>
+                        <small class="text-muted">任务已提交，正在等待执行结果...</small>
                     </div>
                 </div>
             `;
             showToast('总结任务已触发', 'success');
+            
+            // 开始轮询任务执行状态
+            startTaskPolling(channel);
         } else {
             resultDiv.innerHTML = `
                 <div class="alert alert-danger">
@@ -372,6 +378,214 @@ function triggerSummary() {
         `;
         showToast('触发总结失败: ' + error, 'danger');
     });
+}
+
+// 开始轮询任务执行状态
+function startTaskPolling(channel) {
+    let pollCount = 0;
+    const maxPolls = 60; // 最多轮询60次（约3分钟）
+    const pollInterval = 3000; // 每3秒轮询一次
+    
+    const pollTaskStatus = () => {
+        pollCount++;
+        
+        if (pollCount > maxPolls) {
+            // 轮询超时
+            const resultDiv = document.getElementById('triggerResult');
+            resultDiv.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    任务执行超时，请手动刷新页面查看结果
+                </div>
+            `;
+            showToast('任务执行超时', 'warning');
+            return;
+        }
+        
+        // 获取最新的任务执行记录
+        fetch('/api/get_recent_tasks?limit=10')
+            .then(response => response.json())
+            .then(tasks => {
+                // 查找当前频道的任务执行记录
+                const recentTask = tasks.find(task => task.channel === channel && task.task_type === '手动触发总结');
+                
+                if (recentTask) {
+                    // 检查任务状态是否为完成状态
+                    const completedStatuses = ['成功', '失败', '已完成', '完成'];
+                    if (completedStatuses.includes(recentTask.status)) {
+                        // 任务执行完成，显示结果并刷新整个页面
+                        const resultDiv = document.getElementById('triggerResult');
+                        const isSuccess = recentTask.status === '成功' || recentTask.status === '已完成' || recentTask.status === '完成';
+                        const statusClass = isSuccess ? 'alert-success' : 'alert-danger';
+                        const statusIcon = isSuccess ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill';
+                        const statusText = isSuccess ? '成功' : '失败';
+                        
+                        resultDiv.innerHTML = `
+                            <div class="alert ${statusClass}">
+                                <i class="bi ${statusIcon} me-2"></i>
+                                <strong>任务执行${statusText}</strong>
+                                <div class="mt-2">
+                                    <small>${recentTask.result.replace(/\n/g, '<br>')}</small>
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">页面将在3秒后自动刷新...</small>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // 显示完成通知
+                        showToast(`任务执行${statusText}，页面即将刷新`, isSuccess ? 'success' : 'danger');
+                        
+                        // 3秒后刷新整个页面
+                        setTimeout(() => {
+                            location.reload();
+                        }, 3000);
+                    } else {
+                        // 任务还在执行中，继续轮询
+                        setTimeout(pollTaskStatus, pollInterval);
+                    }
+                } else {
+                    // 没有找到任务记录，继续轮询
+                    setTimeout(pollTaskStatus, pollInterval);
+                }
+            })
+            .catch(error => {
+                console.error('轮询任务状态失败:', error);
+                // 发生错误时继续轮询
+                setTimeout(pollTaskStatus, pollInterval);
+            });
+    };
+    
+    // 开始轮询
+    setTimeout(pollTaskStatus, pollInterval);
+}
+
+// 刷新任务执行记录表格
+function refreshTaskHistoryTable() {
+    fetch('/api/get_recent_tasks?limit=10')
+        .then(response => response.json())
+        .then(tasks => {
+            // 找到最近执行记录表格的tbody
+            // 页面中有两个表格：定时任务列表（6列）和最近执行记录（5列）
+            // 我们需要找到最近执行记录表格，它有5列
+            const allTables = document.querySelectorAll('.table');
+            let targetTbody = null;
+            
+            // 查找有5列的表格（最近执行记录表格）
+            for (const table of allTables) {
+                const thead = table.querySelector('thead');
+                if (thead) {
+                    const headerRow = thead.querySelector('tr');
+                    if (headerRow) {
+                        const thCount = headerRow.querySelectorAll('th').length;
+                        if (thCount === 5) {
+                            // 找到最近执行记录表格
+                            targetTbody = table.querySelector('tbody');
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (!targetTbody) {
+                // 如果没找到，尝试使用更通用的选择器
+                targetTbody = document.querySelector('.card:has(h5:contains("最近执行记录")) .table tbody');
+            }
+            
+            if (!targetTbody) {
+                // 如果还是没找到，使用第一个有tbody的表格
+                targetTbody = document.querySelector('.table tbody');
+            }
+            
+            if (targetTbody) {
+                // 清空现有行
+                targetTbody.innerHTML = '';
+                
+                // 添加新行（按时间倒序）
+                tasks.reverse().forEach((task, index) => {
+                    const row = document.createElement('tr');
+                    
+                    // 格式化时间
+                    const timestamp = new Date(task.timestamp);
+                    const timeStr = timestamp.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const dateStr = timestamp.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+                    
+                    // 状态徽章
+                    let statusBadge = '';
+                    if (task.status === '成功' || task.status === '已触发') {
+                        statusBadge = `<span class="badge bg-success">${task.status}</span>`;
+                    } else if (task.status === '失败') {
+                        statusBadge = `<span class="badge bg-danger">${task.status}</span>`;
+                    } else if (task.status === '执行中') {
+                        statusBadge = `<span class="badge bg-warning">${task.status}</span>`;
+                    } else {
+                        statusBadge = `<span class="badge bg-secondary">${task.status}</span>`;
+                    }
+                    
+                    // 任务类型徽章
+                    let typeBadge = '';
+                    if (task.task_type === '手动触发总结') {
+                        typeBadge = `<span class="badge bg-primary">${task.task_type}</span>`;
+                    } else if (task.task_type === '定时任务') {
+                        typeBadge = `<span class="badge bg-info">${task.task_type}</span>`;
+                    } else {
+                        typeBadge = `<span class="badge bg-secondary">${task.task_type}</span>`;
+                    }
+                    
+                    // 结果详情按钮
+                    let detailsButton = '';
+                    if (task.result && task.result.length > 30) {
+                        detailsButton = `
+                            <button class="btn btn-link btn-sm p-0 ms-1" onclick="showTaskDetails('${index}')" title="查看详情">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <div id="task-details-${index}" class="d-none">
+                                ${task.result}
+                            </div>
+                        `;
+                    }
+                    
+                    row.innerHTML = `
+                        <td>
+                            <small>${timeStr}</small>
+                            <br>
+                            <small class="text-muted">${dateStr}</small>
+                        </td>
+                        <td>
+                            <code class="small">${task.channel.length > 20 ? task.channel.substring(0, 20) + '...' : task.channel}</code>
+                        </td>
+                        <td>${typeBadge}</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            <small>${task.result && task.result.length > 30 ? task.result.substring(0, 30) + '...' : (task.result || '')}</small>
+                            ${detailsButton}
+                        </td>
+                    `;
+                    
+                    targetTbody.appendChild(row);
+                });
+                
+                // 如果没有任务记录
+                if (tasks.length === 0) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.innerHTML = `
+                        <td colspan="5" class="text-center py-5">
+                            <i class="bi bi-clock-history text-muted" style="font-size: 2rem;"></i>
+                            <h6 class="mt-3 text-muted">暂无执行记录</h6>
+                            <p class="text-muted small">手动触发总结任务后，执行记录将显示在这里</p>
+                        </td>
+                    `;
+                    targetTbody.appendChild(emptyRow);
+                }
+                
+                console.log('任务执行记录表格已刷新，共', tasks.length, '条记录');
+            } else {
+                console.error('未找到最近执行记录表格的tbody元素');
+            }
+        })
+        .catch(error => {
+            console.error('刷新任务历史记录失败:', error);
+        });
 }
 
 // 为单个频道触发总结

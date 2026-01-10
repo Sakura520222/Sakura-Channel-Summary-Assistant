@@ -277,20 +277,47 @@ async def main():
                         logger.info(f"从Web管理界面接收到总结任务: {channel}")
                         
                         try:
-                            # 执行总结任务
+                            # 执行总结任务并获取详细结果
                             from scheduler import main_job
-                            await main_job(channel)
+                            result = await main_job(channel)
                             
-                            # 任务执行成功，更新任务执行记录
-                            logger.info(f"Web管理界面触发的总结任务完成: {channel}")
-                            
-                            # 导入web_app模块中的函数来更新任务执行记录
+                            # 根据结果更新任务执行记录
                             from web_app import record_task_execution
+                            
+                            if result["success"]:
+                                # 任务执行成功，使用详细结果信息
+                                status = "成功"
+                                if result["message_count"] > 0:
+                                    result_message = f"✅ 总结任务成功完成\n"
+                                    result_message += f"• 频道: {result['channel']}\n"
+                                    result_message += f"• 处理消息: {result['message_count']} 条\n"
+                                    result_message += f"• 总结长度: {result['summary_length']} 字符\n"
+                                    result_message += f"• 处理时间: {result['processing_time']:.2f} 秒\n"
+                                    result_message += f"• 详情: {result['details']}"
+                                else:
+                                    result_message = f"ℹ️ 没有新消息需要总结\n"
+                                    result_message += f"• 频道: {result['channel']}\n"
+                                    result_message += f"• 处理时间: {result['processing_time']:.2f} 秒\n"
+                                    result_message += f"• 详情: {result['details']}"
+                                
+                                logger.info(f"Web管理界面触发的总结任务成功: {result['details']}")
+                            else:
+                                # 任务执行失败
+                                status = "失败"
+                                result_message = f"❌ 总结任务执行失败\n"
+                                result_message += f"• 频道: {result['channel']}\n"
+                                result_message += f"• 错误: {result['error']}\n"
+                                result_message += f"• 处理时间: {result['processing_time']:.2f} 秒\n"
+                                result_message += f"• 详情: {result['details']}"
+                                
+                                logger.error(f"Web管理界面触发的总结任务失败: {result['error']}")
+                            
+                            # 更新任务执行记录
                             record_task_execution(
                                 channel=channel,
                                 task_type="手动触发总结",
-                                status="成功",
-                                result_message=f"总结任务执行完成: {channel}"
+                                status=status,
+                                result_message=result_message
                             )
                             
                         except Exception as e:
@@ -302,7 +329,7 @@ async def main():
                                 channel=channel,
                                 task_type="手动触发总结",
                                 status="失败",
-                                result_message=f"总结任务执行失败: {str(e)}"
+                                result_message=f"❌ 总结任务执行失败\n• 频道: {channel}\n• 错误: {str(e)}\n• 详情: 执行过程中发生未预期的错误"
                             )
                 except Exception as e:
                     logger.error(f"处理Web管理界面总结任务时出错: {e}")
