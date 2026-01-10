@@ -875,3 +875,122 @@ async def handle_changelog(event):
     except Exception as e:
         logger.error(f"显示更新日志时出错: {type(e).__name__}: {e}", exc_info=True)
         await event.reply(f"显示更新日志时出错: {e}")
+
+async def handle_shutdown(event):
+    """处理/shutdown命令，彻底停止机器人"""
+    sender_id = event.sender_id
+    command = event.text
+    logger.info(f"收到命令: {command}，发送者: {sender_id}")
+    
+    # 检查发送者是否为管理员
+    if sender_id not in ADMIN_LIST and ADMIN_LIST != ['me']:
+        logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command}")
+        await event.reply("您没有权限执行此命令")
+        return
+    
+    logger.info(f"开始执行 {command} 命令")
+    
+    # 发送关机确认消息
+    await event.reply("正在关闭机器人...")
+    
+    # 设置关机状态
+    from config import set_bot_state, BOT_STATE_SHUTTING_DOWN
+    set_bot_state(BOT_STATE_SHUTTING_DOWN)
+    
+    # 停止调度器
+    from config import get_scheduler_instance
+    scheduler = get_scheduler_instance()
+    if scheduler:
+        scheduler.shutdown(wait=False)
+        logger.info("调度器已停止")
+    
+    # 记录关机日志
+    logger.info("机器人关机命令已执行，正在关闭...")
+    
+    # 向管理员发送关机通知
+    try:
+        for admin_id in ADMIN_LIST:
+            if admin_id != 'me':
+                await event.client.send_message(admin_id, "机器人已执行关机命令，正在停止运行...", link_preview=False)
+    except Exception as e:
+        logger.error(f"发送关机通知失败: {e}")
+    
+    # 关闭当前进程
+    import sys
+    import time
+    time.sleep(1)  # 等待消息发送完成
+    sys.exit(0)
+
+async def handle_pause(event):
+    """处理/pause命令，暂停所有定时任务"""
+    sender_id = event.sender_id
+    command = event.text
+    logger.info(f"收到命令: {command}，发送者: {sender_id}")
+    
+    # 检查发送者是否为管理员
+    if sender_id not in ADMIN_LIST and ADMIN_LIST != ['me']:
+        logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command}")
+        await event.reply("您没有权限执行此命令")
+        return
+    
+    # 检查当前状态
+    from config import get_bot_state, set_bot_state, BOT_STATE_RUNNING, BOT_STATE_PAUSED
+    current_state = get_bot_state()
+    
+    if current_state == BOT_STATE_PAUSED:
+        await event.reply("机器人已经处于暂停状态")
+        return
+    
+    if current_state != BOT_STATE_RUNNING:
+        await event.reply(f"机器人当前状态为 {current_state}，无法暂停")
+        return
+    
+    # 暂停调度器
+    from config import get_scheduler_instance
+    scheduler = get_scheduler_instance()
+    if scheduler:
+        scheduler.pause()
+        logger.info("调度器已暂停")
+    
+    # 更新状态
+    set_bot_state(BOT_STATE_PAUSED)
+    
+    logger.info(f"执行命令 {command} 成功")
+    await event.reply("机器人已暂停。定时任务已停止，但手动命令仍可执行。\n使用 /resume 或 /恢复 恢复运行。")
+
+async def handle_resume(event):
+    """处理/resume命令，恢复所有定时任务"""
+    sender_id = event.sender_id
+    command = event.text
+    logger.info(f"收到命令: {command}，发送者: {sender_id}")
+    
+    # 检查发送者是否为管理员
+    if sender_id not in ADMIN_LIST and ADMIN_LIST != ['me']:
+        logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command}")
+        await event.reply("您没有权限执行此命令")
+        return
+    
+    # 检查当前状态
+    from config import get_bot_state, set_bot_state, BOT_STATE_RUNNING, BOT_STATE_PAUSED
+    current_state = get_bot_state()
+    
+    if current_state == BOT_STATE_RUNNING:
+        await event.reply("机器人已经在运行状态")
+        return
+    
+    if current_state != BOT_STATE_PAUSED:
+        await event.reply(f"机器人当前状态为 {current_state}，无法恢复")
+        return
+    
+    # 恢复调度器
+    from config import get_scheduler_instance
+    scheduler = get_scheduler_instance()
+    if scheduler:
+        scheduler.resume()
+        logger.info("调度器已恢复")
+    
+    # 更新状态
+    set_bot_state(BOT_STATE_RUNNING)
+    
+    logger.info(f"执行命令 {command} 成功")
+    await event.reply("机器人已恢复运行。定时任务将继续执行。")

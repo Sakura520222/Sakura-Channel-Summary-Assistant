@@ -20,13 +20,13 @@ from command_handlers import (
     handle_restart, handle_show_channels, handle_add_channel,
     handle_delete_channel, handle_clear_summary_time, handle_set_send_to_source,
     handle_show_channel_schedule, handle_set_channel_schedule, handle_delete_channel_schedule,
-    handle_changelog
+    handle_changelog, handle_shutdown, handle_pause, handle_resume
 )
 from error_handler import initialize_error_handling, get_health_checker, get_error_stats
 from web_app import run_web_server
 
 # 版本信息
-__version__ = "1.1.5"
+__version__ = "1.1.6"
 
 async def send_startup_message(client):
     """向所有管理员发送启动消息"""
@@ -50,6 +50,9 @@ async def send_startup_message(client):
 /showloglevel - 查看当前日志级别
 /setloglevel - 设置日志级别
 /restart - 重启机器人
+/shutdown - 彻底停止机器人
+/pause - 暂停所有定时任务
+/resume - 恢复所有定时任务
 /showchannels - 查看当前频道列表
 /addchannel - 添加频道
 /deletechannel - 删除频道
@@ -162,6 +165,12 @@ async def main():
         client.add_event_handler(handle_set_log_level, NewMessage(pattern='/setloglevel|/set_log_level|/设置日志级别'))
         # 添加重启命令
         client.add_event_handler(handle_restart, NewMessage(pattern='/restart|/重启'))
+        # 添加关机命令
+        client.add_event_handler(handle_shutdown, NewMessage(pattern='/shutdown|/关机'))
+        # 添加暂停命令
+        client.add_event_handler(handle_pause, NewMessage(pattern='/pause|/暂停'))
+        # 添加恢复命令
+        client.add_event_handler(handle_resume, NewMessage(pattern='/resume|/恢复'))
         # 添加频道管理命令
         client.add_event_handler(handle_show_channels, NewMessage(pattern='/showchannels|/show_channels|/查看频道列表'))
         client.add_event_handler(handle_add_channel, NewMessage(pattern='/addchannel|/add_channel|/添加频道'))
@@ -198,6 +207,9 @@ async def main():
             BotCommand(command="showloglevel", description="查看当前日志级别"),
             BotCommand(command="setloglevel", description="设置日志级别"),
             BotCommand(command="restart", description="重启机器人"),
+            BotCommand(command="shutdown", description="彻底停止机器人"),
+            BotCommand(command="pause", description="暂停所有定时任务"),
+            BotCommand(command="resume", description="恢复所有定时任务"),
             BotCommand(command="showchannels", description="查看当前频道列表"),
             BotCommand(command="addchannel", description="添加频道"),
             BotCommand(command="deletechannel", description="删除频道"),
@@ -223,6 +235,11 @@ async def main():
         # 启动调度器
         scheduler.start()
         logger.info("调度器已启动")
+        
+        # 存储调度器实例到config模块，供其他模块访问
+        from config import set_scheduler_instance
+        set_scheduler_instance(scheduler)
+        logger.info("调度器实例已存储到config模块")
         
         # 向管理员发送启动消息
         logger.info("开始向管理员发送启动消息...")
@@ -262,6 +279,42 @@ async def main():
                 logger.info("重启标记文件已删除")
             except Exception as e:
                 logger.error(f"处理重启标记时出错: {type(e).__name__}: {e}", exc_info=True)
+        
+        # 检查关机标记文件
+        SHUTDOWN_FLAG_FILE = ".shutdown_flag"
+        if os.path.exists(SHUTDOWN_FLAG_FILE):
+            try:
+                with open(SHUTDOWN_FLAG_FILE, 'r') as f:
+                    shutdown_user = f.read().strip()
+                
+                logger.info(f"检测到关机标记，操作者: {shutdown_user}")
+                
+                # 向所有管理员发送关机通知
+                for admin_id in ADMIN_LIST:
+                    try:
+                        await client.send_message(
+                            admin_id,
+                            "🤖 机器人已通过Web管理界面执行关机命令，正在停止运行...",
+                            link_preview=False
+                        )
+                        logger.info(f"已向管理员 {admin_id} 发送关机通知")
+                    except Exception as e:
+                        logger.error(f"向管理员 {admin_id} 发送关机通知失败: {e}")
+                
+                # 删除关机标记文件
+                os.remove(SHUTDOWN_FLAG_FILE)
+                logger.info("关机标记文件已删除")
+                
+                # 等待消息发送完成
+                import time
+                time.sleep(2)
+                
+                # 执行关机
+                logger.info("执行关机操作...")
+                sys.exit(0)
+                
+            except Exception as e:
+                logger.error(f"处理关机标记时出错: {type(e).__name__}: {e}", exc_info=True)
         
         # 启动一个后台任务来检查Web管理界面触发的总结任务
         async def check_web_summary_tasks():
