@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import datetime
 from fastapi import FastAPI, Request, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,12 +14,14 @@ from typing import Optional
 from config import (
     API_ID, API_HASH, BOT_TOKEN, CHANNELS, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL,
     ADMIN_LIST, SEND_REPORT_TO_SOURCE, get_channel_schedule, SUMMARY_SCHEDULES,
-    load_config, save_config, logger, get_log_level, WEB_PORT
+    load_config, save_config, logger, get_log_level, WEB_PORT,
+    get_bot_state, set_bot_state, BOT_STATE_RUNNING, BOT_STATE_PAUSED, BOT_STATE_SHUTTING_DOWN,
+    get_scheduler_instance
 )
 from error_handler import get_health_checker, get_error_stats
 
 # 创建FastAPI应用
-app = FastAPI(title="Sakura频道总结助手管理界面", version="1.1.5")
+app = FastAPI(title="Sakura频道总结助手管理界面", version="1.1.6")
 
 # 配置会话中间件
 SECRET_KEY = os.getenv("WEB_SECRET_KEY", "sakura-channel-summary-secret-key-2026/01/09")
@@ -70,7 +73,7 @@ async def index(request: Request, user: str = Depends(require_auth)):
     context = {
         "request": request,
         "user": user,
-        "version": "1.1.5",
+        "version": "1.1.6",
         "channels_count": len(CHANNELS),
         "admin_count": len(ADMIN_LIST),
         "ai_model": LLM_MODEL,
@@ -457,6 +460,154 @@ async def api_run_diagnosis(user: str = Depends(require_auth)):
     except Exception as e:
         logger.error(f"运行系统诊断时出错: {e}")
         return {"status": "error", "message": f"系统诊断失败: {str(e)}"}
+
+# 机器人状态管理API端点
+@app.get("/api/get_bot_status")
+async def api_get_bot_status(user: str = Depends(require_auth)):
+    """获取机器人当前状态"""
+    try:
+        current_state = get_bot_state()
+        
+        # 状态映射到中文描述
+        state_map = {
+            BOT_STATE_RUNNING: {"name": "运行中", "description": "机器人正常运行，定时任务已启动", "icon": "play-circle", "color": "success"},
+            BOT_STATE_PAUSED: {"name": "已暂停", "description": "机器人已暂停，定时任务已停止", "icon": "pause-circle", "color": "warning"},
+            BOT_STATE_SHUTTING_DOWN: {"name": "关机中", "description": "机器人正在关机", "icon": "power-off", "color": "danger"}
+        }
+        
+        state_info = state_map.get(current_state, {"name": "未知", "description": "未知状态", "icon": "question-circle", "color": "secondary"})
+        
+        return {
+            "status": "success",
+            "state": current_state,
+            "state_name": state_info["name"],
+            "state_description": state_info["description"],
+            "state_icon": state_info["icon"],
+            "state_color": state_info["color"],
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"获取机器人状态时出错: {e}")
+        return {"status": "error", "message": f"获取机器人状态失败: {str(e)}"}
+
+@app.post("/api/pause_bot")
+async def api_pause_bot(user: str = Depends(require_auth)):
+    """暂停机器人"""
+    try:
+        current_state = get_bot_state()
+        
+        # 检查当前状态
+        if current_state == BOT_STATE_PAUSED:
+            return {"status": "warning", "message": "机器人已经处于暂停状态"}
+        
+        if current_state != BOT_STATE_RUNNING:
+            return {"status": "error", "message": f"机器人当前状态为 {current_state}，无法暂停"}
+        
+        # 暂停调度器
+        scheduler = get_scheduler_instance()
+        if scheduler:
+            scheduler.pause()
+            logger.info("调度器已暂停")
+        
+        # 更新状态
+        set_bot_state(BOT_STATE_PAUSED)
+        
+        # 记录操作日志
+        logger.info(f"Web管理界面暂停了机器人，操作者: {user}")
+        
+        return {
+            "status": "success", 
+            "message": "机器人已暂停。定时任务已停止，但手动命令仍可执行。"
+        }
+    except Exception as e:
+        logger.error(f"暂停机器人时出错: {e}")
+        return {"status": "error", "message": f"暂停机器人失败: {str(e)}"}
+
+@app.post("/api/resume_bot")
+async def api_resume_bot(user: str = Depends(require_auth)):
+    """恢复机器人"""
+    try:
+        current_state = get_bot_state()
+        
+        # 检查当前状态
+        if current_state == BOT_STATE_RUNNING:
+            return {"status": "warning", "message": "机器人已经在运行状态"}
+        
+        if current_state != BOT_STATE_PAUSED:
+            return {"status": "error", "message": f"机器人当前状态为 {current_state}，无法恢复"}
+        
+        # 恢复调度器
+        scheduler = get_scheduler_instance()
+        if scheduler:
+            scheduler.resume()
+            logger.info("调度器已恢复")
+        
+        # 更新状态
+        set_bot_state(BOT_STATE_RUNNING)
+        
+        # 记录操作日志
+        logger.info(f"Web管理界面恢复了机器人，操作者: {user}")
+        
+        return {
+            "status": "success", 
+            "message": "机器人已恢复运行。定时任务将继续执行。"
+        }
+    except Exception as e:
+        logger.error(f"恢复机器人时出错: {e}")
+        return {"status": "error", "message": f"恢复机器人失败: {str(e)}"}
+
+@app.post("/api/shutdown_bot")
+async def api_shutdown_bot(user: str = Depends(require_auth)):
+    """关机机器人 - 优雅执行关机操作"""
+    try:
+        # 检查当前状态
+        current_state = get_bot_state()
+        if current_state == BOT_STATE_SHUTTING_DOWN:
+            return {"status": "warning", "message": "机器人已经在关机过程中"}
+        
+        # 设置关机状态
+        set_bot_state(BOT_STATE_SHUTTING_DOWN)
+        
+        # 创建关机标记文件
+        SHUTDOWN_FLAG_FILE = ".shutdown_flag"
+        with open(SHUTDOWN_FLAG_FILE, 'w') as f:
+            f.write(user)  # 写入操作者
+        
+        # 停止调度器
+        scheduler = get_scheduler_instance()
+        if scheduler:
+            scheduler.shutdown(wait=False)
+            logger.info("调度器已停止")
+        
+        # 记录操作日志
+        logger.info(f"Web管理界面执行了机器人关机，操作者: {user}")
+        
+        # 在后台线程中延迟执行关机，确保先返回响应
+        import threading
+        import time
+        import sys
+        
+        def delayed_shutdown():
+            """延迟执行关机"""
+            time.sleep(2)  # 等待2秒确保响应已发送给客户端
+            logger.info("执行关机操作...")
+            # 使用os._exit而不是sys.exit，避免被FastAPI捕获
+            import os
+            os._exit(0)
+        
+        # 启动后台线程执行关机
+        shutdown_thread = threading.Thread(target=delayed_shutdown, daemon=True)
+        shutdown_thread.start()
+        
+        # 立即返回成功响应
+        return {
+            "status": "success", 
+            "message": "机器人关机命令已执行。机器人将在几秒钟内停止运行。"
+        }
+        
+    except Exception as e:
+        logger.error(f"关机机器人时出错: {e}")
+        return {"status": "error", "message": f"关机机器人失败: {str(e)}"}
 
 # 全局变量，用于存储日志
 log_buffer = []

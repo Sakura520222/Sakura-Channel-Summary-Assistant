@@ -161,6 +161,41 @@ if current_level != final_log_level:
 else:
     logger.info(f"当前日志级别: {logging.getLevelName(current_level)}")
 
+# 机器人状态管理
+BOT_STATE_RUNNING = "running"
+BOT_STATE_PAUSED = "paused"
+BOT_STATE_SHUTTING_DOWN = "shutting_down"
+
+# 全局状态变量
+_bot_state = BOT_STATE_RUNNING
+_scheduler_instance = None
+
+def get_bot_state():
+    """获取当前机器人状态"""
+    return _bot_state
+
+def set_bot_state(state):
+    """设置机器人状态"""
+    global _bot_state
+    valid_states = [BOT_STATE_RUNNING, BOT_STATE_PAUSED, BOT_STATE_SHUTTING_DOWN]
+    if state in valid_states:
+        _bot_state = state
+        logger.info(f"机器人状态已更新为: {state}")
+        return True
+    else:
+        logger.error(f"无效的机器人状态: {state}")
+        return False
+
+def set_scheduler_instance(scheduler):
+    """设置调度器实例，供其他模块访问"""
+    global _scheduler_instance
+    _scheduler_instance = scheduler
+    logger.info("调度器实例已设置")
+
+def get_scheduler_instance():
+    """获取调度器实例"""
+    return _scheduler_instance
+
 # 自动总结时间配置
 # 默认时间：每周一早上9点
 DEFAULT_SUMMARY_DAY = 'mon'  # 星期几：mon, tue, wed, thu, fri, sat, sun
