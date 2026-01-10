@@ -212,7 +212,7 @@
                         
                         {% for type, count in error_types.items() %}
                         {% set percentage = (count / total * 100)|round(1) %}
-                        <div class="progress-bar bg-danger" role="progressbar" style="width: {{ percentage }}%" 
+                        <div class="progress-bar bg-danger" role="progressbar" style="width: {{ percentage }}%"
                              title="{{ type }}: {{ count }} ({{ percentage }}%)">
                             {{ type }}: {{ count }}
                         </div>
