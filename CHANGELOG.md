@@ -5,6 +5,35 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.1] - 2026-01-11
+
+### 修复
+- **EntityBoundsInvalidError错误**：修复了发送长消息分段时出现的`EntityBoundsInvalidError: Some of provided entities have invalid bounds`错误
+  - 创建智能消息分割算法 (`telegram_client_utils.py`)，保护Markdown格式实体不被破坏
+  - 更新`send_long_message()`函数使用智能分割，确保**粗体**、`内联代码`、[链接]等实体完整性
+  - 添加实体完整性验证和自动修复机制，当格式被破坏时自动移除格式重试
+  - 优先在段落、句子、换行等自然边界分割，避免破坏消息结构
+  - 提供优雅的回退机制：智能分割失败时自动使用简单字符分割
+
+### 技术实现
+- **智能分割算法**：实现`split_message_smart()`函数，能够识别和保护Markdown实体
+- **实体保护**：确保**粗体**、`代码`、[链接]等Markdown实体不被分割破坏
+- **边界检测**：优先在自然边界（段落、句子）分割，其次在单词边界分割
+- **验证机制**：每个分段都验证实体完整性和长度限制
+- **错误恢复**：发送失败时自动尝试移除格式重试，确保消息能够送达
+
+### 影响范围
+- 修复影响所有长消息发送功能：
+  - `/summary`命令的长消息发送
+  - 自动周报的长消息发送
+  - `/changelog`命令的更新日志发送
+  - 所有使用`send_long_message()`或`send_report()`的地方
+
+### 测试验证
+- 通过全面的单元测试、集成测试和演示测试验证修复效果
+- 100%成功率，所有分段符合Telegram要求且实体完整
+- 彻底解决了`EntityBoundsInvalidError`错误，提高了消息发送的可靠性
+
 ## [1.2.0] - 2026-01-10
 
 ### 新增

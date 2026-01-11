@@ -1,4 +1,4 @@
-# 🌸 Sakura-频道总结助手 v1.2.0
+# 🌸 Sakura-频道总结助手 v1.2.1
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
@@ -306,6 +306,7 @@ Sakura-Channel-Summary-Assistant/
 │   ├── config.py                  # 配置管理模块
 │   ├── ai_client.py               # AI客户端模块
 │   ├── telegram_client.py         # Telegram客户端模块
+│   ├── telegram_client_utils.py   # Telegram客户端工具模块（智能消息分割）
 │   ├── command_handlers.py        # 命令处理模块
 │   ├── scheduler.py               # 调度器模块
 │   ├── error_handler.py           # 错误处理模块
@@ -383,7 +384,31 @@ Sakura-Channel-Summary-Assistant/
 
 ## 📝 更新日志
 
-## [1.2.0] - 2026-01-10 （最新）
+## [1.2.1] - 2026-01-11 （最新）
+
+### 修复
+- **EntityBoundsInvalidError错误**：修复了发送长消息分段时出现的`EntityBoundsInvalidError: Some of provided entities have invalid bounds`错误
+  - 创建智能消息分割算法 (`telegram_client_utils.py`)，保护Markdown格式实体不被破坏
+  - 更新`send_long_message()`函数使用智能分割，确保**粗体**、`内联代码`、[链接]等实体完整性
+  - 添加实体完整性验证和自动修复机制，当格式被破坏时自动移除格式重试
+  - 优先在段落、句子、换行等自然边界分割，避免破坏消息结构
+  - 提供优雅的回退机制：智能分割失败时自动使用简单字符分割
+
+### 技术实现
+- **智能分割算法**：实现`split_message_smart()`函数，能够识别和保护Markdown实体
+- **实体保护**：确保**粗体**、`代码`、[链接]等Markdown实体不被分割破坏
+- **边界检测**：优先在自然边界（段落、句子）分割，其次在单词边界分割
+- **验证机制**：每个分段都验证实体完整性和长度限制
+- **错误恢复**：发送失败时自动尝试移除格式重试，确保消息能够送达
+
+### 影响范围
+- 修复影响所有长消息发送功能：
+  - `/summary`命令的长消息发送
+  - 自动周报的长消息发送
+  - `/changelog`命令的更新日志发送
+  - 所有使用`send_long_message()`或`send_report()`的地方
+
+## [1.2.0] - 2026-01-10
 
 ### 新增
 - **投票消息功能**：当总结消息发送至源频道时，自动生成投票消息并发送到讨论组评论区
