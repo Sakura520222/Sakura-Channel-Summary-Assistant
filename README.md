@@ -1,6 +1,6 @@
 # 🌸 Sakura-频道总结助手 v1.2.2
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-blue.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![Telethon](https://img.shields.io/badge/Telethon-1.34+-blue.svg)](https://docs.telethon.dev/)
 [![Docker](https://img.shields.io/badge/Docker-20.10%2B-blue.svg)](https://www.docker.com/)
@@ -470,23 +470,25 @@ Sakura-Channel-Summary-Assistant/
 
 ## 📄 许可证
 
-本项目采用 **Apache License 2.0** 开源许可证。
+本项目采用 **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 (CC BY-NC-SA 4.0)** 许可证。
 
-```
-Copyright 2024 Sakura-频道总结助手
+### 许可证条款
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+您可以自由地：
+- **共享** — 在任何媒介以任何形式复制、发行本作品
+- **演绎** — 修改、转换或以本作品为基础进行创作
 
-    http://www.apache.org/licenses/LICENSE-2.0
+惟须遵守下列条件：
+- **署名** — 您必须提供本项目的原始来源链接，并注明是否对原始作品作了修改
+- **非商业性使用** — 您不得将本作品用于商业目的或进行商业分发
+- **相同方式共享** — 如果您再混合、转换或者基于本作品进行创作，您必须基于与原先许可协议相同的许可协议分发您贡献的作品
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-```
+### 重要说明
+
+- 本项目仅供**个人学习使用**，禁止任何商业用途
+- 使用本项目的代码或衍生作品时，必须标注本仓库的原始来源地址
+- 本项目源代码：https://github.com/Sakura520222/Sakura-Channel-Summary-Assistant
+- 许可证全文：https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh
 
 ## 🤝 贡献
 
