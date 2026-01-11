@@ -5,6 +5,7 @@ from telethon import TelegramClient
 from telethon.tl.types import PeerChannel
 from config import API_ID, API_HASH, BOT_TOKEN, CHANNELS, ADMIN_LIST, SEND_REPORT_TO_SOURCE, ENABLE_POLL
 from error_handler import retry_with_backoff, record_error
+from telegram_client_utils import split_message_smart, validate_message_entities
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +108,16 @@ async def fetch_last_week_messages(channels_to_fetch=None, start_time=None, repo
         logger.info(f"所有指定频道消息抓取完成，共处理 {total_message_count} 条消息")
         return messages_by_channel
 
-async def send_long_message(client, chat_id, text, max_length=4000):
-    """分段发送长消息"""
+async def send_long_message(client, chat_id, text, max_length=4000, channel_title=None):
+    """分段发送长消息
+    
+    Args:
+        client: Telegram客户端实例
+        chat_id: 接收者聊天ID
+        text: 要发送的文本
+        max_length: 最大分段长度，默认4000字符
+        channel_title: 频道标题，用于分段消息的标题。如果为None，则使用"更新日志"
+    """
     logger.info(f"开始发送长消息，接收者: {chat_id}，消息总长度: {len(text)}字符，最大分段长度: {max_length}字符")
     
     if len(text) <= max_length:
@@ -117,8 +126,8 @@ async def send_long_message(client, chat_id, text, max_length=4000):
         return
     
     # 确定标题
-    # 对于更新日志，使用固定标题
-    channel_title = "更新日志"
+    if channel_title is None:
+        channel_title = "更新日志"
     
     # 计算标题长度
     # 标题格式：📋 **{channel_title} ({i+1}/{len(parts)})**\n\n
@@ -130,20 +139,33 @@ async def send_long_message(client, chat_id, text, max_length=4000):
     
     logger.info(f"消息需要分段发送，开始分段处理，标题长度: {max_title_length}字符，内容最大长度: {content_max_length}字符")
     
-    # 简单直接的分段方法：按字符数分割
-    parts = []
-    text_length = len(text)
-    
-    for i in range(0, text_length, content_max_length):
-        part = text[i:i+content_max_length]
-        if part:
-            parts.append(part)
-    
-    logger.info(f"消息分段完成，共分成 {len(parts)} 段")
+    # 使用智能分割算法
+    try:
+        parts = split_message_smart(text, content_max_length, preserve_markdown=True)
+        logger.info(f"智能分割完成，共分成 {len(parts)} 段")
+        
+        # 验证每个分段的实体完整性
+        for i, part in enumerate(parts):
+            is_valid, error_msg = validate_message_entities(part)
+            if not is_valid:
+                logger.warning(f"第 {i+1} 段实体验证失败: {error_msg}")
+                # 尝试修复：移除有问题的格式
+                parts[i] = part.replace('**', '').replace('`', '')
+                logger.info(f"已修复第 {i+1} 段的格式问题")
+    except Exception as e:
+        logger.error(f"智能分割失败，使用简单分割: {e}")
+        # 回退到简单分割
+        parts = []
+        text_length = len(text)
+        for i in range(0, text_length, content_max_length):
+            part = text[i:i+content_max_length]
+            if part:
+                parts.append(part)
+        logger.info(f"简单分割完成，共分成 {len(parts)} 段")
     
     # 验证分段结果
     total_content_length = sum(len(part) for part in parts)
-    logger.debug(f"分段后总内容长度: {total_content_length}字符，原始长度: {text_length}字符")
+    logger.debug(f"分段后总内容长度: {total_content_length}字符，原始长度: {len(text)}字符")
     
     # 发送所有部分
     for i, part in enumerate(parts):
@@ -161,8 +183,18 @@ async def send_long_message(client, chat_id, text, max_length=4000):
                 await client.send_message(chat_id, emergency_part, link_preview=False)
                 logger.warning(f"发送紧急分割段 {j//max_length + 1}")
         else:
-            await client.send_message(chat_id, full_message, link_preview=False)
-            logger.debug(f"成功发送第 {i+1}/{len(parts)} 段")
+            try:
+                await client.send_message(chat_id, full_message, link_preview=False)
+                logger.debug(f"成功发送第 {i+1}/{len(parts)} 段")
+            except Exception as e:
+                logger.error(f"发送第 {i+1} 段失败: {e}")
+                # 尝试移除格式后重试
+                try:
+                    plain_message = full_message.replace('**', '').replace('`', '')
+                    await client.send_message(chat_id, plain_message, link_preview=False)
+                    logger.info(f"已成功发送第 {i+1} 段（移除格式后）")
+                except Exception as e2:
+                    logger.error(f"即使移除格式后发送第 {i+1} 段仍然失败: {e2}")
 
 async def send_report(summary_text, source_channel=None, client=None, skip_admins=False):
     """发送报告
@@ -236,30 +268,53 @@ async def send_report(summary_text, source_channel=None, client=None, skip_admin
                             end_idx = summary_text.index("** ", start_idx)
                             channel_title = summary_text[start_idx:end_idx]
                         
-                        # 分段发送
-                        parts = []
-                        current_part = ""
+                        # 使用send_long_message函数进行智能分割和发送
+                        # 但需要收集消息ID，所以需要自定义实现
+                        max_length = 4000
+                        max_title_length = len(f"📋 **{channel_title} (99/99)**\n\n")
+                        content_max_length = max_length - max_title_length
                         
-                        for line in summary_text.split('\n'):
-                            if len(current_part) + len(line) + 1 <= 4000:
-                                current_part += line + '\n'
-                            else:
-                                if current_part:
-                                    parts.append(current_part.strip())
-                                if len(line) > 4000:
-                                    for i in range(0, len(line), 4000):
-                                        parts.append(line[i:i+4000])
-                                else:
-                                    current_part = line + '\n'
-                        
-                        if current_part:
-                            parts.append(current_part.strip())
+                        # 使用智能分割算法
+                        try:
+                            parts = split_message_smart(summary_text, content_max_length, preserve_markdown=True)
+                            logger.info(f"智能分割完成，共分成 {len(parts)} 段")
+                            
+                            # 验证每个分段的实体完整性
+                            for i, part in enumerate(parts):
+                                is_valid, error_msg = validate_message_entities(part)
+                                if not is_valid:
+                                    logger.warning(f"第 {i+1} 段实体验证失败: {error_msg}")
+                                    # 尝试修复：移除有问题的格式
+                                    parts[i] = part.replace('**', '').replace('`', '')
+                                    logger.info(f"已修复第 {i+1} 段的格式问题")
+                        except Exception as e:
+                            logger.error(f"智能分割失败，使用简单分割: {e}")
+                            # 回退到简单分割
+                            parts = []
+                            text_length = len(summary_text)
+                            for i in range(0, text_length, content_max_length):
+                                part = summary_text[i:i+content_max_length]
+                                if part:
+                                    parts.append(part)
+                            logger.info(f"简单分割完成，共分成 {len(parts)} 段")
                         
                         # 发送所有部分并收集消息ID
                         for i, part in enumerate(parts):
                             part_text = f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}"
-                            msg = await use_client.send_message(source_channel, part_text, link_preview=False)
-                            report_message_ids.append(msg.id)
+                            try:
+                                msg = await use_client.send_message(source_channel, part_text, link_preview=False)
+                                report_message_ids.append(msg.id)
+                                logger.debug(f"成功发送第 {i+1}/{len(parts)} 段，消息ID: {msg.id}")
+                            except Exception as e:
+                                logger.error(f"发送第 {i+1} 段失败: {e}")
+                                # 尝试移除格式后重试
+                                try:
+                                    plain_text = part_text.replace('**', '').replace('`', '')
+                                    msg = await use_client.send_message(source_channel, plain_text, link_preview=False)
+                                    report_message_ids.append(msg.id)
+                                    logger.info(f"已成功发送第 {i+1} 段（移除格式后），消息ID: {msg.id}")
+                                except Exception as e2:
+                                    logger.error(f"即使移除格式后发送第 {i+1} 段仍然失败: {e2}")
                     
                     logger.info(f"成功向源频道 {source_channel} 发送报告，消息ID: {report_message_ids}")
                     
@@ -312,30 +367,52 @@ async def send_report(summary_text, source_channel=None, client=None, skip_admin
                                 end_idx = summary_text.index("** ", start_idx)
                                 channel_title = summary_text[start_idx:end_idx]
                             
-                            # 分段发送
-                            parts = []
-                            current_part = ""
+                            # 使用智能分割算法
+                            max_length = 4000
+                            max_title_length = len(f"📋 **{channel_title} (99/99)**\n\n")
+                            content_max_length = max_length - max_title_length
                             
-                            for line in summary_text.split('\n'):
-                                if len(current_part) + len(line) + 1 <= 4000:
-                                    current_part += line + '\n'
-                                else:
-                                    if current_part:
-                                        parts.append(current_part.strip())
-                                    if len(line) > 4000:
-                                        for i in range(0, len(line), 4000):
-                                            parts.append(line[i:i+4000])
-                                    else:
-                                        current_part = line + '\n'
-                            
-                            if current_part:
-                                parts.append(current_part.strip())
+                            # 使用智能分割算法
+                            try:
+                                parts = split_message_smart(summary_text, content_max_length, preserve_markdown=True)
+                                logger.info(f"智能分割完成，共分成 {len(parts)} 段")
+                                
+                                # 验证每个分段的实体完整性
+                                for i, part in enumerate(parts):
+                                    is_valid, error_msg = validate_message_entities(part)
+                                    if not is_valid:
+                                        logger.warning(f"第 {i+1} 段实体验证失败: {error_msg}")
+                                        # 尝试修复：移除有问题的格式
+                                        parts[i] = part.replace('**', '').replace('`', '')
+                                        logger.info(f"已修复第 {i+1} 段的格式问题")
+                            except Exception as e:
+                                logger.error(f"智能分割失败，使用简单分割: {e}")
+                                # 回退到简单分割
+                                parts = []
+                                text_length = len(summary_text)
+                                for i in range(0, text_length, content_max_length):
+                                    part = summary_text[i:i+content_max_length]
+                                    if part:
+                                        parts.append(part)
+                                logger.info(f"简单分割完成，共分成 {len(parts)} 段")
                             
                             # 发送所有部分并收集消息ID
                             for i, part in enumerate(parts):
                                 part_text = f"📋 **{channel_title} ({i+1}/{len(parts)})**\n\n{part}"
-                                msg = await use_client.send_message(source_channel, part_text, link_preview=False)
-                                report_message_ids.append(msg.id)
+                                try:
+                                    msg = await use_client.send_message(source_channel, part_text, link_preview=False)
+                                    report_message_ids.append(msg.id)
+                                    logger.debug(f"成功发送第 {i+1}/{len(parts)} 段，消息ID: {msg.id}")
+                                except Exception as e:
+                                    logger.error(f"发送第 {i+1} 段失败: {e}")
+                                    # 尝试移除格式后重试
+                                    try:
+                                        plain_text = part_text.replace('**', '').replace('`', '')
+                                        msg = await use_client.send_message(source_channel, plain_text, link_preview=False)
+                                        report_message_ids.append(msg.id)
+                                        logger.info(f"已成功发送第 {i+1} 段（移除格式后），消息ID: {msg.id}")
+                                    except Exception as e2:
+                                        logger.error(f"即使移除格式后发送第 {i+1} 段仍然失败: {e2}")
                         
                         logger.info(f"成功向源频道 {source_channel} 发送报告，消息ID: {report_message_ids}")
                         
