@@ -126,18 +126,13 @@ jobs:
           
           # 复制主要文件
           cp -r *.py *.txt *.md *.yml Dockerfile docker-entrypoint.sh "$RELEASE_DIR/" 2>/dev/null || true
-          
-          # 复制Web管理界面的静态文件和模板
-          if [ -d "static" ]; then
-            cp -r static "$RELEASE_DIR/"
-            echo "已复制static目录"
+
+          # 复制许可证文件
+          if [ -f "LICENSE" ]; then
+            cp LICENSE "$RELEASE_DIR/"
+            echo "已复制LICENSE文件"
           fi
-          
-          if [ -d "templates" ]; then
-            cp -r templates "$RELEASE_DIR/"
-            echo "已复制templates目录"
-          fi
-          
+
           # 复制环境变量示例文件
           if [ -f ".env.example" ]; then
             cp .env.example "$RELEASE_DIR/"
@@ -169,22 +164,3 @@ jobs:
           python -c "import config; import main; print('导入测试通过')"
           python -c "from config import logger; logger.info('配置模块测试通过')"
           echo "基本测试完成"
-
-  # 发送通知
-  notify:
-    runs-on: ubuntu-latest
-    needs: [create-release]
-    if: always()
-    
-    steps:
-      - name: Send release status
-        run: |
-          if [ "${{ needs.create-release.result }}" == "success" ]; then
-            echo "✅ 发布成功!"
-            echo "发布名称: ${{ needs.create-release.outputs.RELEASE_NAME }}"
-            echo "发布标题: ${{ needs.create-release.outputs.RELEASE_TITLE }}"
-            echo "发布地址: https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-release.outputs.RELEASE_NAME }}"
-          else
-            echo "❌ 发布失败"
-            echo "请检查工作流日志了解详细错误信息"
-          fi
