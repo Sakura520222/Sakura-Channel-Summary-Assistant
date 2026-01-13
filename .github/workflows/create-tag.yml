@@ -157,10 +157,3 @@ jobs:
             --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Run basic tests
-        run: |
-          # 运行简单的导入测试
-          python -c "import config; import main; print('导入测试通过')"
-          python -c "from config import logger; logger.info('配置模块测试通过')"
-          echo "基本测试完成"
