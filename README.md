@@ -189,32 +189,70 @@ docker inspect --format='{{json .State.Health}}' sakura-summary-bot
 
 ### 命令列表
 
+#### 1. 基础命令
+
 | 命令 | 别名 | 功能 | 示例 |
 |------|------|------|------|
 | `/start` | `/开始` | 查看欢迎消息和基本介绍 | `/start` |
 | `/help` | `/帮助` | 查看完整命令列表和使用说明 | `/help` |
+
+#### 2. 核心功能命令
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
 | `/summary` | `/立即总结` | 立即生成本周频道消息汇总 | `/summary` |
+
+#### 3. AI 配置命令
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
 | `/showprompt` | `/查看提示词` | 查看当前提示词 | `/showprompt` |
 | `/setprompt` | `/设置提示词` | 设置自定义提示词 | `/setprompt` |
 | `/showaicfg` | `/查看AI配置` | 查看当前AI配置信息 | `/showaicfg` |
 | `/setaicfg` | `/设置AI配置` | 设置自定义AI配置 | `/setaicfg` |
-| `/showloglevel` | `/查看日志级别` | 查看当前日志级别 | `/showloglevel` |
-| `/setloglevel` | `/设置日志级别` | 设置日志级别 | `/setloglevel` |
-| `/restart` | `/重启` | 重启机器人 | `/restart` |
-| `/shutdown` | `/关机` | 彻底停止机器人 | `/shutdown` |
-| `/pause` | `/暂停` | 暂停所有定时任务 | `/pause` |
-| `/resume` | `/恢复` | 恢复所有定时任务 | `/resume` |
+
+#### 4. 频道管理命令
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
 | `/showchannels` | `/查看频道列表` | 查看所有配置的频道 | `/showchannels` |
 | `/addchannel` | `/添加频道` | 添加新的频道到监控列表 | `/addchannel https://t.me/example` |
 | `/deletechannel` | `/删除频道` | 从监控列表中删除频道 | `/deletechannel https://t.me/example` |
-| `/clearsummarytime` | `/清除总结时间` | 清除上次总结时间记录 | `/clearsummarytime` |
-| `/setsendtosource` | `/设置报告发送回源频道` | 设置是否将报告发送回源频道 | `/setsendtosource` |
+
+#### 5. 自动化配置命令
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
 | `/showchannelschedule` | `/查看频道时间配置` | 查看频道自动总结时间配置 | `/showchannelschedule` |
 | `/setchannelschedule` | `/设置频道时间配置` | 设置频道自动总结时间 | `/setchannelschedule` |
 | `/deletechannelschedule` | `/删除频道时间配置` | 删除频道自动总结时间配置 | `/deletechannelschedule` |
+| `/clearsummarytime` | `/清除总结时间` | 清除上次总结时间记录 | `/clearsummarytime` |
+| `/setsendtosource` | `/设置报告发送回源频道` | 设置是否将报告发送回源频道 | `/setsendtosource` |
+
+#### 6. 投票配置命令
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
 | `/channelpoll` | `/查看频道投票配置` | 查看频道投票配置 | `/channelpoll` |
 | `/setchannelpoll` | `/设置频道投票配置` | 设置频道投票配置 | `/setchannelpoll` |
 | `/deletechannelpoll` | `/删除频道投票配置` | 删除频道投票配置 | `/deletechannelpoll` |
+
+#### 7. 系统控制命令
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
+| `/pause` | `/暂停` | 暂停所有定时任务 | `/pause` |
+| `/resume` | `/恢复` | 恢复所有定时任务 | `/resume` |
+| `/restart` | `/重启` | 重启机器人 | `/restart` |
+| `/shutdown` | `/关机` | 彻底停止机器人 | `/shutdown` |
+
+#### 8. 日志与调试命令
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
+| `/showloglevel` | `/查看日志级别` | 查看当前日志级别 | `/showloglevel` |
+| `/setloglevel` | `/设置日志级别` | 设置日志级别 | `/setloglevel` |
+| `/clearcache` | `/清除缓存` | 清除讨论组ID缓存 | `/clearcache` |
 | `/changelog` | `/更新日志` | 查看更新日志 | `/changelog` |
 
 ### AI配置管理
@@ -378,7 +416,7 @@ Sakura-Channel-Summary-Assistant/
 
 ## 📝 更新日志
 
-### [1.2.9] - 2026-01-13 （最新）
+### [1.2.9] - 2026-01-15 （最新）
 
 #### 新增
 - **投票重新生成功能**：投票消息附带"重新生成投票"按钮，管理员可重新生成投票内容
@@ -413,6 +451,13 @@ Sakura-Channel-Summary-Assistant/
 #### 文档更新
 - 更新 README.md，添加投票重新生成功能说明
 - 更新版本号至 v1.2.9
+
+#### 代码优化
+- **命令注册顺序优化**：按功能分类重新组织命令注册顺序
+  - 将所有命令按8个功能组分类：基础命令、核心功能、AI配置、频道管理、自动化配置、投票配置、系统控制、日志调试
+  - 事件处理器注册顺序与BotCommand注册顺序保持一致
+  - 添加清晰的分组注释，提高代码可读性和可维护性
+  - 基础命令（start/help）移至最前面，符合用户使用习惯
 
 ### [1.2.8] - 2026-01-13
 

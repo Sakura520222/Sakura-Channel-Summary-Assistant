@@ -171,46 +171,48 @@ async def main():
         
         # 添加命令处理，支持中英文命令
         logger.debug("开始添加命令处理器...")
+
+        # 1. 基础命令
+        client.add_event_handler(handle_start, NewMessage(pattern='/start|/开始'))
+        client.add_event_handler(handle_help, NewMessage(pattern='/help|/帮助'))
+
+        # 2. 核心功能命令
         client.add_event_handler(handle_manual_summary, NewMessage(pattern='/立即总结|/summary'))
+
+        # 3. AI 配置命令
         client.add_event_handler(handle_show_prompt, NewMessage(pattern='/showprompt|/show_prompt|/查看提示词'))
         client.add_event_handler(handle_set_prompt, NewMessage(pattern='/setprompt|/set_prompt|/设置提示词'))
         client.add_event_handler(handle_show_ai_config, NewMessage(pattern='/showaicfg|/show_aicfg|/查看AI配置'))
         client.add_event_handler(handle_set_ai_config, NewMessage(pattern='/setaicfg|/set_aicfg|/设置AI配置'))
-        # 添加日志级别命令
-        client.add_event_handler(handle_show_log_level, NewMessage(pattern='/showloglevel|/show_log_level|/查看日志级别'))
-        client.add_event_handler(handle_set_log_level, NewMessage(pattern='/setloglevel|/set_log_level|/设置日志级别'))
-        # 添加重启命令
-        client.add_event_handler(handle_restart, NewMessage(pattern='/restart|/重启'))
-        # 添加关机命令
-        client.add_event_handler(handle_shutdown, NewMessage(pattern='/shutdown|/关机'))
-        # 添加暂停命令
-        client.add_event_handler(handle_pause, NewMessage(pattern='/pause|/暂停'))
-        # 添加恢复命令
-        client.add_event_handler(handle_resume, NewMessage(pattern='/resume|/恢复'))
-        # 添加频道管理命令
+
+        # 4. 频道管理命令
         client.add_event_handler(handle_show_channels, NewMessage(pattern='/showchannels|/show_channels|/查看频道列表'))
         client.add_event_handler(handle_add_channel, NewMessage(pattern='/addchannel|/add_channel|/添加频道'))
         client.add_event_handler(handle_delete_channel, NewMessage(pattern='/deletechannel|/delete_channel|/删除频道'))
-        # 添加清除总结时间命令
-        client.add_event_handler(handle_clear_summary_time, NewMessage(pattern='/clearsummarytime|/clear_summary_time|/清除总结时间'))
-        # 添加设置报告发送回源频道命令
-        client.add_event_handler(handle_set_send_to_source, NewMessage(pattern='/setsendtosource|/set_send_to_source|/设置报告发送回源频道'))
-        # 添加频道时间配置命令
+
+        # 5. 自动化配置命令
         client.add_event_handler(handle_show_channel_schedule, NewMessage(pattern='/showchannelschedule|/show_channel_schedule|/查看频道时间配置'))
         client.add_event_handler(handle_set_channel_schedule, NewMessage(pattern='/setchannelschedule|/set_channel_schedule|/设置频道时间配置'))
         client.add_event_handler(handle_delete_channel_schedule, NewMessage(pattern='/deletechannelschedule|/delete_channel_schedule|/删除频道时间配置'))
-        # 添加频道投票配置命令
+        client.add_event_handler(handle_clear_summary_time, NewMessage(pattern='/clearsummarytime|/clear_summary_time|/清除总结时间'))
+        client.add_event_handler(handle_set_send_to_source, NewMessage(pattern='/setsendtosource|/set_send_to_source|/设置报告发送回源频道'))
+
+        # 6. 投票配置命令
         client.add_event_handler(handle_show_channel_poll, NewMessage(pattern='/channelpoll|/channel_poll|/查看频道投票配置'))
         client.add_event_handler(handle_set_channel_poll, NewMessage(pattern='/setchannelpoll|/set_channel_poll|/设置频道投票配置'))
         client.add_event_handler(handle_delete_channel_poll, NewMessage(pattern='/deletechannelpoll|/delete_channel_poll|/删除频道投票配置'))
-        # 添加更新日志命令
-        client.add_event_handler(handle_changelog, NewMessage(pattern='/changelog|/更新日志'))
-        # 添加缓存管理命令
+
+        # 7. 系统控制命令
+        client.add_event_handler(handle_pause, NewMessage(pattern='/pause|/暂停'))
+        client.add_event_handler(handle_resume, NewMessage(pattern='/resume|/恢复'))
+        client.add_event_handler(handle_restart, NewMessage(pattern='/restart|/重启'))
+        client.add_event_handler(handle_shutdown, NewMessage(pattern='/shutdown|/关机'))
+
+        # 8. 日志与调试命令
+        client.add_event_handler(handle_show_log_level, NewMessage(pattern='/showloglevel|/show_log_level|/查看日志级别'))
+        client.add_event_handler(handle_set_log_level, NewMessage(pattern='/setloglevel|/set_log_level|/设置日志级别'))
         client.add_event_handler(handle_clear_cache, NewMessage(pattern='/clearcache|/clear_cache|/清除缓存'))
-        # 添加start命令
-        client.add_event_handler(handle_start, NewMessage(pattern='/start|/开始'))
-        # 添加help命令
-        client.add_event_handler(handle_help, NewMessage(pattern='/help|/帮助'))
+        client.add_event_handler(handle_changelog, NewMessage(pattern='/changelog|/更新日志'))
         # 只处理非命令消息作为提示词或AI配置输入
         client.add_event_handler(handle_prompt_input, NewMessage(func=lambda e: not e.text.startswith('/')))
         client.add_event_handler(handle_ai_config_input, NewMessage(func=lambda e: True))
@@ -234,32 +236,40 @@ async def main():
         logger.info("开始注册机器人命令...")
         
         commands = [
+            # 1. 基础命令
             BotCommand(command="start", description="查看欢迎消息和帮助"),
             BotCommand(command="help", description="查看完整命令列表"),
+            # 2. 核心功能命令
             BotCommand(command="summary", description="立即生成本周频道消息汇总"),
+            # 3. AI 配置命令
             BotCommand(command="showprompt", description="查看当前提示词"),
             BotCommand(command="setprompt", description="设置自定义提示词"),
             BotCommand(command="showaicfg", description="查看AI配置"),
             BotCommand(command="setaicfg", description="设置AI配置"),
-            BotCommand(command="showloglevel", description="查看当前日志级别"),
-            BotCommand(command="setloglevel", description="设置日志级别"),
-            BotCommand(command="restart", description="重启机器人"),
-            BotCommand(command="shutdown", description="彻底停止机器人"),
-            BotCommand(command="pause", description="暂停所有定时任务"),
-            BotCommand(command="resume", description="恢复所有定时任务"),
+            # 4. 频道管理命令
             BotCommand(command="showchannels", description="查看当前频道列表"),
             BotCommand(command="addchannel", description="添加频道"),
             BotCommand(command="deletechannel", description="删除频道"),
-            BotCommand(command="clearsummarytime", description="清除上次总结时间记录"),
-            BotCommand(command="setsendtosource", description="设置是否将报告发送回源频道"),
+            # 5. 自动化配置命令
             BotCommand(command="showchannelschedule", description="查看频道自动总结时间配置"),
             BotCommand(command="setchannelschedule", description="设置频道自动总结时间"),
             BotCommand(command="deletechannelschedule", description="删除频道自动总结时间配置"),
+            BotCommand(command="clearsummarytime", description="清除上次总结时间记录"),
+            BotCommand(command="setsendtosource", description="设置是否将报告发送回源频道"),
+            # 6. 投票配置命令
             BotCommand(command="channelpoll", description="查看频道投票配置"),
             BotCommand(command="setchannelpoll", description="设置频道投票配置"),
             BotCommand(command="deletechannelpoll", description="删除频道投票配置"),
-            BotCommand(command="changelog", description="查看更新日志"),
-            BotCommand(command="clearcache", description="清除讨论组ID缓存")
+            # 7. 系统控制命令
+            BotCommand(command="pause", description="暂停所有定时任务"),
+            BotCommand(command="resume", description="恢复所有定时任务"),
+            BotCommand(command="restart", description="重启机器人"),
+            BotCommand(command="shutdown", description="彻底停止机器人"),
+            # 8. 日志与调试命令
+            BotCommand(command="showloglevel", description="查看当前日志级别"),
+            BotCommand(command="setloglevel", description="设置日志级别"),
+            BotCommand(command="clearcache", description="清除讨论组ID缓存"),
+            BotCommand(command="changelog", description="查看更新日志")
         ]
         
         await client(SetBotCommandsRequest(

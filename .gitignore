@@ -233,3 +233,4 @@ health_check.session
 test_session.session
 .claude
 .poll_regenerations.json
+tmpclaude-*-cwd
