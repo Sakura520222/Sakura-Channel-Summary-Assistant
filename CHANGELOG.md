@@ -5,6 +5,55 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.1] - 2026-01-15
+
+### 修复
+- **AI生成消息ID记录问题**：修复了分段总结消息的投票和按钮ID未正确记录的问题
+  - 问题：当总结消息超过4000字符被分段发送时，投票和按钮消息ID没有被保存到 `.last_summary_time.json`
+  - 原因：`command_handlers.py` 中调用 `save_last_summary_time` 时传递了错误的参数格式
+  - 影响：导致下次抓取消息时重复分析AI生成的投票和按钮消息
+  - 解决：正确解包 `send_report` 返回的字典，分别传递 `summary_message_ids`、`poll_message_ids`、`button_message_ids`
+  - 结果：现在所有AI生成的消息（总结分段、投票、按钮）都会被正确记录和排除
+
+- **重新生成投票后ID未记录问题**：修复了点击重新生成投票按钮后，新投票和按钮ID未记录的问题
+  - 问题：点击"重新生成投票"按钮后，新生成的投票和按钮消息ID没有更新到 `.last_summary_time.json`
+  - 原因：`poll_regeneration_handlers.py` 中只更新了 `poll_regenerations.json`，未更新 `.last_summary_time.json`
+  - 影响：导致下次抓取消息时重复分析新生成的投票和按钮
+  - 解决：在发送新投票后，同时更新 `.last_summary_time.json` 中的投票和按钮ID
+  - 结果：无论是初次生成还是重新生成，所有AI生成的消息ID都会被正确记录
+
+### 技术实现
+- **command_handlers.py** 修复（第178-196行）：
+  - 正确解包 `send_report` 返回的字典
+  - 使用命名参数分别传递三类消息ID列表
+  - 单个ID自动转换为列表格式
+  - 参考 `scheduler.py` 中的正确处理方式
+
+- **poll_regeneration_handlers.py** 修复：
+  - `send_new_poll_to_channel` 函数（第244-262行）：发送新投票后更新 `.last_summary_time.json`
+  - `send_new_poll_to_discussion_group` 函数（第383-401行）：发送新投票后更新 `.last_summary_time.json`
+  - 保留原有的 `summary_message_ids`，只更新新的 `poll_message_ids` 和 `button_message_ids`
+  - 同时更新两个JSON文件，确保数据一致性
+
+### 数据结构
+修复后的 `.last_summary_time.json` 格式：
+```json
+{
+  "https://t.me/channel": {
+    "time": "2026-01-15T12:00:00+00:00",
+    "summary_message_ids": [9154, 9155, 9156],  // 所有分段
+    "poll_message_ids": [9157],                  // 投票ID
+    "button_message_ids": [9158]                 // 按钮ID
+  }
+}
+```
+
+### 向后兼容
+- 完全兼容现有功能
+- 不影响总结生成和发送流程
+- 所有现有命令和配置保持不变
+- 修复后下次抓取消息时自动排除所有AI生成的消息
+
 ## [1.3.0] - 2026-01-15
 
 ### 新增

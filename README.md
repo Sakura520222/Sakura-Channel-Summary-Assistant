@@ -1,4 +1,4 @@
-# 🌸 Sakura-频道总结助手 v1.3.0
+# 🌸 Sakura-频道总结助手 v1.3.1
 
 [![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-blue.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)

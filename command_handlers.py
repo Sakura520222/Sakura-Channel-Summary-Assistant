@@ -175,8 +175,25 @@ async def handle_manual_summary(event):
                 else:
                     await send_report(report_text, None, event.client, skip_admins=skip_admins, message_count=len(messages))
                 
-                # 保存该频道的本次总结时间和报告消息ID
-                save_last_summary_time(channel, datetime.now(timezone.utc), sent_report_ids)
+                # 保存该频道的本次总结时间和所有相关消息ID
+                if sent_report_ids:
+                    summary_ids = sent_report_ids.get("summary_message_ids", [])
+                    poll_id = sent_report_ids.get("poll_message_id")
+                    button_id = sent_report_ids.get("button_message_id")
+
+                    # 转换单个ID为列表格式
+                    poll_ids = [poll_id] if poll_id else []
+                    button_ids = [button_id] if button_id else []
+
+                    save_last_summary_time(
+                        channel,
+                        datetime.now(timezone.utc),
+                        summary_message_ids=summary_ids,
+                        poll_message_ids=poll_ids,
+                        button_message_ids=button_ids
+                    )
+                else:
+                    save_last_summary_time(channel, datetime.now(timezone.utc))
             else:
                 logger.info(f"频道 {channel} 没有新消息需要总结")
                 # 获取频道实际名称用于无消息提示

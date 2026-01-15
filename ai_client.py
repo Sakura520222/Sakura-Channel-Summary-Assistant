@@ -104,8 +104,26 @@ def generate_poll_from_summary(summary_text):
         }
     
     # 使用用户提供的提示词格式
-    prompt = f"根据以下内容写一个有趣的单选投票。要求返回 JSON 格式：{{'question': '题目', 'options': ['选项1', '选项2', '选项3', '选项4']}}。内容如下：\n\n{summary_text}"
-    
+    prompt = f"""
+根据以下内容生成一个有趣的单选投票。
+1. **趣味性**：题目和选项要幽默、有梗，具有互动性，避免平铺直叙。
+2. **双语要求**：整体内容中文在上，英文在下。在 JSON 字段内部，中文与英文之间使用 " / " 分隔。
+3. **输出格式**：仅输出标准的 JSON 格式，严禁包含任何前言、解释或 Markdown 代码块标识符。
+4. **JSON 结构**：
+{{
+  "question": "中文题目 / English Question",
+  "options": [
+    "中文选项1 / English Option 1",
+    "中文选项2 / English Option 2",
+    "中文选项3 / English Option 3",
+    "中文选项4 / English Option 4"
+  ]
+}}
+
+# Input Content
+{summary_text}
+"""
+
     logger.debug(f"投票生成请求配置: 模型={LLM_MODEL}, 提示词长度={len(prompt)}字符")
     
     try:
@@ -117,7 +135,7 @@ def generate_poll_from_summary(summary_text):
         response = client_llm.chat.completions.create(
             model=LLM_MODEL,
             messages=[
-                {"role": "system", "content": "你是一个专业的投票生成助手，擅长根据内容生成有趣、相关的投票问题。"},
+                {"role": "system", "content": "你是一个幽默风趣的互动策划专家，擅长从枯燥的文字中挖掘槽点或亮点，创作让人忍不住想投票的双语投票。"},
                 {"role": "user", "content": prompt},
             ]
         )

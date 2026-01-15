@@ -41,7 +41,7 @@ from poll_regeneration_handlers import handle_poll_regeneration_callback
 from error_handler import initialize_error_handling, get_health_checker, get_error_stats
 
 # 版本信息
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 
 async def send_startup_message(client):
     """向所有管理员发送启动消息"""
