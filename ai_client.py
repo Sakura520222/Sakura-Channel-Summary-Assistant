@@ -13,6 +13,7 @@ import logging
 from openai import OpenAI
 from config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 from error_handler import retry_with_backoff, record_error
+from poll_prompt_manager import load_poll_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -103,26 +104,9 @@ def generate_poll_from_summary(summary_text):
             "options": ["非常满意", "比较满意", "一般", "有待改进"]
         }
     
-    # 使用用户提供的提示词格式
-    prompt = f"""
-根据以下内容生成一个有趣的单选投票。
-1. **趣味性**：题目和选项要幽默、有梗，具有互动性，避免平铺直叙。
-2. **双语要求**：整体内容中文在上，英文在下。在 JSON 字段内部，中文与英文之间使用 " / " 分隔。
-3. **输出格式**：仅输出标准的 JSON 格式，严禁包含任何前言、解释或 Markdown 代码块标识符。
-4. **JSON 结构**：
-{{
-  "question": "中文题目 / English Question",
-  "options": [
-    "中文选项1 / English Option 1",
-    "中文选项2 / English Option 2",
-    "中文选项3 / English Option 3",
-    "中文选项4 / English Option 4"
-  ]
-}}
-
-# Input Content
-{summary_text}
-"""
+    # 使用可配置的投票提示词
+    poll_prompt_template = load_poll_prompt()
+    prompt = poll_prompt_template.format(summary_text=summary_text)
 
     logger.debug(f"投票生成请求配置: 模型={LLM_MODEL}, 提示词长度={len(prompt)}字符")
     

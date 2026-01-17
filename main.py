@@ -27,7 +27,8 @@ from config import (
 from scheduler import main_job
 from command_handlers import (
     handle_manual_summary, handle_show_prompt, handle_set_prompt,
-    handle_prompt_input, handle_show_ai_config, handle_set_ai_config,
+    handle_prompt_input, handle_show_poll_prompt, handle_set_poll_prompt,
+    handle_poll_prompt_input, handle_show_ai_config, handle_set_ai_config,
     handle_ai_config_input, handle_show_log_level, handle_set_log_level,
     handle_restart, handle_show_channels, handle_add_channel,
     handle_delete_channel, handle_clear_summary_time, handle_set_send_to_source,
@@ -41,7 +42,7 @@ from poll_regeneration_handlers import handle_poll_regeneration_callback
 from error_handler import initialize_error_handling, get_health_checker, get_error_stats
 
 # 版本信息
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 
 async def send_startup_message(client):
     """向所有管理员发送启动消息"""
@@ -60,6 +61,8 @@ async def send_startup_message(client):
 /summary - 立即生成本周频道消息汇总
 /showprompt - 查看当前提示词
 /setprompt - 设置自定义提示词
+/showpollprompt - 查看当前投票提示词
+/setpollprompt - 设置投票提示词
 /showaicfg - 查看AI配置
 /setaicfg - 设置AI配置
 /showloglevel - 查看当前日志级别
@@ -183,6 +186,8 @@ async def main():
         # 3. AI 配置命令
         client.add_event_handler(handle_show_prompt, NewMessage(pattern='/showprompt|/show_prompt|/查看提示词'))
         client.add_event_handler(handle_set_prompt, NewMessage(pattern='/setprompt|/set_prompt|/设置提示词'))
+        client.add_event_handler(handle_show_poll_prompt, NewMessage(pattern='/showpollprompt|/show_poll_prompt|/查看投票提示词'))
+        client.add_event_handler(handle_set_poll_prompt, NewMessage(pattern='/setpollprompt|/set_poll_prompt|/设置投票提示词'))
         client.add_event_handler(handle_show_ai_config, NewMessage(pattern='/showaicfg|/show_aicfg|/查看AI配置'))
         client.add_event_handler(handle_set_ai_config, NewMessage(pattern='/setaicfg|/set_aicfg|/设置AI配置'))
 
@@ -221,6 +226,7 @@ async def main():
         client.add_event_handler(handle_stats, NewMessage(pattern='/stats|/统计'))
         # 只处理非命令消息作为提示词或AI配置输入
         client.add_event_handler(handle_prompt_input, NewMessage(func=lambda e: not e.text.startswith('/')))
+        client.add_event_handler(handle_poll_prompt_input, NewMessage(func=lambda e: not e.text.startswith('/')))
         client.add_event_handler(handle_ai_config_input, NewMessage(func=lambda e: True))
 
         # 添加投票重新生成回调查询处理器
@@ -250,6 +256,8 @@ async def main():
             # 3. AI 配置命令
             BotCommand(command="showprompt", description="查看当前提示词"),
             BotCommand(command="setprompt", description="设置自定义提示词"),
+            BotCommand(command="showpollprompt", description="查看当前投票提示词"),
+            BotCommand(command="setpollprompt", description="设置投票提示词"),
             BotCommand(command="showaicfg", description="查看AI配置"),
             BotCommand(command="setaicfg", description="设置AI配置"),
             # 4. 频道管理命令

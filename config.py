@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 # 配置文件路径
 PROMPT_FILE = "prompt.txt"
+POLL_PROMPT_FILE = "poll_prompt.txt"
 CONFIG_FILE = "config.json"
 RESTART_FLAG_FILE = ".restart_flag"
 LAST_SUMMARY_FILE = ".last_summary_time.json"
@@ -53,6 +54,26 @@ LINKED_CHAT_CACHE = {}
 
 # 默认提示词
 DEFAULT_PROMPT = "请总结以下 Telegram 消息，提取核心要点并列出重要消息的链接：\n\n"
+
+# 默认投票生成提示词
+DEFAULT_POLL_PROMPT = """根据以下内容生成一个有趣的单选投票。
+1. **趣味性**：题目和选项要幽默、有梗，具有互动性，避免平铺直叙。
+2. **双语要求**：整体内容中文在上，英文在下。在 JSON 字段内部，中文与英文之间使用 " / " 分隔。
+3. **输出格式**：仅输出标准的 JSON 格式，严禁包含任何前言、解释或 Markdown 代码块标识符。
+4. **JSON 结构**：
+{{
+  "question": "中文题目 / English Question",
+  "options": [
+    "中文选项1 / English Option 1",
+    "中文选项2 / English Option 2",
+    "中文选项3 / English Option 3",
+    "中文选项4 / English Option 4"
+  ]
+}}
+
+# Input Content
+{summary_text}
+"""
 
 # 加载 .env 文件中的变量
 load_dotenv()

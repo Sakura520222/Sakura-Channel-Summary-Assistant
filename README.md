@@ -1,4 +1,4 @@
-# 🌸 Sakura-频道总结助手 v1.3.1
+# 🌸 Sakura-频道总结助手 v1.3.2
 
 [![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-blue.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
@@ -35,6 +35,7 @@
 | ⚡ **手动触发总结** | 支持管理员通过命令随时生成总结 | ✅ |
 | 🔧 **自定义AI配置** | 支持多种OpenAI兼容API服务（DeepSeek、OpenAI等） | ✅ |
 | 🎯 **自定义提示词** | 允许管理员设置专属提示词，灵活调整总结风格 | ✅ |
+| 🎯 **自定义投票提示词** | 允许管理员自定义AI生成投票的提示词 | ✅ |
 | 👥 **多管理员支持** | 可配置多个管理员ID，报告同时发送给所有管理员 | ✅ |
 | 📝 **长消息分段发送** | 智能处理超长总结内容，自动分段发送 | ✅ |
 | 🌐 **多频道支持** | 同时监控和总结多个频道的内容 | ✅ |

@@ -24,12 +24,15 @@ from config import (
     get_channel_poll_config, set_channel_poll_config, delete_channel_poll_config
 )
 from prompt_manager import load_prompt, save_prompt
+from poll_prompt_manager import load_poll_prompt, save_poll_prompt
 from summary_time_manager import load_last_summary_time, save_last_summary_time
 from ai_client import analyze_with_ai, client_llm
 from telegram_client import fetch_last_week_messages, send_long_message, send_report
 
 # 全局变量，用于跟踪正在设置提示词的用户
 setting_prompt_users = set()
+# 全局变量，用于跟踪正在设置投票提示词的用户
+setting_poll_prompt_users = set()
 # 全局变量，用于跟踪正在设置AI配置的用户
 setting_ai_config_users = set()
 # 全局变量，用于存储正在配置中的AI参数
@@ -273,6 +276,71 @@ async def handle_prompt_input(event):
     logger.info(f"从提示词设置集合中移除用户 {sender_id}")
     
     await event.reply(f"提示词已更新为：\n\n{new_prompt}")
+
+async def handle_show_poll_prompt(event):
+    """处理/showpollprompt命令，显示当前投票提示词"""
+    sender_id = event.sender_id
+    command = event.text
+    logger.info(f"收到命令: {command}，发送者: {sender_id}")
+
+    # 检查发送者是否为管理员
+    if sender_id not in ADMIN_LIST and ADMIN_LIST != ['me']:
+        logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command}")
+        await event.reply("您没有权限执行此命令")
+        return
+
+    logger.info(f"执行命令 {command} 成功")
+    current_poll_prompt = load_poll_prompt()
+    await event.reply(f"当前投票提示词：\n\n{current_poll_prompt}")
+
+async def handle_set_poll_prompt(event):
+    """处理/setpollprompt命令，触发投票提示词设置流程"""
+    sender_id = event.sender_id
+    command = event.text
+    logger.info(f"收到命令: {command}，发送者: {sender_id}")
+
+    # 检查发送者是否为管理员
+    if sender_id not in ADMIN_LIST and ADMIN_LIST != ['me']:
+        logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command}")
+        await event.reply("您没有权限执行此命令")
+        return
+
+    # 添加用户到正在设置投票提示词的集合中
+    setting_poll_prompt_users.add(sender_id)
+    logger.info(f"添加用户 {sender_id} 到投票提示词设置集合")
+    current_poll_prompt = load_poll_prompt()
+    await event.reply("请发送新的投票提示词，我将使用它来生成投票。\n\n当前投票提示词：\n" + current_poll_prompt)
+
+async def handle_poll_prompt_input(event):
+    """处理用户输入的新投票提示词"""
+    sender_id = event.sender_id
+    input_text = event.text
+
+    # 检查发送者是否在设置投票提示词的集合中
+    if sender_id not in setting_poll_prompt_users:
+        return
+
+    logger.info(f"收到用户 {sender_id} 的投票提示词输入")
+
+    # 检查是否是命令消息，如果是则不处理
+    if input_text.startswith('/'):
+        logger.warning(f"用户 {sender_id} 发送了命令而非提示词内容: {input_text}")
+        await event.reply("请发送提示词内容，不要发送命令。如果要取消设置，请重新发送命令。")
+        return
+
+    # 获取新提示词
+    new_poll_prompt = input_text.strip()
+    logger.debug(f"用户 {sender_id} 设置的新投票提示词: {new_poll_prompt[:100]}..." if len(new_poll_prompt) > 100 else f"用户 {sender_id} 设置的新投票提示词: {new_poll_prompt}")
+
+    # 更新投票提示词
+    save_poll_prompt(new_poll_prompt)
+    logger.info(f"已更新投票提示词，长度: {len(new_poll_prompt)}字符")
+
+    # 从集合中移除用户
+    setting_poll_prompt_users.remove(sender_id)
+    logger.info(f"从投票提示词设置集合中移除用户 {sender_id}")
+
+    await event.reply(f"投票提示词已更新为：\n\n{new_poll_prompt}")
 
 async def handle_show_ai_config(event):
     """处理/showaicfg命令，显示当前AI配置"""
@@ -1511,6 +1579,8 @@ async def handle_help(event):
 **⚙️ 提示词管理**
 /showprompt - 查看当前使用的提示词
 /setprompt - 设置自定义提示词
+/showpollprompt - 查看当前投票提示词
+/setpollprompt - 设置自定义投票提示词
 
 **🤖 AI 配置**
 /showaicfg - 查看当前 AI 配置信息
