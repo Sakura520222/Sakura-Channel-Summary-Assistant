@@ -381,7 +381,7 @@ async def send_new_poll_to_channel(client, channel, summary_msg_id, poll_data):
             # 更新投票和按钮ID为新的
             save_last_summary_time(
                 channel,
-                datetime.now(timezone.utc),
+                datetime.now(),
                 summary_message_ids=summary_ids,
                 poll_message_ids=[poll_msg_id],
                 button_message_ids=[button_msg.id]
@@ -531,7 +531,7 @@ async def send_new_poll_to_discussion_group(client, channel, summary_msg_id, pol
             # 更新投票和按钮ID为新的
             save_last_summary_time(
                 channel,
-                datetime.now(timezone.utc),
+                datetime.now(),
                 summary_message_ids=summary_ids,
                 poll_message_ids=[poll_msg_id],
                 button_message_ids=[button_msg.id]

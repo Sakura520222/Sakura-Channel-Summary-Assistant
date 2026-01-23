@@ -764,7 +764,7 @@ def add_poll_regeneration(channel, summary_msg_id, poll_msg_id,
         "button_message_id": button_msg_id,
         "summary_text": summary_text,
         "channel_name": channel_name,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now().isoformat(),
         "send_to_channel": send_to_channel,
         "vote_count": 0,  # 初始化投票计数
         "voters": []  # 初始化已投票用户列表
@@ -833,7 +833,7 @@ def cleanup_old_regenerations(days=30):
     """
     from datetime import datetime, timezone, timedelta
     data = load_poll_regenerations()
-    cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff_time = datetime.now() - timedelta(days=days)
     count = 0
     for channel in list(data.keys()):
         for summary_id in list(data[channel].keys()):

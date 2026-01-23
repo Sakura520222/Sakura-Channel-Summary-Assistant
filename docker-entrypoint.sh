@@ -88,6 +88,15 @@ fi
 echo "设置文件权限..."
 chown -R appuser:appuser /app/bot_session.session 2>/dev/null || true
 
+# 修改所有需要写入的文件权限，确保appuser用户可以写入
+for file in /app/.last_summary_time.json /app/.poll_regenerations.json /app/summaries.db; do
+    if [ -f "$file" ]; then
+        echo "  设置文件权限: $file"
+        chown appuser:appuser "$file" 2>/dev/null || true
+        chmod 644 "$file" 2>/dev/null || true
+    fi
+done
+
 echo "========================================"
 echo "启动参数: $@"
 echo "========================================"

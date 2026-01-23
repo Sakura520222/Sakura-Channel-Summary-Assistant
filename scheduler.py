@@ -138,7 +138,7 @@ async def main_job(channel=None):
                 frequency = schedule_config.get('frequency', 'weekly')
 
                 # 计算起始日期和终止日期
-                end_date = datetime.now(timezone.utc)
+                end_date = datetime.now()
                 if channel_last_summary_time:
                     start_date = channel_last_summary_time
                 else:
@@ -208,7 +208,7 @@ async def main_job(channel=None):
 
                     save_last_summary_time(
                         channel,
-                        datetime.now(timezone.utc),
+                        datetime.now(),
                         summary_message_ids=summary_ids,
                         poll_message_ids=poll_ids,
                         button_message_ids=button_ids

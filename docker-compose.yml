@@ -2,6 +2,7 @@ services:
   sakura-summary-bot:
     build: .
     container_name: sakura-summary-bot
+    user: "root:root"
     restart: unless-stopped
     environment:
       - TZ=Asia/Shanghai
