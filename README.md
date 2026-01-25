@@ -1,6 +1,6 @@
 # 🌸 Sakura-频道总结助手 v1.3.3
 
-[![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-blue.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)
+[![License](https://img.shields.io/badge/License-AGPL--3.0%20%2B%20Non--Commercial-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![Telethon](https://img.shields.io/badge/Telethon-1.34+-blue.svg)](https://docs.telethon.dev/)
 [![Docker](https://img.shields.io/badge/Docker-20.10%2B-blue.svg)](https://www.docker.com/)
@@ -489,25 +489,22 @@ Sakura-Channel-Summary-Assistant/
 
 ## 📄 许可证
 
-本项目采用 **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 (CC BY-NC-SA 4.0)** 许可证。
+本项目采用 **GNU Affero General Public License Version 3.0 (AGPL-3.0) 许可，并附加非商业使用限制条款**。
 
-### 许可证条款
+### 许可证要点
 
-您可以自由地：
-- **共享** — 在任何媒介以任何形式复制、发行本作品
-- **演绎** — 修改、转换或以本作品为基础进行创作
-
-惟须遵守下列条件：
-- **署名** — 您必须提供本项目的原始来源链接，并注明是否对原始作品作了修改
-- **非商业性使用** — 您不得将本作品用于商业目的或进行商业分发
-- **相同方式共享** — 如果您再混合、转换或者基于本作品进行创作，您必须基于与原先许可协议相同的许可协议分发您贡献的作品
+- **AGPL-3.0**：保护开源，要求修改后的代码必须开源，并通过网络提供服务时也需提供源代码
+- **非商业限制**：禁止将本软件用于任何商业用途、有偿订阅服务或付费 SaaS 产品
+- **署名要求**：所有衍生作品必须保留原作者的项目链接和作者署名信息
+- **API 责任**：使用者需自行承担 API 费用及相关法律责任
 
 ### 重要说明
 
 - 本项目仅供**个人学习使用**，禁止任何商业用途
 - 使用本项目的代码或衍生作品时，必须标注本仓库的原始来源地址
+- 基于 AGPL-3.0 的网络交互条款，通过服务器提供服务的必须提供源代码
 - 本项目源代码：https://github.com/Sakura520222/Sakura-Channel-Summary-Assistant
-- 许可证全文：https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh
+- 完整许可证内容请参阅 [LICENSE](LICENSE) 文件
 
 ## 🤝 贡献
 
