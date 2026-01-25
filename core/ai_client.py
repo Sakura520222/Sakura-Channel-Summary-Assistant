@@ -148,7 +148,7 @@ def generate_poll_from_summary(summary_text):
                             logger.warning(f"投票问题超长: {len(question)}字符，将截断")
                             # 截断到255字符，确保不截断中文字符
                             truncated = question[:255]
-                            while truncated and (truncated[-1].encode('utf-8') & 0xC0) == 0x80:
+                            while truncated and (ord(truncated[-1]) & 0xC0) == 0x80:
                                 truncated = truncated[:-1]
                             poll_data['question'] = truncated + '...'
                             logger.info(f"投票问题已截断为: {poll_data['question']}")
@@ -161,7 +161,7 @@ def generate_poll_from_summary(summary_text):
                                 logger.warning(f"投票选项{i+1}超长: {len(option_text)}字符，将截断")
                                 # 截断到100字符
                                 truncated = option_text[:100]
-                                while truncated and (truncated[-1].encode('utf-8') & 0xC0) == 0x80:
+                                while truncated and (ord(truncated[-1]) & 0xC0) == 0x80:
                                     truncated = truncated[:-1]
                                 valid_options.append(truncated + '...')
                             else:
