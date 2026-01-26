@@ -77,25 +77,15 @@ if [ ! -f /app/data/.poll_regenerations.json ]; then
     echo '{}' > /app/data/.poll_regenerations.json
 fi
 
+# 确保会话目录存在
+mkdir -p /app/sessions
+
 # 检查会话文件
-if [ ! -f /app/bot_session.session ]; then
+if [ ! -f /app/sessions/bot_session.session ]; then
     echo "注意: 未找到会话文件 bot_session.session"
     echo "首次运行需要Telegram登录授权"
     echo "请按照提示完成登录流程"
 fi
-
-# 设置文件权限
-echo "设置文件权限..."
-chown -R appuser:appuser /app/bot_session.session 2>/dev/null || true
-
-# 修改所有需要写入的文件权限，确保appuser用户可以写入
-for file in /app/data/.last_summary_time.json /app/data/.poll_regenerations.json /app/data/summaries.db; do
-    if [ -f "$file" ]; then
-        echo "  设置文件权限: $file"
-        chown appuser:appuser "$file" 2>/dev/null || true
-        chmod 644 "$file" 2>/dev/null || true
-    fi
-done
 
 echo "========================================"
 echo "启动参数: $@"

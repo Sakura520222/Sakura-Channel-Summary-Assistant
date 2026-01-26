@@ -174,7 +174,7 @@ async def main():
 
         # 启动机器人客户端，处理命令
         logger.info("开始初始化Telegram机器人客户端...")
-        client = TelegramClient('bot_session', int(API_ID), API_HASH)
+        client = TelegramClient('/app/sessions/bot_session', int(API_ID), API_HASH)
         
         # 设置活动的客户端实例，供其他模块使用
         from core.telegram_client import set_active_client

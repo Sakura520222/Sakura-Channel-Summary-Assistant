@@ -31,12 +31,8 @@ COPY docker-entrypoint.sh .
 # 设置启动脚本权限
 RUN chmod +x docker-entrypoint.sh
 
-# 创建非root用户
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
-
 # 创建必要的目录和文件
-RUN mkdir -p /app/data && \
+RUN mkdir -p /app/data /app/sessions && \
     touch /app/data/config.json /app/data/prompt.txt /app/data/poll_prompt.txt /app/data/.last_summary_time.json /app/data/.poll_regenerations.json
 
 # 设置数据卷
