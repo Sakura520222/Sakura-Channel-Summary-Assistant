@@ -228,7 +228,7 @@ data/summaries.db
 
 # 会话文件
 bot_session*
-session_name*
+user_session*
 
 # 备份文件
 备份/
