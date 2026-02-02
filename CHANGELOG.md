@@ -5,6 +5,78 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.7] - 2026-02-02
+
+### 改进
+- **代码模块化重构**：对超过1000行的Python文件进行拆分，提升代码可维护性
+  - 将 `command_handlers.py` (1491行) 拆分为5个模块
+    - `core/command_handlers/summary_commands.py` (255行) - 总结相关命令
+    - `core/command_handlers/prompt_commands.py` (153行) - 提示词管理命令
+    - `core/command_handlers/ai_config_commands.py` (161行) - AI配置命令
+    - `core/command_handlers/channel_commands.py` (124行) - 频道管理命令
+    - `core/command_handlers/other_commands.py` (897行) - 其他辅助命令
+  
+  - 将 `telegram_client.py` (1137行) 拆分为3个模块
+    - `core/telegram/messaging.py` (712行) - 消息发送功能
+    - `core/telegram/poll_handlers.py` (354行) - 投票处理功能
+    - `core/telegram/client_management.py` (82行) - 客户端管理功能
+  
+  - 新增工具模块
+    - `core/states.py` (98行) - 状态管理模块
+    - `core/utils/message_utils.py` (43行) - 消息工具函数
+    - `core/utils/date_utils.py` (66行) - 日期工具函数
+
+### 技术实现
+- **向后兼容性**：保留原文件作为重新导出接口，无需修改其他文件的导入语句
+  - `core/command_handlers.py` 现在重新导出所有子模块的函数
+  - `core/telegram_client.py` 现在重新导出所有Telegram子模块的函数
+  - 所有现有代码无需修改即可正常工作
+
+- **代码规范**：遵循Python PEP 8开发规范
+  - 所有模块存放在 `core/` 子目录中
+  - 使用绝对导入避免相对导入问题
+  - 每个文件职责单一，易于维护和扩展
+
+- **代码行数优化**：
+  - 最大文件从1491行降至897行
+  - 所有文件均控制在1000行以下
+  - 代码组织更清晰，便于团队协作
+
+### 项目结构改进
+```
+core/
+├── command_handlers.py (84行) - 重新导出接口
+├── command_handlers/              # 命令处理子模块
+│   ├── __init__.py
+│   ├── summary_commands.py
+│   ├── prompt_commands.py
+│   ├── ai_config_commands.py
+│   ├── channel_commands.py
+│   └── other_commands.py
+├── telegram_client.py (33行) - 重新导出接口
+├── telegram/                      # Telegram客户端子模块
+│   ├── __init__.py
+│   ├── messaging.py
+│   ├── poll_handlers.py
+│   └── client_management.py
+├── utils/                         # 工具模块
+│   ├── __init__.py
+│   ├── message_utils.py
+│   └── date_utils.py
+└── states.py                      # 状态管理
+```
+
+### 修复
+- **变量作用域问题**：修复 `handle_set_send_to_source` 函数中的变量作用域问题
+  - 使用局部变量避免与全局变量冲突
+  - 从配置文件读取当前值而不是使用未定义的变量
+  - 修复了 `UnboundLocalError` 错误
+
+### 用户体验
+- **无感知升级**：用户无需修改任何配置或代码
+- **功能完整**：所有现有功能保持不变
+- **性能提升**：模块化加载略微提升启动速度
+
 ## [1.3.6] - 2026-02-02
 
 ### 修复

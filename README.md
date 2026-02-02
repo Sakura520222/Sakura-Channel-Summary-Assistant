@@ -1,4 +1,4 @@
-# 🌸 Sakura-频道总结助手 v1.3.6
+# 🌸 Sakura-频道总结助手 v1.3.7
 
 [![License](https://img.shields.io/badge/License-AGPL--3.0%20%2B%20Non--Commercial-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
@@ -473,21 +473,38 @@ docker-compose ps
 ```
 Sakura-Channel-Summary-Assistant/
 │
-├── 📁 core/                      # 核心模块目录
+├── 📁 core/                           # 核心模块目录
 │   ├── __init__.py
-│   ├── ai_client.py              # AI客户端模块
-│   ├── command_handlers.py       # 命令处理模块
-│   ├── config.py                 # 配置管理模块
-│   ├── database.py               # 数据库模块
-│   ├── error_handler.py          # 错误处理模块
-│   ├── history_handlers.py       # 历史记录处理模块
-│   ├── poll_prompt_manager.py    # 投票提示词管理模块
+│   ├── ai_client.py                   # AI客户端模块
+│   ├── command_handlers.py            # 命令处理模块（重新导出接口）
+│   ├── command_handlers/              # 命令处理子模块
+│   │   ├── __init__.py
+│   │   ├── summary_commands.py        # 总结相关命令
+│   │   ├── prompt_commands.py         # 提示词管理命令
+│   │   ├── ai_config_commands.py      # AI配置命令
+│   │   ├── channel_commands.py        # 频道管理命令
+│   │   └── other_commands.py          # 其他辅助命令
+│   ├── config.py                      # 配置管理模块
+│   ├── database.py                    # 数据库模块
+│   ├── error_handler.py               # 错误处理模块
+│   ├── history_handlers.py            # 历史记录处理模块
+│   ├── poll_prompt_manager.py         # 投票提示词管理模块
 │   ├── poll_regeneration_handlers.py  # 投票重新生成处理模块
-│   ├── prompt_manager.py         # 提示词管理模块
-│   ├── scheduler.py              # 调度器模块
-│   ├── summary_time_manager.py   # 时间管理模块
-│   ├── telegram_client.py        # Telegram客户端模块
-│   └── telegram_client_utils.py  # Telegram客户端工具模块
+│   ├── prompt_manager.py              # 提示词管理模块
+│   ├── scheduler.py                   # 调度器模块
+│   ├── states.py                      # 状态管理模块
+│   ├── summary_time_manager.py        # 时间管理模块
+│   ├── telegram_client.py             # Telegram客户端模块（重新导出接口）
+│   ├── telegram_client_utils.py       # Telegram客户端工具模块
+│   ├── telegram/                      # Telegram客户端子模块
+│   │   ├── __init__.py
+│   │   ├── messaging.py               # 消息发送功能
+│   │   ├── poll_handlers.py           # 投票处理功能
+│   │   └── client_management.py       # 客户端管理功能
+│   └── utils/                         # 工具模块
+│       ├── __init__.py
+│       ├── message_utils.py           # 消息工具函数
+│       └── date_utils.py              # 日期工具函数
 │
 ├── 📁 data/                      # 数据目录
 │   ├── .env                      # 环境变量配置（从.env.example复制）
