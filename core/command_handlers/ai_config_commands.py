@@ -25,7 +25,10 @@ async def handle_show_ai_config(event):
     
     # 显示当前配置
     config_info = f"当前AI配置：\n\n"
-    config_info += f"API Key：{LLM_API_KEY[:10]}...{LLM_API_KEY[-10:] if len(LLM_API_KEY) > 20 else LLM_API_KEY}\n"
+    if LLM_API_KEY:
+        config_info += f"API Key：{LLM_API_KEY[:10]}...{LLM_API_KEY[-10:] if len(LLM_API_KEY) > 20 else LLM_API_KEY}\n"
+    else:
+        config_info += f"API Key：未设置\n"
     config_info += f"Base URL：{LLM_BASE_URL}\n"
     config_info += f"Model：{LLM_MODEL}\n"
     
@@ -108,7 +111,12 @@ async def handle_ai_config_input(event):
             user_context.update_ai_config(sender_id, 'api_key', LLM_API_KEY)
         
         current_ai_config = user_context.get_ai_config(sender_id)
-        await event.reply(f"API Key已设置为：{current_ai_config['api_key'][:10]}...{current_ai_config['api_key'][-10:] if len(current_ai_config['api_key']) > 20 else current_ai_config['api_key']}\n\n请发送Base URL，或发送/skip跳过")
+        api_key_display = current_ai_config['api_key']
+        if api_key_display:
+            api_key_display = f"{api_key_display[:10]}...{api_key_display[-10:] if len(api_key_display) > 20 else api_key_display}"
+        else:
+            api_key_display = "未设置"
+        await event.reply(f"API Key已设置为：{api_key_display}\n\n请发送Base URL，或发送/skip跳过")
     
     elif config_step == 2:
         # 处理Base URL
@@ -144,7 +152,12 @@ async def handle_ai_config_input(event):
         
         # 显示最终配置
         config_info = f"AI配置已更新：\n\n"
-        config_info += f"API Key：{final_config['api_key'][:10]}...{final_config['api_key'][-10:] if len(final_config['api_key']) > 20 else final_config['api_key']}\n"
+        api_key_display = final_config['api_key']
+        if api_key_display:
+            api_key_display = f"{api_key_display[:10]}...{api_key_display[-10:] if len(api_key_display) > 20 else api_key_display}"
+        else:
+            api_key_display = "未设置"
+        config_info += f"API Key：{api_key_display}\n"
         config_info += f"Base URL：{final_config['base_url']}\n"
         config_info += f"Model：{final_config['model']}\n"
         
@@ -154,7 +167,12 @@ async def handle_ai_config_input(event):
     elif config_step == 4:
         # 所有参数都已设置，可能是重复输入，返回最终配置
         final_config = user_context.get_ai_config(sender_id)
+        api_key_display = final_config['api_key']
+        if api_key_display:
+            api_key_display = f"{api_key_display[:10]}...{api_key_display[-10:] if len(api_key_display) > 20 else api_key_display}"
+        else:
+            api_key_display = "未设置"
         await event.reply("AI配置已完成设置，当前配置：\n\n" + 
-                        f"API Key：{final_config['api_key'][:10]}...{final_config['api_key'][-10:] if len(final_config['api_key']) > 20 else final_config['api_key']}\n" +
+                        f"API Key：{api_key_display}\n" +
                         f"Base URL：{final_config['base_url']}\n" +
                         f"Model：{final_config['model']}\n")

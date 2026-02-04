@@ -85,6 +85,8 @@ logger.info(f"已加载 .env 文件中的环境变量 (路径: {env_path})")
 
 # 从环境变量中读取配置
 logger.info("开始从环境变量加载配置...")
+# 语言配置 - 从环境变量获取默认值
+LANGUAGE_FROM_ENV = os.getenv('LANGUAGE', 'zh-CN')
 API_ID = os.getenv('TELEGRAM_API_ID')
 API_HASH = os.getenv('TELEGRAM_API_HASH')
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -225,11 +227,43 @@ def update_module_variables(config):
 # 加载配置文件，覆盖环境变量默认值
 logger.info("开始加载配置文件...")
 config = load_config()
+
+# 语言配置初始化
+# 优先级：config.json > .env > 默认值(zh-CN)
+LANGUAGE_FROM_CONFIG = None
+if config:
+    LANGUAGE_FROM_CONFIG = config.get('language')
+    logger.debug(f"从配置文件读取的语言配置: {LANGUAGE_FROM_CONFIG}")
+
+# 确定最终语言配置
+final_language = LANGUAGE_FROM_CONFIG or LANGUAGE_FROM_ENV
+logger.info(f"最终语言配置: {final_language} (来源: {'配置文件' if LANGUAGE_FROM_CONFIG else '环境变量或默认值'})")
+
+# 初始化国际化模块的语言设置
+from . import i18n
+i18n.set_language(final_language)
+logger.info(f"国际化模块语言已设置为: {i18n.get_language()}")
+
 if config:
     logger.debug(f"从配置文件读取的配置: {config}")
-    LLM_API_KEY = config.get('api_key', LLM_API_KEY)
-    LLM_BASE_URL = config.get('base_url', LLM_BASE_URL)
-    LLM_MODEL = config.get('model', LLM_MODEL)
+    # 只有当配置文件中存在且不为None时才覆盖环境变量的值
+    if 'api_key' in config and config['api_key']:
+        LLM_API_KEY = config['api_key']
+        logger.debug("从配置文件覆盖 LLM_API_KEY")
+    else:
+        logger.debug("使用环境变量中的 LLM_API_KEY")
+    
+    if 'base_url' in config and config['base_url']:
+        LLM_BASE_URL = config['base_url']
+        logger.debug("从配置文件覆盖 LLM_BASE_URL")
+    else:
+        logger.debug("使用环境变量中的 LLM_BASE_URL")
+    
+    if 'model' in config and config['model']:
+        LLM_MODEL = config['model']
+        logger.debug("从配置文件覆盖 LLM_MODEL")
+    else:
+        logger.debug("使用环境变量中的 LLM_MODEL")
     
     # 从配置文件读取频道列表
     config_channels = config.get('channels')

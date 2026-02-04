@@ -114,6 +114,7 @@ python main.py
 | **🎯 Per-Channel Polls** | Configure poll settings independently for each channel | ✅ |
 | **🔄 Poll Regeneration** | Admin can regenerate polls with a single button click | ✅ |
 | **📜 History Tracking** | Automatic database storage with query, export, and statistics | ✅ |
+| **🌍 Internationalization** | Multi-language UI support with flexible language configuration | ✅ |
 
 ---
 
@@ -194,6 +195,12 @@ python main.py
 | `/history` | `/历史` | View historical summaries | `/history` |
 | `/export` | `/导出` | Export history records | `/export channel1 csv` |
 | `/stats` | `/统计` | View statistics | `/stats` |
+
+#### Language Settings
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/language` | `/语言` | View or switch interface language | `/language` / `/language en-US` |
 
 ### Configuration Example
 

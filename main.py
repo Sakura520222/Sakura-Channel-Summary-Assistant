@@ -43,7 +43,7 @@ from core.command_handlers import (
     handle_show_channel_schedule, handle_set_channel_schedule, handle_delete_channel_schedule,
     handle_changelog, handle_shutdown, handle_pause, handle_resume,
     handle_show_channel_poll, handle_set_channel_poll, handle_delete_channel_poll,
-    handle_start, handle_help, handle_clear_cache
+    handle_start, handle_help, handle_clear_cache, handle_language
 )
 from core.history_handlers import handle_history, handle_export, handle_stats
 from core.poll_regeneration_handlers import (
@@ -53,7 +53,7 @@ from core.poll_regeneration_handlers import (
 from core.error_handler import initialize_error_handling, get_health_checker, get_error_stats
 
 # 版本信息
-__version__ = "1.3.8"
+__version__ = "1.3.9"
 
 async def send_startup_message(client):
     """向所有管理员发送启动消息"""
@@ -246,6 +246,9 @@ async def main():
         client.add_event_handler(handle_history, NewMessage(pattern='/history|/历史'))
         client.add_event_handler(handle_export, NewMessage(pattern='/export|/导出'))
         client.add_event_handler(handle_stats, NewMessage(pattern='/stats|/统计'))
+
+        # 10. 语言设置命令 (新增)
+        client.add_event_handler(handle_language, NewMessage(pattern='/language|/语言'))
         # 只处理非命令消息作为提示词或AI配置输入
         client.add_event_handler(handle_prompt_input, NewMessage(func=lambda e: not e.text.startswith('/')))
         client.add_event_handler(handle_poll_prompt_input, NewMessage(func=lambda e: not e.text.startswith('/')))
@@ -317,7 +320,9 @@ async def main():
             # 历史记录命令
             BotCommand(command="history", description="查看历史总结"),
             BotCommand(command="export", description="导出历史记录"),
-            BotCommand(command="stats", description="查看统计数据")
+            BotCommand(command="stats", description="查看统计数据"),
+            # 9. 语言设置命令
+            BotCommand(command="language", description="切换界面语言")
         ]
         
         await client(SetBotCommandsRequest(

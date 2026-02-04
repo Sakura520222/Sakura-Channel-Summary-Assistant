@@ -18,6 +18,7 @@ from ..config import (
     BOT_STATE_SHUTTING_DOWN, LOG_LEVEL_MAP, get_scheduler_instance,
     clear_discussion_group_cache, LINKED_CHAT_CACHE
 )
+from ..i18n import get_text, set_language, get_language, get_supported_languages
 from ..utils.message_utils import format_schedule_info
 
 logger = logging.getLogger(__name__)
@@ -722,42 +723,26 @@ async def handle_start(event):
     logger.info(f"收到命令: {command}，发送者: {sender_id}")
 
     try:
-        welcome_message = """🌸 **欢迎使用 Sakura-频道总结助手**
+        welcome_message = f"""{get_text('welcome.title')}
 
-🤖 我是Telegram智能频道管理助手，专门帮助频道主自动化管理 Telegram 频道内容。
+{get_text('welcome.description')}
 
-✨ **主要功能**
-• 📊 AI智能总结频道消息
-• ⏰ 支持每天/每周自动总结
-• 🎯 自定义总结风格和频率
-• 📝 自动生成投票互动
-• 👥 多频道同时管理
-• 📜 历史总结记录与查询
+{get_text('welcome.features_title')}
+{get_text('welcome.feature_summary')}
+{get_text('welcome.feature_schedule')}
+{get_text('welcome.feature_custom')}
+{get_text('welcome.feature_poll')}
+{get_text('welcome.feature_multi')}
+{get_text('welcome.feature_history')}
 
-📚 **常用命令**
+{get_text('welcome.commands_title')}
 
-**基础命令**
-/start - 查看此欢迎消息
-/summary - 立即生成本周汇总
+{get_text('welcome.command_basic')}
+{get_text('welcome.command_config')}
+{get_text('welcome.command_history')}
+{get_text('welcome.command_admin')}
 
-**配置命令**
-/showchannels - 查看频道列表
-/addchannel - 添加监控频道
-/setchannelschedule - 设置自动总结时间
-
-**历史记录** (新功能)
-/history - 查看历史总结
-/export - 导出历史记录
-/stats - 查看统计数据
-
-**管理命令**
-/pause - 暂停定时任务
-/resume - 恢复定时任务
-/changelog - 查看更新日志
-
-💡 **提示**
-• 发送 /help 查看完整命令列表
-• 更多信息请访问项目[开源仓库](https://github.com/Sakura520222/Sakura-Channel-Summary-Assistant)"""
+{get_text('welcome.tip')}"""
 
         await event.reply(welcome_message, link_preview=False)
         logger.info(f"已向用户 {sender_id} 发送欢迎消息")
@@ -774,85 +759,64 @@ async def handle_help(event):
     logger.info(f"收到命令: {command}，发送者: {sender_id}")
 
     try:
-        help_message = """📚 **Sakura-频道总结助手 - 完整命令列表**
+        help_message = f"""{get_text('help.title')}
 
-**🤖 基础命令**
-/start - 查看欢迎消息和基本介绍
-/help - 查看此完整命令列表
-/summary - 立即生成本周频道消息汇总
-/changelog - 查看项目更新日志
+{get_text('help.section_basic')}
+{get_text('cmd.start')}
+{get_text('cmd.help')}
+{get_text('cmd.summary')}
+{get_text('cmd.changelog')}
 
-**⚙️ 提示词管理**
-/showprompt - 查看当前使用的提示词
-/setprompt - 设置自定义提示词
-/showpollprompt - 查看当前投票提示词
-/setpollprompt - 设置自定义投票提示词
+{get_text('help.section_prompt')}
+{get_text('cmd.showprompt')}
+{get_text('cmd.setprompt')}
+{get_text('cmd.showpollprompt')}
+{get_text('cmd.setpollprompt')}
 
-**🤖 AI 配置**
-/showaicfg - 查看当前 AI 配置信息
-/setaicfg - 设置自定义 AI 配置（API Key、Base URL、Model）
+{get_text('help.section_ai')}
+{get_text('cmd.showaicfg')}
+{get_text('cmd.setaicfg')}
 
-**📊 日志管理**
-/showloglevel - 查看当前日志级别
-/setloglevel - 设置日志级别（DEBUG/INFO/WARNING/ERROR/CRITICAL）
+{get_text('help.section_log')}
+{get_text('cmd.showloglevel')}
+{get_text('cmd.setloglevel')}
 
-**🔄 机器人控制**
-/restart - 重启机器人
-/shutdown - 彻底停止机器人
-/pause - 暂停所有定时任务
-/resume - 恢复所有定时任务
+{get_text('help.section_control')}
+{get_text('cmd.restart')}
+{get_text('cmd.shutdown')}
+{get_text('cmd.pause')}
+{get_text('cmd.resume')}
 
-**📺 频道管理**
-/showchannels - 查看当前监控的频道列表
-/addchannel - 添加新频道到监控列表
-• 示例：/addchannel https://t.me/examplechannel
-/deletechannel - 从监控列表中删除频道
-• 示例：/deletechannel https://t.me/examplechannel
+{get_text('help.section_channel')}
+{get_text('cmd.showchannels')}
+{get_text('cmd.addchannel')}
+{get_text('cmd.deletechannel')}
 
-**⏰ 时间配置**
-/showchannelschedule - 查看频道自动总结时间配置
-/setchannelschedule - 设置频道自动总结时间
-• 每天：/setchannelschedule 频道 daily 小时 分钟
-• 每周：/setchannelschedule 频道 weekly 星期,星期 小时 分钟
-/deletechannelschedule - 删除频道自动总结时间配置
+{get_text('help.section_schedule')}
+{get_text('cmd.showchannelschedule')}
+{get_text('cmd.setchannelschedule')}
+{get_text('cmd.deletechannelschedule')}
 
-**🗑️ 数据管理**
-/clearsummarytime - 清除上次总结时间记录
+{get_text('help.section_data')}
+{get_text('cmd.clearsummarytime')}
 
-**📤 报告设置**
-/setsendtosource - 设置是否将报告发送回源频道
+{get_text('help.section_report')}
+{get_text('cmd.setsendtosource')}
 
-**🗳️ 投票配置**
-/channelpoll - 查看频道投票配置
-/setchannelpoll - 设置频道投票配置
-• 格式：/setchannelpoll 频道 true/false channel/discussion
-/deletechannelpoll - 删除频道投票配置
+{get_text('help.section_poll')}
+{get_text('cmd.channelpoll')}
+{get_text('cmd.setchannelpoll')}
+{get_text('cmd.deletechannelpoll')}
 
-**💾 缓存管理**
-/clearcache - 清除讨论组ID缓存
-• /clearcache - 清除所有缓存
-• /clearcache 频道URL - 清除指定频道缓存
+{get_text('help.section_cache')}
+{get_text('cmd.clearcache')}
 
-**📜 历史记录** (新功能)
-/history - 查看历史总结
-• /history - 查看所有频道最近10条
-• /history channel1 - 查看指定频道
-• /history channel1 30 - 查看最近30天
+{get_text('help.section_history')}
+{get_text('cmd.history')}
+{get_text('cmd.export')}
+{get_text('cmd.stats')}
 
-/export - 导出历史记录
-• /export - 导出所有记录为JSON
-• /export channel1 csv - 导出为CSV
-• /export channel1 md - 导出为md
-
-/stats - 查看统计数据
-• /stats - 查看所有频道统计
-• /stats channel1 - 查看指定频道统计
-
----
-💡 **提示**
-• 大多数命令支持中英文别名
-• 配置类命令需要管理员权限
-• 使用 /start 查看快速入门指南"""
+{get_text('help.tip')}"""
 
         await event.reply(help_message, link_preview=False)
         logger.info(f"已向用户 {sender_id} 发送完整帮助信息")
@@ -893,3 +857,70 @@ async def handle_changelog(event):
     except Exception as e:
         logger.error(f"发送变更日志文件时出错: {type(e).__name__}: {e}", exc_info=True)
         await event.reply(f"发送变更日志文件时出错: {e}")
+
+
+# ==================== 语言设置命令 ====================
+
+async def handle_language(event):
+    """处理/language命令，切换界面语言"""
+    sender_id = event.sender_id
+    command = event.text
+    logger.info(f"收到命令: {command}，发送者: {sender_id}")
+
+    try:
+        parts = command.split()
+        
+        # 如果没有提供参数，显示当前语言和支持的语言列表
+        if len(parts) < 2:
+            current_lang = get_language()
+            supported_langs = get_supported_languages()
+            
+            lang_names = {
+                'zh-CN': '简体中文',
+                'en-US': 'English'
+            }
+            
+            language_info = get_text('language.supported') + "\n\n"
+            language_info += get_text('language.current', language=f"{lang_names.get(current_lang, current_lang)} ({current_lang})") + "\n\n"
+            language_info += get_text('language.usage')
+            
+            await event.reply(language_info)
+            logger.info(f"执行命令 {command} 成功")
+            return
+
+        # 获取语言代码
+        new_language = parts[1].strip()
+        
+        # 验证语言代码
+        if new_language not in get_supported_languages():
+            await event.reply(get_text('language.invalid', language=new_language))
+            logger.warning(f"用户 {sender_id} 尝试设置不支持的语言: {new_language}")
+            return
+
+        # 设置语言
+        success = set_language(new_language)
+        
+        if success:
+            # 保存到配置文件
+            config = load_config()
+            config['language'] = new_language
+            save_config(config)
+            
+            logger.info(f"用户 {sender_id} 将语言更改为: {new_language}")
+            
+            # 语言名称映射
+            lang_names = {
+                'zh-CN': '简体中文',
+                'en-US': 'English'
+            }
+            
+            lang_name = lang_names.get(new_language, new_language)
+            success_msg = get_text('language.changed', language=f"{lang_name} ({new_language})")
+            
+            await event.reply(success_msg)
+        else:
+            await event.reply(get_text('language.invalid', language=new_language))
+
+    except Exception as e:
+        logger.error(f"设置语言时出错: {type(e).__name__}: {e}", exc_info=True)
+        await event.reply(f"设置语言时出错: {e}")

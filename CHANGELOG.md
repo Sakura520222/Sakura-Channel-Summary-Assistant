@@ -5,6 +5,111 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.9] - 2026-02-04
+
+### 新增
+- **国际化支持**：完整的多语言支持系统，允许用户切换界面语言
+  - 新增 `core/i18n.py` 国际化核心模块，支持简体中文和英语
+  - 单例模式的 `I18nManager` 类，确保全局语言一致性
+  - 支持变量插值和回退机制，防止翻译缺失导致错误
+  - 提供便捷函数：`get_text()`, `set_language()`, `get_language()`, `get_supported_languages()`
+
+- **语言切换命令**：新增 `/language` 命令支持运行时切换语言
+  - `/language` - 查看当前语言和支持的语言列表
+  - `/language zh-CN` - 切换为简体中文
+  - `/language en-US` - 切换为英语
+  - `/语言` - 中文别名支持
+  - 语言设置自动保存到 `config.json`，重启后保持
+
+- **环境变量配置**：支持通过 `.env` 文件配置默认语言
+  - 新增 `LANGUAGE` 环境变量，可在 `.env` 中设置默认语言
+  - 配置优先级：config.json > .env > 默认值(zh-CN)
+  - 更新 `.env.example` 添加 `LANGUAGE` 配置示例
+
+- **命令国际化**：核心命令已完全国际化
+  - `/start` 命令欢迎消息支持中英文切换
+  - `/help` 命令帮助文档支持中英文切换
+  - 所有使用 `get_text()` 的消息自动适配当前语言
+
+### 改进
+- **配置优先级优化**：优化 `.env` 和 `config.json` 的配置优先级
+  - AI 配置（api_key, base_url, model）只有当 config.json 中值存在且不为 None 时才覆盖 .env
+  - 确保 .env 配置不会被 config.json 的空值覆盖
+  - 提供更清晰的配置来源日志
+
+- **AI 配置显示优化**：改进 `/showaicfg` 命令的显示逻辑
+  - 添加 None 值安全检查，避免配置为 None 时崩溃
+  - 当 API Key 为 None 时显示"未设置"而非抛出异常
+  - 所有 API Key 显示位置都支持空值处理
+
+### 技术实现
+- **core/i18n.py 国际化模块**：
+  - `MESSAGE_ZH_CN` - 中文翻译字典（包含所有命令和消息）
+  - `MESSAGE_EN_US` - 英文翻译字典（包含所有命令和消息）
+  - `I18nManager` - 国际化管理器类（单例模式）
+  - 回退机制：当前语言缺少 key 时自动回退到中文
+  - 变量插值：支持 `{variable}` 占位符
+
+- **core/config.py 配置增强**：
+  - 新增 `LANGUAGE_FROM_ENV` 环境变量读取
+  - 新增 `LANGUAGE_FROM_CONFIG` 配置文件读取
+  - 新增语言初始化逻辑，支持三级配置优先级
+  - 优化 AI 配置加载逻辑，只有非 None 值才覆盖 .env
+
+- **core/command_handlers/other_commands.py 更新**：
+  - 新增 `handle_language()` 函数处理语言切换命令
+  - 更新 `handle_start()` 使用国际化文本
+  - 更新 `handle_help()` 使用国际化文本
+  - 导入 `get_language` 函数用于显示当前语言
+
+- **main.py 命令注册**：
+  - 注册 `/language` 和 `/语言` 命令事件处理器
+  - 更新 BotCommand 菜单，添加 language 命令
+
+### 配置示例
+**.env 配置**：
+```bash
+LANGUAGE=zh-CN  # 或 en-US
+```
+
+**config.json 配置**：
+```json
+{
+  "language": "zh-CN"
+}
+```
+
+### 使用示例
+```bash
+# 查看当前语言
+/language
+
+# 切换为中文
+/language zh-CN
+
+# 切换为英文
+/language en-US
+```
+
+### 用户体验改进
+- **多语言支持**：中文和英语用户都能获得母语体验
+- **灵活配置**：支持环境变量、配置文件、运行时切换三种方式
+- **持久化保存**：语言设置自动保存，重启后保持
+- **向后兼容**：所有现有功能保持不变，语言切换不影响核心功能
+- **易于扩展**：添加新语言只需在翻译字典中添加对应翻译
+
+### 技术特性
+- **单例模式**：确保全局只有一个语言管理器实例
+- **类型安全**：使用类型提示，支持静态类型检查
+- **错误处理**：完善的错误处理，防止翻译缺失导致程序崩溃
+- **日志记录**：详细的配置来源日志，便于调试
+- **代码规范**：遵循 Python PEP 8 编码规范
+
+### 文档更新
+- 新增国际化功能说明和使用示例
+- 更新 `.env.example` 添加 LANGUAGE 配置
+- 添加多语言支持的完整文档
+
 ## [1.3.8] - 2026-02-03
 
 ### 改进

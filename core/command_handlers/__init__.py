@@ -42,7 +42,8 @@ from .other_commands import (
     handle_clear_cache,
     handle_start,
     handle_help,
-    handle_changelog
+    handle_changelog,
+    handle_language
 )
 
 __all__ = [
@@ -77,4 +78,5 @@ __all__ = [
     'handle_start',
     'handle_help',
     'handle_changelog',
+    'handle_language',
 ]
