@@ -379,9 +379,4 @@ Made with ❤️ by [Sakura520222](https://github.com/Sakura520222)
 
 [⭐ Star](https://github.com/Sakura520222/Sakura-Channel-Summary-Assistant) · [🍴 Fork](https://github.com/Sakura520222/Sakura-Channel-Summary-Assistant/fork) · [📖 文档](wiki) · [🐛 报告问题](https://github.com/Sakura520222/Sakura-Channel-Summary-Assistant/issues)
 
----
-
-[![Stargazers repo roster for @Sakura520222/Sakura-Channel-Summary-Assistant](https://reporoster.com/stars/Sakura520222/Sakura-Channel-Summary-Assistant)](https://github.com/Sakura520222/Sakura-Channel-Summary-Assistant/stargazers)
-[![Forkers repo roster for @Sakura520222/Sakura-Channel-Summary-Assistant](https://reporoster.com/forks/Sakura520222/Sakura-Channel-Summary-Assistant)](https://github.com/Sakura520222/Sakura-Channel-Summary-Assistant/network/members)
-
 </div>
