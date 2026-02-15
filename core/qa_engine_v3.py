@@ -143,12 +143,14 @@ class QAEngineV3:
             if keywords or not semantic_results:
                 try:
                     from datetime import datetime, timezone, timedelta
+                    # 确保time_range不为None
+                    search_days = time_range if time_range is not None else 7
                     end_date = datetime.now(timezone.utc)
-                    start_date = end_date - timedelta(days=time_range)
+                    start_date = end_date - timedelta(days=search_days)
 
                     keyword_results = self.memory_manager.search_summaries(
                         keywords=keywords,
-                        time_range_days=time_range,
+                        time_range_days=search_days,
                         limit=10
                     )
                     logger.info(f"关键词检索: 找到 {len(keyword_results)} 条结果")
@@ -344,8 +346,24 @@ class QAEngineV3:
             return f"{answer}\n\n{source_info}"
 
         except Exception as e:
-            logger.error(f"AI生成回答失败: {type(e).__name__}: {e}", exc_info=True)
-            # 降级方案：直接返回总结摘要
+            error_type = type(e).__name__
+            error_msg = str(e)
+            
+            logger.error(f"AI生成回答失败: {error_type}: {error_msg}", exc_info=True)
+            
+            # 检查是否是内容审核拦截
+            if 'Moderation Block' in error_msg or 'content_filter' in error_msg:
+                return """❌ 抱歉，您的查询包含不当内容，已被系统拦截。
+
+💡 我是一个频道总结助手，只能回答与频道历史总结相关的问题。
+
+📚 请尝试：
+• 询问频道最近发生了什么
+• 查询特定主题的历史记录
+• 了解频道统计数据
+• 查看系统状态"""
+            
+            # 其他错误：降级方案，直接返回总结摘要
             return self._fallback_answer_v3(summaries)
 
     def _prepare_rag_context(self, summaries: List[Dict[str, Any]]) -> str:

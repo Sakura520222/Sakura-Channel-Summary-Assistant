@@ -8,6 +8,122 @@
 ## [1.5.1] - 2026-02-15
 
 ### 修复
+- **Telethon投票对象构造错误**：彻底修复了投票发送时的`TypeError: a TLObject was expected but found something else`错误
+  - **问题1**：`Poll.question` 缺少必需的`entities`参数
+    - 错误：`TextWithEntities.__init__() missing 1 required positional argument: 'entities'`
+    - 原因：Telethon要求`TextWithEntities`构造函数必须传入`entities`参数（即使为空列表）
+    - 修复：将`TextWithEntities(question_text)`改为`TextWithEntities(question_text, entities=[])`
+  
+  - **问题2**：`PollAnswer.text` 类型错误
+    - 错误：`AttributeError: 'str' object has no attribute '_bytes'`
+    - 原因：`PollAnswer`的`text`字段也必须是`TextWithEntities`类型，不能是纯字符串
+    - 修复：将`text=opt_clean`改为`text=TextWithEntities(opt_clean, entities=[])`
+  
+  - **影响范围**：
+    - `core/telegram/poll_handlers.py` - `send_poll_to_channel()` 函数（2处修复）
+    - `core/telegram/poll_handlers.py` - `send_poll_to_discussion_group()` 函数（2处修复）
+  
+  - **修复效果**：
+    - ✅ 频道模式投票现在可以正常发送
+    - ✅ 讨论组模式投票现在可以正常发送
+    - ✅ 投票消息成功附加内联按钮
+    - ✅ 投票数据正确保存到存储
+
+- **Reranker API调用错误**：修复了OpenAI客户端调用Reranker API时的错误
+  - **问题**：`AttributeError: 'OpenAI' object has no attribute 'requests'`
+  - **原因**：代码尝试使用`OpenAI`客户端的`requests`属性，但该属性不存在。SiliconFlow的Reranker API需要直接使用HTTP请求
+  - **修复**：
+    - 移除`from openai import OpenAI`导入
+    - 添加`import httpx`导入
+    - 使用`httpx.Client()`直接调用API
+    - 移除OpenAI客户端初始化
+  - **影响范围**：`core/reranker.py`
+  - **修复效果**：
+    - ✅ Reranker重排序功能正常工作
+    - ✅ QA Bot的语义检索+重排序流程完整
+    - ✅ 提升检索结果准确性
+
+- **QA Bot健壮性增强**：
+  - **timedelta NoneType错误**：修复了时间范围解析失败导致的参数错误
+    - 问题：`unsupported type for timedelta days component: NoneType`
+    - 原因：意图解析器无法从复杂查询中提取时间范围时，`time_range`为`None`
+    - 修复：添加默认值保护`search_days = time_range if time_range is not None else 7`
+    - 影响：`core/qa_engine_v3.py`
+  
+  - **内容安全拦截优化**：改进了不当内容的错误处理
+    - 检测`Moderation Block`和`content_filter`错误
+    - 返回友好的错误提示，引导用户正确使用
+    - 不再返回技术性错误信息或降级到总结摘要
+    - 影响：`core/qa_engine_v3.py`
+  
+  - **回答格式优化**：移除了技术性的检索模式说明
+    - 删除：`"🔍 语义检索 + Reranker ✅"`
+    - 保留：`"📚 数据来源: X个频道"`
+    - 影响：`core/qa_engine_v3.py`
+
+- **QA Bot依赖缺失**：添加了缺失的python-telegram-bot依赖
+  - **问题**：启动QA Bot时报错`ModuleNotFoundError: No module named 'telegram'`
+  - **原因**：`requirements.txt`缺少`python-telegram-bot`依赖
+  - **修复**：添加`python-telegram-bot>=20.0`到requirements.txt
+  - **影响**：QA Bot启动和运行
+
+### 技术实现细节
+- **Telethon Poll正确构造方式**：
+  ```python
+  Poll(
+      id=0,
+      question=TextWithEntities(question_text, entities=[]),
+      answers=[
+          PollAnswer(
+              text=TextWithEntities(option_text, entities=[]),
+              option=bytes([i])
+          ) for i, opt in enumerate(options)
+      ],
+      closed=False,
+      public_voters=False,
+      multiple_choice=False,
+      quiz=False
+  )
+  ```
+
+- **SiliconFlow Reranker API调用方式**：
+  ```python
+  import httpx
+  
+  with httpx.Client(timeout=30.0) as client:
+      response = client.post(
+          "https://api.siliconflow.cn/v1/rerank",
+          headers={
+              "Authorization": f"Bearer {api_key}",
+              "Content-Type": "application/json"
+          },
+          json={
+              "model": "BAAI/bge-reranker-v2-m3",
+              "query": query,
+              "documents": documents,
+              "top_n": 5
+          }
+      )
+  ```
+
+### 验证结果
+- ✅ **投票功能**：频道模式和讨论组模式投票都能正常发送
+- ✅ **Reranker**：重排序功能正常，提升检索准确率
+- ✅ **QA Bot**：完整RAG流程正常工作
+- ✅ **错误处理**：内容安全拦截返回友好提示
+- ✅ **系统稳定性**：面对恶意输入不会崩溃
+
+### 向后兼容
+- **完全兼容**：所有修复不影响现有功能
+- **无需配置**：无需修改配置文件或环境变量
+- **自动生效**：重启Bot后自动应用修复
+
+### 使用场景改进
+- **投票功能**：现在所有频道都能正常使用AI生成投票
+- **QA Bot**：提供更友好的用户体验和错误提示
+- **系统健壮性**：能够优雅处理各种异常情况
+
+### 修复
 - **投票发送失败问题**：修复了Telethon投票对象构造导致的`TypeError: a TLObject was expected but found something else`错误
   - **问题**：在频道模式和讨论组模式下发送投票时，Telethon抛出`AttributeError: 'str' object has no attribute '_bytes'`
   - **原因**：Telethon的`Poll`构造函数在某些版本中要求`question`参数必须是`TextWithEntities`类型，而不是纯字符串
