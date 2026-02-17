@@ -203,6 +203,30 @@ async def main_job(channel=None):
 
                         if summary_id:
                             logger.info(f"定时任务总结已保存到数据库，记录ID: {summary_id}")
+                            
+                            # ✅ 新增：生成并保存向量
+                            from .vector_store import get_vector_store
+                            vector_store = get_vector_store()
+                            
+                            if vector_store.is_available():
+                                success = vector_store.add_summary(
+                                    summary_id=summary_id,
+                                    text=report_text,
+                                    metadata={
+                                        "channel_id": channel,
+                                        "channel_name": channel_name,
+                                        "created_at": datetime.now(timezone.utc).isoformat(),
+                                        "summary_type": frequency,  # 'daily' 或 'weekly'
+                                        "message_count": len(messages)
+                                    }
+                                )
+                                
+                                if success:
+                                    logger.info(f"定时任务总结向量已成功保存，summary_id: {summary_id}")
+                                else:
+                                    logger.warning(f"定时任务总结向量保存失败，但数据库记录已保存，summary_id: {summary_id}")
+                            else:
+                                logger.debug("向量存储不可用，跳过向量化")
                         else:
                             logger.warning("保存到数据库失败，但不影响定时任务执行")
 
