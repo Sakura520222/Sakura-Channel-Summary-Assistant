@@ -114,7 +114,9 @@ class VectorStore:
             return False
 
     def search_similar(self, query: str, top_k: int = 20,
-                      filter_metadata: Optional[Dict] = None) -> List[Dict[str, Any]]:
+                      filter_metadata: Optional[Dict] = None,
+                      date_after: Optional[str] = None,
+                      date_before: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         语义搜索相似的总结
 
@@ -122,6 +124,9 @@ class VectorStore:
             query: 查询文本
             top_k: 返回结果数量
             filter_metadata: 元数据过滤条件（如{"channel_id": "xxx"}）
+            date_after: 时间下限，ISO格式字符串（如 "2024-01-01T00:00:00"），
+                        仅返回 created_at >= date_after 的结果
+            date_before: 时间上限，ISO格式字符串，仅返回 created_at <= date_before 的结果
 
         Returns:
             匹配的总结列表，每个包含summary_id, summary_text, metadata, distance
@@ -144,6 +149,16 @@ class VectorStore:
                 logger.error("生成查询向量失败")
                 return []
 
+            # 构建 where 过滤条件
+            where_conditions = []
+            if filter_metadata:
+                for k, v in filter_metadata.items():
+                    where_conditions.append({k: {"$eq": v}})
+            if date_after:
+                where_conditions.append({"created_at": {"$gte": date_after}})
+            if date_before:
+                where_conditions.append({"created_at": {"$lte": date_before}})
+
             # 构建查询参数
             query_params = {
                 "query_embeddings": [query_embedding],
@@ -151,9 +166,21 @@ class VectorStore:
                 "include": ["metadatas", "documents", "distances"]
             }
 
-            # 添加过滤条件
-            if filter_metadata:
-                query_params["where"] = filter_metadata
+            if len(where_conditions) == 1:
+                query_params["where"] = where_conditions[0]
+            elif len(where_conditions) > 1:
+                query_params["where"] = {"$and": where_conditions}
+
+            # 检查 collection 中实际文档数量，避免 n_results 超出导致错误
+            try:
+                total_count = self.collection.count()
+                if total_count == 0:
+                    logger.info("向量库中暂无文档")
+                    return []
+                if top_k > total_count:
+                    query_params["n_results"] = total_count
+            except Exception:
+                pass
 
             # 执行搜索
             results = self.collection.query(**query_params)

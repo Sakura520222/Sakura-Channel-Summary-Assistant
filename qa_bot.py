@@ -158,6 +158,7 @@ class QABot:
         else:
             quota_text = """📊 <b>配额状态</b>
 
+• 今日已使用: {used} 次
 • 剩余次数: {remaining} 次""".format(
                 used=status_info.get('used_today', 0),
                 remaining=status_info.get('remaining', 50)
@@ -268,6 +269,13 @@ class QABot:
             # 5. 发送回答
             # 检查消息长度，Telegram限制4096字符
             # 支持Markdown，如果失败则降级到HTML，最后降级到纯文本
+            # 将配额提示内嵌到回答末尾（仅剩余次数不足2次时）
+            if not quota_check.get("is_admin", False):
+                remaining = quota_check.get("remaining", 99)
+                if remaining <= 1:
+                    quota_hint = f"\n\n_💡 提示：今日剩余查询次数：{remaining} 次_"
+                    answer = answer + quota_hint
+
             if len(answer) <= 4096:
                 await self._send_with_fallback(update.message, answer)
             else:
@@ -277,14 +285,6 @@ class QABot:
                     await self._send_with_fallback(update.message, part)
                     if i > 0:
                         await asyncio.sleep(0.5)  # 避免发送过快
-
-            # 6. 附加配额提示（如果不是管理员）
-            if not quota_check.get("is_admin", False):
-                quota_tip = f"\n\n{quota_check.get('message', '')}"
-                try:
-                    await update.message.reply_text(quota_tip)
-                except:
-                    pass
 
         except Exception as e:
             logger.error(f"处理消息失败: {type(e).__name__}: {e}", exc_info=True)
@@ -332,26 +332,37 @@ class QABot:
                 await message.reply_text(text)
     
     def _fix_markdown(self, text: str) -> str:
-        """修复常见的Markdown格式错误"""
+        """修复常见的Markdown格式错误
+        
+        策略：通过统计各标记符号出现次数，如为奇数则在末尾补全一个，
+        避免暴力正则替换导致的文本错误。
+        """
         import re
-        
-        # 修复未配对的星号（粗体）
-        text = re.sub(r'\*\*([^*]+)$', r'**\1**', text, flags=re.MULTILINE)
-        text = re.sub(r'^([^*]+)\*\*', r'**\1**', text, flags=re.MULTILINE)
-        
-        # 修复未配对的星号（斜体）
-        text = re.sub(r'\*([^*\n]+)$', r'*\1*', text, flags=re.MULTILINE)
-        text = re.sub(r'^([^*\n]+)\*', r'*\1*', text, flags=re.MULTILINE)
-        
-        # 修复未配对的反引号
-        text = re.sub(r'`([^`\n]+)$', r'`\1`', text, flags=re.MULTILINE)
-        text = re.sub(r'^([^`\n]+)`', r'`\1`', text, flags=re.MULTILINE)
-        
-        # 修复未配对的下划线
-        text = re.sub(r'__([^_]+)$', r'__\1__', text, flags=re.MULTILINE)
-        text = re.sub(r'^([^_]+)__', r'__\1__', text, flags=re.MULTILINE)
-        
-        return text
+
+        lines = text.split('\n')
+        fixed_lines = []
+        for line in lines:
+            # 统计行内未在代码块中的 ** 对数（粗体）
+            # 用简单方法：计算 ** 的出现次数，若为奇数则补全
+            bold_count = len(re.findall(r'\*\*', line))
+            if bold_count % 2 == 1:
+                line = line + '**'
+
+            # 统计行内单个 * 的数量（斜体，排除 **）
+            # 替换掉 ** 后再统计剩余 *
+            stripped = re.sub(r'\*\*', '', line)
+            italic_count = stripped.count('*')
+            if italic_count % 2 == 1:
+                line = line + '*'
+
+            # 统计反引号（代码）
+            backtick_count = line.count('`')
+            if backtick_count % 2 == 1:
+                line = line + '`'
+
+            fixed_lines.append(line)
+
+        return '\n'.join(fixed_lines)
 
     def run(self):
         """运行Bot"""
