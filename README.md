@@ -190,6 +190,16 @@ python main.py
 | `/restart` | `/重启` | 重启机器人 | `/restart` |
 | `/shutdown` | `/关机` | 彻底停止机器人 | `/shutdown` |
 
+#### 问答Bot控制
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
+| `/qa_status` | `/qa_状态` | 查看问答Bot运行状态 | `/qa_status` |
+| `/qa_start` | `/qa_启动` | 启动问答Bot | `/qa_start` |
+| `/qa_stop` | `/qa_停止` | 停止问答Bot | `/qa_stop` |
+| `/qa_restart` | `/qa_重启` | 重启问答Bot | `/qa_restart` |
+| `/qa_stats` | `/qa_统计` | 查看问答Bot详细统计 | `/qa_stats` |
+
 #### 调试与日志
 
 | 命令 | 别名 | 功能 | 示例 |

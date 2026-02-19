@@ -190,6 +190,16 @@ python main.py
 | `/restart` | `/重启` | Restart the bot | `/restart` |
 | `/shutdown` | `/关机` | Shutdown the bot completely | `/shutdown` |
 
+#### QA Bot Control
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/qa_status` | `/qa_状态` | View QA bot running status | `/qa_status` |
+| `/qa_start` | `/qa_启动` | Start QA bot | `/qa_start` |
+| `/qa_stop` | `/qa_停止` | Stop QA bot | `/qa_stop` |
+| `/qa_restart` | `/qa_重启` | Restart QA bot | `/qa_restart` |
+| `/qa_stats` | `/qa_统计` | View QA bot detailed statistics | `/qa_stats` |
+
 #### Debug & Logs
 
 | Command | Aliases | Description | Example |

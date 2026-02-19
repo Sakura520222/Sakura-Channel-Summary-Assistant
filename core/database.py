@@ -1998,6 +1998,128 @@ class DatabaseManager:
         """
         return self.get_user(user_id)
 
+    def get_qa_bot_statistics(self) -> Dict[str, Any]:
+        """
+        获取问答Bot的详细统计信息
+
+        Returns:
+            统计信息字典
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            stats = {}
+
+            # 用户统计
+            cursor.execute("SELECT COUNT(*) FROM users")
+            stats['total_users'] = cursor.fetchone()[0]
+
+            # 活跃用户数（7天内有查询）
+            week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+            cursor.execute("""
+                SELECT COUNT(DISTINCT user_id) FROM usage_quota
+                WHERE query_date >= ?
+            """, (week_ago[:10],))
+            stats['active_users'] = cursor.fetchone()[0] or 0
+
+            # 今日新增用户
+            today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+            cursor.execute("""
+                SELECT COUNT(*) FROM users
+                WHERE DATE(registered_at) = ?
+            """, (today,))
+            stats['new_users_today'] = cursor.fetchone()[0] or 0
+
+            # 查询统计
+            cursor.execute("""
+                SELECT SUM(usage_count) FROM usage_quota
+                WHERE query_date = ?
+            """, (today,))
+            stats['queries_today'] = cursor.fetchone()[0] or 0
+
+            # 本周查询次数
+            week_start = (datetime.now(timezone.utc) - timedelta(days=7)).strftime('%Y-%m-%d')
+            cursor.execute("""
+                SELECT SUM(usage_count) FROM usage_quota
+                WHERE query_date >= ?
+            """, (week_start,))
+            stats['queries_week'] = cursor.fetchone()[0] or 0
+
+            # 总查询次数
+            cursor.execute("SELECT SUM(usage_count) FROM usage_quota")
+            stats['total_queries'] = cursor.fetchone()[0] or 0
+
+            # 订阅统计
+            cursor.execute("SELECT COUNT(*) FROM subscriptions WHERE enabled = 1")
+            stats['total_subscriptions'] = cursor.fetchone()[0] or 0
+
+            # 活跃订阅数（用户7天内活跃）
+            cursor.execute("""
+                SELECT COUNT(DISTINCT s.user_id) FROM subscriptions s
+                INNER JOIN usage_quota q ON s.user_id = q.user_id
+                WHERE s.enabled = 1 AND q.query_date >= ?
+            """, (week_ago[:10],))
+            stats['active_subscriptions'] = cursor.fetchone()[0] or 0
+
+            # 请求统计
+            cursor.execute("SELECT COUNT(*) FROM request_queue WHERE status = 'pending'")
+            stats['pending_requests'] = cursor.fetchone()[0] or 0
+
+            # 今日完成的请求数
+            cursor.execute("""
+                SELECT COUNT(*) FROM request_queue
+                WHERE status IN ('completed', 'failed')
+                AND DATE(processed_at) = ?
+            """, (today,))
+            stats['completed_requests_today'] = cursor.fetchone()[0] or 0
+
+            # 总请求数
+            cursor.execute("SELECT COUNT(*) FROM request_queue")
+            stats['total_requests'] = cursor.fetchone()[0] or 0
+
+            # 活跃用户排行（前10）
+            cursor.execute("""
+                SELECT u.user_id, u.username, u.first_name,
+                       SUM(q.usage_count) as query_count
+                FROM users u
+                INNER JOIN usage_quota q ON u.user_id = q.user_id
+                GROUP BY u.user_id, u.username, u.first_name
+                ORDER BY query_count DESC
+                LIMIT 10
+            """)
+            top_users = []
+            for row in cursor.fetchall():
+                top_users.append({
+                    'user_id': row[0],
+                    'username': row[1],
+                    'first_name': row[2],
+                    'query_count': row[3]
+                })
+            stats['top_users'] = top_users
+
+            # 频道订阅分布
+            cursor.execute("""
+                SELECT channel_name, COUNT(*) as count
+                FROM subscriptions
+                WHERE enabled = 1 AND channel_name IS NOT NULL
+                GROUP BY channel_name
+                ORDER BY count DESC
+            """)
+            channel_subs = {}
+            for row in cursor.fetchall():
+                channel_subs[row[0]] = row[1]
+            stats['channel_subscriptions'] = channel_subs
+
+            conn.close()
+
+            logger.info(f"问答Bot统计信息获取成功: {stats}")
+            return stats
+
+        except Exception as e:
+            logger.error(f"获取问答Bot统计信息失败: {type(e).__name__}: {e}", exc_info=True)
+            return {}
+
 
 # 创建全局数据库管理器实例
 db_manager = None

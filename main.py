@@ -47,6 +47,10 @@ from core.command_handlers import (
     handle_show_channel_poll, handle_set_channel_poll, handle_delete_channel_poll,
     handle_start, handle_help, handle_clear_cache, handle_language
 )
+from core.command_handlers.qa_control_commands import (
+    handle_qa_status, handle_qa_start, handle_qa_stop, 
+    handle_qa_restart, handle_qa_stats
+)
 from core.history_handlers import handle_history, handle_export, handle_stats
 from core.poll_regeneration_handlers import (
     handle_poll_regeneration_callback,
@@ -215,6 +219,76 @@ async def main():
         )
         logger.info("跨Bot请求检查任务已配置：每30秒执行一次")
 
+        # 添加问答Bot健康检查任务（自动重启）
+        async def qa_bot_health_check_job():
+            """定期检查问答Bot健康状态，必要时自动重启"""
+            try:
+                from core.process_manager import check_qa_bot_health, restart_qa_bot
+                from core.i18n import get_text
+                
+                is_healthy, should_restart, message = check_qa_bot_health()
+                
+                if should_restart:
+                    logger.warning(f"问答Bot需要自动重启: {message}")
+                    
+                    # 通知管理员
+                    for admin_id in ADMIN_LIST:
+                        if admin_id != 'me':
+                            try:
+                                await client.send_message(
+                                    admin_id,
+                                    f"{get_text('qabot.auto_restart')}\n\n{message}\n\n{get_text('qabot.attempting_recovery')}",
+                                    parse_mode='markdown',
+                                    link_preview=False
+                                )
+                            except Exception as e:
+                                logger.error(f"通知管理员失败: {e}")
+                    
+                    # 执行自动重启
+                    result = restart_qa_bot()
+                    
+                    if result['success']:
+                        logger.info(f"问答Bot自动重启成功: {result['message']}")
+                        
+                        # 通知管理员恢复成功
+                        for admin_id in ADMIN_LIST:
+                            if admin_id != 'me':
+                                try:
+                                    await client.send_message(
+                                        admin_id,
+                                        f"{get_text('qabot.recovered', pid=result['pid'])}",
+                                        parse_mode='markdown',
+                                        link_preview=False
+                                    )
+                                except Exception as e:
+                                    logger.error(f"通知管理员失败: {e}")
+                    else:
+                        logger.error(f"问答Bot自动重启失败: {result['message']}")
+                        
+                        # 通知管理员恢复失败
+                        for admin_id in ADMIN_LIST:
+                            if admin_id != 'me':
+                                try:
+                                    await client.send_message(
+                                        admin_id,
+                                        f"{get_text('qabot.recovery_failed', message=result['message'])}",
+                                        parse_mode='markdown',
+                                        link_preview=False
+                                    )
+                                except Exception as e:
+                                    logger.error(f"通知管理员失败: {e}")
+                
+            except Exception as e:
+                logger.error(f"问答Bot健康检查任务失败: {type(e).__name__}: {e}")
+
+        scheduler.add_job(
+            qa_bot_health_check_job,
+            'interval',
+            seconds=60,  # 每分钟检查一次
+            id="qa_bot_health_check"
+        )
+        logger.info("问答Bot健康检查任务已配置：每60秒执行一次")
+
         # 确保 sessions 目录存在
         sessions_dir = 'data/sessions'
         os.makedirs(sessions_dir, exist_ok=True)
@@ -281,13 +355,20 @@ async def main():
         client.add_event_handler(handle_clear_cache, NewMessage(pattern='/clearcache|/clear_cache|/清除缓存'))
         client.add_event_handler(handle_changelog, NewMessage(pattern='/changelog|/更新日志'))
 
-        # 9. 历史记录命令 (新增)
+        # 9. 历史记录命令
         client.add_event_handler(handle_history, NewMessage(pattern='/history|/历史'))
         client.add_event_handler(handle_export, NewMessage(pattern='/export|/导出'))
         client.add_event_handler(handle_stats, NewMessage(pattern='/stats|/统计'))
 
-        # 10. 语言设置命令 (新增)
+        # 10. 语言设置命令
         client.add_event_handler(handle_language, NewMessage(pattern='/language|/语言'))
+
+        # 11. 问答Bot控制命令
+        client.add_event_handler(handle_qa_status, NewMessage(pattern='/qa_status|/qa_状态'))
+        client.add_event_handler(handle_qa_start, NewMessage(pattern='/qa_start|/qa_启动'))
+        client.add_event_handler(handle_qa_stop, NewMessage(pattern='/qa_stop|/qa_停止'))
+        client.add_event_handler(handle_qa_restart, NewMessage(pattern='/qa_restart|/qa_重启'))
+        client.add_event_handler(handle_qa_stats, NewMessage(pattern='/qa_stats|/qa_统计'))
         # 只处理非命令消息作为提示词或AI配置输入
         client.add_event_handler(handle_prompt_input, NewMessage(func=lambda e: not e.text.startswith('/')))
         client.add_event_handler(handle_poll_prompt_input, NewMessage(func=lambda e: not e.text.startswith('/')))
@@ -380,7 +461,13 @@ async def main():
             BotCommand(command="export", description="导出历史记录"),
             BotCommand(command="stats", description="查看统计数据"),
             # 9. 语言设置命令
-            BotCommand(command="language", description="切换界面语言")
+            BotCommand(command="language", description="切换界面语言"),
+            # 10. 问答Bot控制命令
+            BotCommand(command="qa_status", description="查看问答Bot运行状态"),
+            BotCommand(command="qa_start", description="启动问答Bot"),
+            BotCommand(command="qa_stop", description="停止问答Bot"),
+            BotCommand(command="qa_restart", description="重启问答Bot"),
+            BotCommand(command="qa_stats", description="查看问答Bot详细统计")
         ]
         
         await client(SetBotCommandsRequest(
