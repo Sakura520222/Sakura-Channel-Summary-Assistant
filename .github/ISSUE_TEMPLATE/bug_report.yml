@@ -1,8 +1,9 @@
-name: 🐛 Bug 报告
-description: 报告问题帮助我们改进
-title: '[BUG] '
-labels: ['bug', 'triage']
-assignees: []
+name: "🐛 Bug 报告"
+description: "报告问题帮助我们改进"
+title: "[BUG]: "
+labels:
+  - bug
+  - triage
 
 body:
   - type: markdown

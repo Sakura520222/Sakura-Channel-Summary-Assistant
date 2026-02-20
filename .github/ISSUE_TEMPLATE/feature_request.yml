@@ -1,8 +1,9 @@
-name: ✨ 功能请求
-description: 建议一个新功能或改进
-title: '[FEATURE] '
-labels: ['enhancement', 'triage']
-assignees: []
+name: "✨ 功能请求"
+description: "建议一个新功能或改进"
+title: "[FEATURE]: "
+labels:
+  - enhancement
+  - triage
 
 body:
   - type: markdown
