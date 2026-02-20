@@ -1,8 +1,9 @@
-name: ❓ 问题咨询
-description: 使用过程中的疑问和咨询
-title: '[QUESTION] '
-labels: ['question', 'triage']
-assignees: []
+name: "❓ 问题咨询"
+description: "使用过程中的疑问和咨询"
+title: "[QUESTION]: "
+labels:
+  - question
+  - triage
 
 body:
   - type: markdown

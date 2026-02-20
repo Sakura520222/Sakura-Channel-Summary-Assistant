@@ -1,8 +1,9 @@
-name: 📖 文档改进
-description: 报告文档错误、缺失或不清晰的地方
-title: '[DOCS] '
-labels: ['documentation', 'triage']
-assignees: []
+name: "📖 文档改进"
+description: "报告文档错误、缺失或不清晰的地方"
+title: "[DOCS]: "
+labels:
+  - documentation
+  - triage
 
 body:
   - type: markdown
