@@ -96,44 +96,63 @@ jobs:
             VERSION="未知版本"
           fi
           
-          # 生成 Changelog 内容
-          cat > changelog_entry.md << EOF
-          ## [${VERSION}] - ${DATE}
+          # 将changelog条目写入临时文件（避免shell变量扩展问题）
+          cat > changelog_entry.txt << 'ENTRY_EOF'
+## [${VERSION}] - ${DATE}
 
-          ### ${CHANGE_TYPE}
-          - ${TITLE} (PR #${PR_NUM})
-          
-          ### 相关提交
-          ${COMMITS}
+### ${CHANGE_TYPE}
+- ${TITLE} (PR #${PR_NUM})
 
-          ---
-          EOF
+### 相关提交
+${COMMITS}
+
+---
+ENTRY_EOF
           
+          # 替换临时文件中的变量
+          sed -i "s/\${VERSION}/${VERSION}/g" changelog_entry.txt
+          sed -i "s/\${DATE}/${DATE}/g" changelog_entry.txt
+          sed -i "s/\${CHANGE_TYPE}/${CHANGE_TYPE}/g" changelog_entry.txt
+          sed -i "s/\${TITLE}/${TITLE}/g" changelog_entry.txt
+          sed -i "s/\${PR_NUM}/${PR_NUM}/g" changelog_entry.txt
+          sed -i "s/\${COMMITS}/${COMMITS}/g" changelog_entry.txt
+          
+          echo "entry_file=changelog_entry.txt" >> $GITHUB_OUTPUT
+          
+          # 同时输出changelog内容到GITHUB_OUTPUT（用于PR评论）
           echo "entry<<EOF" >> $GITHUB_OUTPUT
-          cat changelog_entry.md >> $GITHUB_OUTPUT
+          cat changelog_entry.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
           echo "生成的 Changelog 条目:"
-          cat changelog_entry.md
+          cat changelog_entry.txt
       
       - name: 更新 CHANGELOG.md
         run: |
           # 备份原文件
           cp CHANGELOG.md CHANGELOG.md.bak
           
-          # 插入新条目到文件开头（在标题之后）
-          awk "
-            /^# 更新日志/ { print; print \"\"; system(\"cat ${{ steps.generate_changelog.outputs.entry }}\"); next }
+          # 使用awk在第一个版本号前插入新内容
+          awk '
+            BEGIN { inserted = 0 }
+            /^## \[/ && inserted == 0 {
+              while ((getline line < "${{ steps.generate_changelog.outputs.entry_file }}") > 0) {
+                print line
+              }
+              print ""
+              inserted = 1
+            }
             { print }
-          " CHANGELOG.md.bak > CHANGELOG.md.new
+          ' CHANGELOG.md.bak > CHANGELOG.md.new
           
           # 替换原文件
           mv CHANGELOG.md.new CHANGELOG.md
           
           # 清理
           rm CHANGELOG.md.bak
+          rm -f changelog_entry.txt
           
-          echo "已更新 CHANGELOG.md"
+          echo "✅ CHANGELOG.md已更新"
           echo "---"
           head -n 20 CHANGELOG.md
       
