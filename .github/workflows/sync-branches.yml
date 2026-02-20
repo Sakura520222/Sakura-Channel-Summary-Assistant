@@ -51,13 +51,28 @@ jobs:
             git checkout -b dev
           fi
       
+      - name: 提取 main 分支最新变动
+        id: get_commits
+        run: |
+          # 获取最近 5 条提交，并进行简单的格式化（添加列表符号）
+          COMMITS=$(git log origin/main -5 --pretty=format:"• %s")
+          
+          # 处理多行字符串输出到 GitHub Actions Step Output
+          {
+            echo 'commits_list<<EOF'
+            echo "$COMMITS"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+          
+          echo "✅ 已获取最近提交信息"
+      
       - name: 合并 main 到 dev
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
           # 尝试合并
-          if git merge main --no-edit; then
+          if git merge origin/main --no-edit; then
             echo "✅ 合并成功"
           else
             echo "⚠️ 合并冲突，尝试解决..."
@@ -68,14 +83,6 @@ jobs:
             git merge --continue --no-edit || git commit --no-edit -m "自动合并 main 到 dev"
             echo "✅ 已解决冲突"
           fi
-      
-      - name: 获取提交信息
-        id: commit_info
-        run: |
-          COMMITS=$(git log main..HEAD --pretty=format:"%s" | head -5)
-          echo "commits<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMITS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
       
       - name: 等待单元测试完成
         uses: lewagon/wait-on-check-action@v1.3.1
@@ -97,14 +104,14 @@ jobs:
         run: |
           if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
             VERSION="${{ steps.get_version.outputs.version }}"
-            COMMITS="${{ steps.commit_info.outputs.commits }}"
+            COMMITS="${{ steps.get_commits.outputs.commits_list }}"
             
             MESSAGE="🔄 **分支同步通知**
             
             main 分支已自动同步到 dev 分支
             
             📦 版本: v${VERSION}
-            🚀 同步时间: $(date +'%Y-%m-%d %H:%M:%S')
+            🚀 同步时间: $(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S (UTC+8)')
             
             📝 最近提交:
             ${COMMITS}
