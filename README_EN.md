@@ -414,11 +414,77 @@ We welcome contributions! Please check our [Contributing Guidelines](CONTRIBUTIN
 
 ### How to Contribute
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+#### 📝 Report Issues
+
+If you've found a bug or have a feature suggestion:
+
+1. Check [existing issues](https://github.com/Sakura520222/Sakura-Bot/issues) to ensure it hasn't been reported
+2. Use the appropriate [Issue template](.github/ISSUE_TEMPLATE/) to create a new issue
+3. Provide as much detail as possible (environment, logs, reproduction steps, etc.)
+
+#### 💻 Submit Code
+
+1. **Fork the repository** - Click the Fork button on GitHub
+2. **Clone to local**
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/Sakura-Bot.git
+   cd Sakura-Bot
+   ```
+3. **Create a feature branch**
+   ```bash
+   git checkout dev
+   git pull origin dev
+   git checkout -b feature/your-feature-name
+   ```
+4. **Make your changes**
+   - Follow [code style guidelines](CONTRIBUTING.md#代码规范)
+   - Write meaningful commit messages
+   - Add necessary tests
+   - Update relevant documentation
+
+5. **Local pre-check** (recommended)
+   ```bash
+   # Code style check
+   ruff check .
+   
+   # Run tests
+   pytest tests/ -v
+   ```
+
+6. **Commit your changes**
+   ```bash
+   git add .
+   git commit -m "feat(scope): describe your changes"
+   ```
+
+7. **Push to your Fork**
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+8. **Create a Pull Request**
+   - Create a PR to `dev` branch on GitHub
+   - Use the [PR template](.github/PULL_REQUEST_TEMPLATE.md)
+   - Add appropriate PR labels (e.g., `enhancement`, `bug`)
+   - Wait for CI checks and code review
+
+#### 📚 Documentation Contributions
+
+Documentation is equally important! You can:
+
+1. Fix typos and errors
+2. Improve clarity of existing documentation
+3. Add usage examples
+4. Translate documentation
+
+### Development Standards
+
+- **Commit messages**: Follow [Conventional Commits](https://www.conventionalcommits.org/) specification
+- **Code style**: Use Ruff for code checking
+- **Test requirements**: Ensure all tests pass
+- **CI checks**: PRs must pass CI checks (code quality, security scan, Docker build, unit tests)
+
+For detailed information, please refer to the [Contributing Guidelines](CONTRIBUTING.md).
 
 ---
 

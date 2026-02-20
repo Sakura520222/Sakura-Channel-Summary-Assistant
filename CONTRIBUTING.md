@@ -9,6 +9,8 @@
 - [行为准则](#行为准则)
 - [如何贡献](#如何贡献)
 - [开发流程](#开发流程)
+- [CI/CD 检查说明](#cicd-检查说明)
+- [PR 标签规范](#pr-标签规范)
 - [提交规范](#提交规范)
 - [代码规范](#代码规范)
 - [测试指南](#测试指南)
@@ -100,20 +102,207 @@
 
 ### 分支策略
 
-- **main**: 主分支，稳定版本
-- **dev**: 开发分支，最新功能
-- **feature/***: 功能分支
-- **fix/***: 修复分支
-- **hotfix/***: 紧急修复分支
+- **main**: 主分支，稳定版本（生产环境）
+- **dev**: 开发分支，最新功能（开发环境）
+- **feature/***: 新功能分支（从 dev 创建）
+- **fix/***: 问题修复分支（从 dev 创建）
+- **hotfix/***: 紧急修复分支（从 main 创建）
+- **docs/***: 文档更新分支
+- **test/***: 测试相关分支
+- **refactor/***: 代码重构分支
+- **chore/***: 构建/工具更新分支
 
 ### 工作流程
 
+#### 标准开发流程
+
 1. 从 `dev` 分支创建功能分支
+   ```bash
+   git checkout dev
+   git pull origin dev
+   git checkout -b feature/your-feature-name
+   ```
+
 2. 在功能分支上开发
-3. 提交到您的 Fork
-4. 创建 PR 到 `dev` 分支
-5. 通过代码审查后合并
+   - 遵循[代码规范](##代码规范)
+   - 编写有意义的提交信息
+   - 添加必要的测试
+
+3. 本地预检查（推荐）
+   ```bash
+   # 代码风格检查
+   ruff check .
+   
+   # 导入排序检查（仅供参考）
+   isort --check-only --diff .
+   
+   # 运行测试
+   pytest tests/ -v
+   ```
+
+4. 提交到您的 Fork
+   ```bash
+   git add .
+   git commit -m "feat(scope): 描述您的更改"
+   git push origin feature/your-feature-name
+   ```
+
+5. 创建 Pull Request
+   - 在 GitHub 上创建 PR 到 `dev` 分支
+   - 使用 [PR 模板](.github/PULL_REQUEST_TEMPLATE.md)
+   - 添加合适的 PR 标签（见[PR 标签规范](#pr-标签规范)）
+   - 等待 CI 检查通过
+   - 通过代码审查后合并
+
 6. 定期从 `dev` 合并到 `main`
+   - 由维护者在版本发布时执行
+
+#### 紧急修复流程
+
+对于生产环境的紧急问题：
+
+1. 从 `main` 创建 `hotfix` 分支
+   ```bash
+   git checkout main
+   git pull origin main
+   git checkout -b hotfix/urgent-fix
+   ```
+
+2. 快速修复并测试
+
+3. 创建 PR 同时合并到 `main` 和 `dev`
+
+---
+
+## 🔍 CI/CD 检查说明
+
+所有 Pull Request 都会自动运行以下 CI 检查，请确保您的代码通过所有检查。
+
+### 检查项目
+
+#### 1. 代码质量检查 ✅ 必须通过
+
+- **Ruff 快速检查** - 主要代码风格检查
+  - 检查代码错误（E）、格式问题（F）、警告（W）、导入排序（I）
+  - 忽略行长度限制（E501）
+  
+- **导入排序检查** - 仅供参考，不影响 CI 通过
+  - 使用 `isort` 检查导入语句排序
+  
+- **代码复杂度检查** - 仅供参考，不影响 CI 通过
+  - 使用 `pylint` 检查代码复杂度
+  - 目标分数：7.0+
+
+#### 2. 安全漏洞扫描 ⚠️ 警告
+
+- **Safety 扫描** - 检查依赖包已知漏洞
+- **Pip-audit 审计** - 审计依赖包安全性
+
+> 注意：安全扫描失败会显示警告，但不会阻止合并。请在合并前修复安全问题。
+
+#### 3. Docker 构建测试 ✅ 必须通过
+
+- 验证 Dockerfile 是否正确
+- 测试镜像构建是否成功
+- 确保容器能够正常启动
+
+#### 4. 单元测试 ✅ 必须通过
+
+- 运行 `tests/` 目录下的所有测试
+- 生成代码覆盖率报告
+- 目标：保持较高的测试覆盖率
+
+### 本地预检查
+
+在提交 PR 前，您可以在本地运行相同的检查：
+
+```bash
+# 1. 代码风格检查（必须通过）
+pip install ruff
+ruff check . --select=E,F,W,I --ignore=E501
+
+# 2. 自动修复可修复的问题
+ruff check . --fix
+
+# 3. 导入排序（可选）
+pip install isort
+isort .
+
+# 4. 运行测试
+pip install pytest pytest-cov pytest-asyncio
+pytest tests/ -v --cov=core
+
+# 5. Docker 构建测试
+docker build -t sakura-bot:test .
+docker run --rm sakura-bot:test python --version
+```
+
+### CI 失败处理
+
+如果您的 PR 未通过 CI 检查：
+
+1. **查看失败原因**
+   - 在 PR 页面点击 "Details" 查看具体错误
+   - 查看 GitHub Actions 日志
+
+2. **修复问题**
+   - 根据错误信息修复代码
+   - 运行本地预检查确认修复
+
+3. **更新 PR**
+   ```bash
+   # 修复后提交新更改
+   git add .
+   git commit -m "fix: 修复 CI 检查失败的问题"
+   git push origin feature/your-feature-name
+   ```
+   CI 会自动重新运行
+
+4. **常见问题**
+   
+   | 问题 | 原因 | 解决方法 |
+   |------|------|----------|
+   | Ruff 检查失败 | 代码风格不符合规范 | 运行 `ruff check . --fix` 自动修复 |
+   | Docker 构建失败 | Dockerfile 错误或依赖问题 | 检查依赖和构建配置 |
+   | 测试失败 | 代码逻辑错误或测试用例问题 | 本地运行 `pytest -v` 查看详细错误 |
+   | 安全漏洞警告 | 依赖包存在已知漏洞 | 更新依赖包到安全版本 |
+
+---
+
+## 🏷️ PR 标签规范
+
+创建 Pull Request 时，请添加适当的标签以帮助分类和审查。
+
+### 类型标签
+
+| 标签 | 用途 | 示例 |
+|------|------|------|
+| `enhancement` | 新功能 | 添加新的 AI 模型支持 |
+| `bug` | 问题修复 | 修复总结生成错误 |
+| `documentation` | 文档更新 | 更新 README 说明 |
+| `refactor` | 代码重构 | 重构错误处理模块 |
+| `performance` | 性能优化 | 优化数据库查询性能 |
+| `dependencies` | 依赖更新 | 升级 Python 依赖版本 |
+| `testing` | 测试相关 | 添加单元测试 |
+| `ci` | CI 配置 | 更新 GitHub Actions |
+
+### 其他标签
+
+| 标签 | 用途 |
+|------|------|
+| `good first issue` | 适合新手的问题 |
+| `help wanted` | 需要帮助 |
+| `wontfix` | 不予修复 |
+| `duplicate` | 重复问题 |
+| `question` | 疑问 |
+
+### 如何添加标签
+
+1. 在 PR 页面右侧找到 "Labels"
+2. 点击 "Edit" 选择合适的标签
+3. 保存更改
+
+> 提示：PR 标签不是强制的，但添加标签可以帮助维护者更快地处理您的 PR。
 
 ---
 
@@ -175,7 +364,7 @@ Closes #123"
 
 ---
 
-## 🎨 代码规范
+## 代码规范
 
 ### Python 代码风格
 

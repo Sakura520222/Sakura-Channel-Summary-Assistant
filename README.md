@@ -414,11 +414,77 @@ tar -czf backup-$(date +%Y%m%d).tar.gz data/
 
 ### 如何贡献
 
-1. Fork 仓库
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+#### 📝 报告问题
+
+如果您发现了 bug 或有功能建议：
+
+1. 检查 [现有的 issues](https://github.com/Sakura520222/Sakura-Bot/issues) 确保问题未被报告
+2. 使用合适的 [Issue 模板](.github/ISSUE_TEMPLATE/) 创建新 issue
+3. 提供尽可能详细的信息（环境、日志、复现步骤等）
+
+#### 💻 提交代码
+
+1. **Fork 项目** - 在 GitHub 上点击 Fork 按钮
+2. **克隆到本地**
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/Sakura-Bot.git
+   cd Sakura-Bot
+   ```
+3. **创建功能分支**
+   ```bash
+   git checkout dev
+   git pull origin dev
+   git checkout -b feature/your-feature-name
+   ```
+4. **进行更改**
+   - 遵循[代码规范](CONTRIBUTING.md#代码规范)
+   - 编写有意义的提交信息
+   - 添加必要的测试
+   - 更新相关文档
+
+5. **本地预检查**（推荐）
+   ```bash
+   # 代码风格检查
+   ruff check .
+   
+   # 运行测试
+   pytest tests/ -v
+   ```
+
+6. **提交更改**
+   ```bash
+   git add .
+   git commit -m "feat(scope): 描述您的更改"
+   ```
+
+7. **推送到您的 Fork**
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+8. **创建 Pull Request**
+   - 在 GitHub 上创建 PR 到 `dev` 分支
+   - 使用 [PR 模板](.github/PULL_REQUEST_TEMPLATE.md)
+   - 添加合适的 PR 标签（如 `enhancement`、`bug` 等）
+   - 等待 CI 检查通过和代码审查
+
+#### 📚 文档贡献
+
+文档同样重要！您可以：
+
+1. 修正错别字和错误
+2. 改进现有文档的清晰度
+3. 添加使用示例
+4. 翻译文档
+
+### 开发规范
+
+- **提交信息**：遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范
+- **代码风格**：使用 Ruff 进行代码检查
+- **测试要求**：确保所有测试通过
+- **CI 检查**：PR 必须通过 CI 检查（代码质量、安全扫描、Docker 构建、单元测试）
+
+详细说明请参阅[贡献指南](CONTRIBUTING.md)。
 
 ---
 
