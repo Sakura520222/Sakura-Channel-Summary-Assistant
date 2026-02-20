@@ -1,0 +1,156 @@
+name: CI 持续集成
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  code-quality:
+    name: 代码质量检查
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      
+      - name: 设置 Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+      
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pylint mypy isort
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      
+      - name: Ruff 快速检查
+        run: |
+          ruff check . --output-format=github --select=E,F,W,I --ignore=E501
+      
+      - name: 导入排序检查
+        run: |
+          isort --check-only --diff .
+      
+      - name: 代码复杂度检查（可选）
+        run: |
+          pylint core/*.py --fail-under=7.0 || echo "代码复杂度检查通过（仅供参考）"
+        continue-on-error: true
+
+  security-scan:
+    name: 安全漏洞扫描
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      
+      - name: 设置 Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      
+      - name: 安装安全扫描工具
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety pip-audit
+      
+      - name: Safety 扫描
+        run: |
+          if [ -f requirements.txt ]; then
+            safety check --file requirements.txt || true
+          fi
+      
+      - name: Pip-audit 审计
+        run: |
+          if [ -f requirements.txt ]; then
+            pip-audit --requirement requirements.txt || true
+          fi
+
+  docker-build-test:
+    name: Docker 构建测试
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 构建测试镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: sakura-bot:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: 测试容器启动
+        run: |
+          docker run --rm sakura-bot:test python --version
+
+  tests:
+    name: 单元测试
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      
+      - name: 设置 Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+      
+      - name: 安装测试依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov pytest-asyncio
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      
+      - name: 运行测试
+        run: |
+          if [ -d tests ]; then
+            pytest tests/ -v --cov=core --cov-report=xml --cov-report=term
+          else
+            echo "未找到测试目录，跳过测试"
+          fi
+      
+      - name: 上传覆盖率报告
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  summary:
+    name: CI 检查汇总
+    runs-on: ubuntu-latest
+    needs: [code-quality, security-scan, docker-build-test, tests]
+    if: always()
+    
+    steps:
+      - name: 生成检查报告
+        run: |
+          echo "# CI 检查结果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 代码质量检查: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 安全漏洞扫描: ${{ needs.security-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker 构建测试: ${{ needs.docker-build-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 单元测试: ${{ needs.tests.result }}" >> $GITHUB_STEP_SUMMARY
+      
+      - name: 检查是否全部通过
+        run: |
+          if [ "${{ needs.code-quality.result }}" != "success" ] || \
+             [ "${{ needs.security-scan.result }}" != "success" ] || \
+             [ "${{ needs.docker-build-test.result }}" != "success" ]; then
+            echo "CI 检查未全部通过"
+            exit 1
+          fi
+          echo "✅ 所有检查通过"

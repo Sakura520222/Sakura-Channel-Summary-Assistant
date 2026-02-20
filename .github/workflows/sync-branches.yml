@@ -1,0 +1,117 @@
+name: 分支自动同步
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  sync-to-dev:
+    name: 同步 main → dev
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: 获取当前版本
+        id: get_version
+        run: |
+          if [ -f main.py ]; then
+            VERSION=$(grep -o "__version__ = \"[^\"]*\"" main.py | cut -d'"' -f2)
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "当前版本: ${VERSION}"
+          else
+            echo "version=unknown" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: 检查 dev 分支是否存在
+        id: check_dev
+        run: |
+          if git ls-remote --heads origin dev | grep -q "refs/heads/dev"; then
+            echo "dev_exists=true" >> $GITHUB_OUTPUT
+            echo "dev 分支存在"
+          else
+            echo "dev_exists=false" >> $GITHUB_OUTPUT
+            echo "dev 分支不存在，将创建"
+          fi
+      
+      - name: 创建或切换到 dev 分支
+        run: |
+          if [ "${{ steps.check_dev.outputs.dev_exists }}" == "true" ]; then
+            git checkout dev
+            git pull origin dev
+          else
+            git checkout -b dev
+          fi
+      
+      - name: 合并 main 到 dev
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 尝试合并
+          if git merge main --no-edit; then
+            echo "✅ 合并成功"
+          else
+            echo "⚠️ 合并冲突，尝试解决..."
+            git status
+            # 如果有冲突，选择 main 的版本
+            git checkout --ours .
+            git add .
+            git merge --continue --no-edit || git commit --no-edit -m "自动合并 main 到 dev"
+            echo "✅ 已解决冲突"
+          fi
+      
+      - name: 获取提交信息
+        id: commit_info
+        run: |
+          COMMITS=$(git log main..HEAD --pretty=format:"%s" | head -5)
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: 推送到 dev
+        run: |
+          git push origin dev
+          echo "✅ 已同步到 dev 分支"
+      
+      - name: 发送 Telegram 通知
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHANNEL_ID }}
+        run: |
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            VERSION="${{ steps.get_version.outputs.version }}"
+            COMMITS="${{ steps.commit_info.outputs.commits }}"
+            
+            MESSAGE="🔄 **分支同步通知**
+            
+            main 分支已自动同步到 dev 分支
+            
+            📦 版本: v${VERSION}
+            🚀 同步时间: $(date +'%Y-%m-%d %H:%M:%S')
+            
+            📝 最近提交:
+            ${COMMITS}
+            
+            ---
+            由 GitHub Actions 自动执行"
+            
+            # 发送消息到 Telegram
+            curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -d "chat_id=${TELEGRAM_CHAT_ID}" \
+              -d "text=${MESSAGE}" \
+              -d "parse_mode=Markdown" \
+              -d "disable_web_page_preview=true"
+            
+            echo "✅ Telegram 通知已发送"
+          else
+            echo "⚠️ 未配置 Telegram 通知"
+          fi

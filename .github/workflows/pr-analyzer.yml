@@ -1,0 +1,162 @@
+name: PR 自动分析并更新 Changelog
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  analyze-and-update:
+    name: 分析 PR 并更新 CHANGELOG
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    permissions:
+      contents: write
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: 提取 PR 信息
+        id: extract_pr_info
+        run: |
+          echo "PR 标题: ${{ github.event.pull_request.title }}"
+          echo "PR 编号: ${{ github.event.pull_request.number }}"
+          echo "合并时间: $(date +'%Y-%m-%d')"
+          
+          # 提取 PR 标签
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
+          echo "PR 标签: $LABELS"
+          echo "labels=$LABELS" >> $GITHUB_OUTPUT
+      
+      - name: 分析 PR 类型
+        id: analyze_type
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          LABELS="${{ steps.extract_pr_info.outputs.labels }}"
+          
+          # 根据 PR 标签确定类型
+          if echo "$LABELS" | grep -q "enhancement"; then
+            CHANGE_TYPE="新增"
+          elif echo "$LABELS" | grep -q "bug"; then
+            CHANGE_TYPE="修复"
+          elif echo "$LABELS" | grep -q "documentation"; then
+            CHANGE_TYPE="文档"
+          elif echo "$LABELS" | grep -q "refactor"; then
+            CHANGE_TYPE="重构"
+          elif echo "$LABELS" | grep -q "performance"; then
+            CHANGE_TYPE="优化"
+          else
+            # 根据标题前缀判断
+            if echo "$TITLE" | grep -qiE "^(feat|add|new|新增|添加)"; then
+              CHANGE_TYPE="新增"
+            elif echo "$TITLE" | grep -qiE "^(fix|bug|修复)"; then
+              CHANGE_TYPE="修复"
+            elif echo "$TITLE" | grep -qiE "^(doc|docs|readme|更新文档)"; then
+              CHANGE_TYPE="文档"
+            elif echo "$TITLE" | grep -qiE "^(refactor|重构)"; then
+              CHANGE_TYPE="重构"
+            elif echo "$TITLE" | grep -qiE "^(perf|performance|优化)"; then
+              CHANGE_TYPE="优化"
+            else
+              CHANGE_TYPE="改进"
+            fi
+          fi
+          
+          echo "change_type=$CHANGE_TYPE" >> $GITHUB_OUTPUT
+          echo "变更类型: $CHANGE_TYPE"
+      
+      - name: 提取提交信息
+        id: extract_commits
+        run: |
+          COMMITS=$(git log --pretty=format:"%s" ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "相关提交:"
+          echo "$COMMITS"
+      
+      - name: 生成 Changelog 条目
+        id: generate_changelog
+        run: |
+          CHANGE_TYPE="${{ steps.analyze_type.outputs.change_type }}"
+          TITLE="${{ github.event.pull_request.title }}"
+          COMMITS="${{ steps.extract_commits.outputs.commits }}"
+          PR_NUM="${{ github.event.pull_request.number }}"
+          DATE=$(date +'%Y-%m-%d')
+          
+          # 读取当前版本号
+          if [ -f main.py ]; then
+            VERSION=$(grep -o "__version__ = \"[^\"]*\"" main.py | cut -d'"' -f2)
+          else
+            VERSION="未知版本"
+          fi
+          
+          # 生成 Changelog 内容
+          cat > changelog_entry.md << EOF
+          ## [${VERSION}] - ${DATE}
+
+          ### ${CHANGE_TYPE}
+          - ${TITLE} (PR #${PR_NUM})
+          
+          ### 相关提交
+          ${COMMITS}
+
+          ---
+          EOF
+          
+          echo "entry<<EOF" >> $GITHUB_OUTPUT
+          cat changelog_entry.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "生成的 Changelog 条目:"
+          cat changelog_entry.md
+      
+      - name: 更新 CHANGELOG.md
+        run: |
+          # 备份原文件
+          cp CHANGELOG.md CHANGELOG.md.bak
+          
+          # 插入新条目到文件开头（在标题之后）
+          awk "
+            /^# 更新日志/ { print; print \"\"; system(\"cat ${{ steps.generate_changelog.outputs.entry }}\"); next }
+            { print }
+          " CHANGELOG.md.bak > CHANGELOG.md.new
+          
+          # 替换原文件
+          mv CHANGELOG.md.new CHANGELOG.md
+          
+          # 清理
+          rm CHANGELOG.md.bak
+          
+          echo "已更新 CHANGELOG.md"
+          echo "---"
+          head -n 20 CHANGELOG.md
+      
+      - name: 提交更改
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add CHANGELOG.md
+          git commit -m "docs: 自动更新 CHANGELOG - PR #${{ github.event.pull_request.number }}"
+          
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 发送评论到 PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const changelog = `${{ steps.generate_changelog.outputs.entry }}`;
+            github.rest.issues.createComment({
+              issue_number: context.payload.pull_request.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `📝 **已自动更新 CHANGELOG.md**\n\n${changelog}\n\n---\n\n✅ 此条目将在下次 Release 时包含在发布说明中。`
+            })

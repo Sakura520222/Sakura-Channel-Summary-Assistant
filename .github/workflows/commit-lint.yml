@@ -1,0 +1,129 @@
+name: 提交信息规范检查
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  commit-lint:
+    name: 检查提交信息格式
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 获取 PR 的所有提交
+        id: get_commits
+        run: |
+          COMMITS=$(git log --pretty=format:"%s" ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "检测到以下提交:"
+          echo "$COMMITS"
+      
+      - name: 验证提交信息格式
+        id: lint_commits
+        run: |
+          COMMITS="${{ steps.get_commits.outputs.commits }}"
+          INVALID_COMMITS=""
+          VALID_TYPES="feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert"
+          
+          while IFS= read -r commit; do
+            # 检查是否符合 Conventional Commits 格式
+            if ! echo "$commit" | grep -qE "^(${VALID_TYPES})(\(.+\))?: .+"; then
+              INVALID_COMMITS="${INVALID_COMMITS}\n❌ $commit"
+            else
+              echo "✅ $commit"
+            fi
+          done <<< "$COMMITS"
+          
+          if [ -n "$INVALID_COMMITS" ]; then
+            echo "invalid=true" >> $GITHUB_OUTPUT
+            echo "invalid_commits<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$INVALID_COMMITS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "invalid=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: 检查 PR 标签
+        id: check_labels
+        run: |
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
+          echo "当前 PR 标签: $LABELS"
+          
+          # 检查是否有类型标签
+          if echo "$LABELS" | grep -qE "(enhancement|bug|documentation|refactor|performance|testing|dependencies)"; then
+            echo "✅ PR 标签符合要求"
+            echo "has_labels=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ 建议添加类型标签"
+            echo "has_labels=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: 生成评论
+        if: steps.lint_commits.outputs.invalid == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const invalidCommits = `${{ steps.lint_commits.outputs.invalid_commits }}`;
+            const hasLabels = `${{ steps.check_labels.outputs.has_labels }}`;
+            
+            let comment = `## ⚠️ 提交信息格式检查失败\n\n`;
+            comment += `以下提交信息不符合 [Conventional Commits](https://www.conventionalcommits.org/) 规范:\n\n`;
+            comment += invalidCommits + `\n\n`;
+            comment += `### 正确格式:\n`;
+            comment += `\\\`\\\`\\\`\n`;
+            comment += `<type>(<scope>): <subject>\n`;
+            comment += `\\\`\\\`\\\`\n\n`;
+            comment += `### 类型:\n`;
+            comment += `- \`feat\`: 新功能\n`;
+            comment += `- \`fix\`: 问题修复\n`;
+            comment += `- \`docs\`: 文档更新\n`;
+            comment += `- \`style\`: 代码格式（不影响功能）\n`;
+            comment += `- \`refactor\`: 代码重构\n`;
+            comment += `- \`perf\`: 性能优化\n`;
+            comment += `- \`test\`: 测试相关\n`;
+            comment += `- \`chore\`: 构建/工具更新\n`;
+            comment += `- \`build\`: 构建系统\n`;
+            comment += `- \`ci\`: CI 配置\n`;
+            comment += `- \`revert\`: 回退提交\n\n`;
+            
+            if (hasLabels === 'false') {
+              comment += `### 建议:\n`;
+              comment += `为 PR 添加类型标签，如:\n`;
+              comment += `- \`enhancement\` - 新功能\n`;
+              comment += `- \`bug\` - 问题修复\n`;
+              comment += `- \`documentation\` - 文档更新\n`;
+              comment += `- \`refactor\` - 代码重构\n`;
+              comment += `- \`performance\` - 性能优化\n\n`;
+            }
+            
+            comment += `### 修复方法:\n`;
+            comment += `1. 使用 \`git commit --amend\` 修改最近的提交\n`;
+            comment += `2. 或创建新的修正提交\n`;
+            comment += `3. 推送更改后 PR 将自动重新检查`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.payload.pull_request.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            })
+      
+      - name: 设置检查状态
+        if: steps.lint_commits.outputs.invalid == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.setFailed('提交信息格式不符合要求')
+      
+      - name: 成功提示
+        if: steps.lint_commits.outputs.invalid == 'false'
+        run: |
+          echo "✅ 所有提交信息格式正确"

@@ -1,4 +1,4 @@
-name: Auto Create Release
+name: 自动创建 Release
 
 on:
   push:
@@ -8,70 +8,135 @@ on:
       - 'main.py'
       - 'core/**/*.py'
       - 'CHANGELOG.md'
+  workflow_dispatch:
 
 jobs:
-  create-release:
+  analyze-changes:
+    name: 分析代码变更
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 分析自上次发布以来的变更
+        id: analyze
+        run: |
+          # 获取最新的 tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LATEST_TAG" ]; then
+            echo "未找到之前的 tag，分析所有提交"
+            BASE_SHA=$(git rev-list --max-parents=0 HEAD)
+          else
+            echo "最新 tag: $LATEST_TAG"
+            BASE_SHA=$(git rev-list -n 1 $LATEST_TAG)
+          fi
+          
+          echo "base_sha=$BASE_SHA" >> $GITHUB_OUTPUT
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          
+          # 获取所有相关提交
+          COMMITS=$(git log --pretty=format:"%h|%s|%an|%ae" $BASE_SHA..HEAD)
+          
+          # 统计提交数量
+          COMMIT_COUNT=$(echo "$COMMITS" | wc -l)
+          echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          echo "提交数量: $COMMIT_COUNT"
+          
+          # 提取 PR 编号
+          PR_NUMBERS=$(echo "$COMMITS" | grep -oE "#[0-9]+" | sort -u | tr '\n' ',')
+          echo "pr_numbers=$PR_NUMBERS" >> $GITHUB_OUTPUT
+          echo "相关 PR: $PR_NUMBERS"
+          
+          # 提取所有提交信息
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: 输出分析结果
+        run: |
+          echo "## 变更分析结果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 最新 tag: ${{ steps.analyze.outputs.latest_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 提交数量: ${{ steps.analyze.outputs.commit_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 相关 PR: ${{ steps.analyze.outputs.pr_numbers }}" >> $GITHUB_STEP_SUMMARY
+    
+    outputs:
+      base_sha: ${{ steps.analyze.outputs.base_sha }}
+      latest_tag: ${{ steps.analyze.outputs.latest_tag }}
+      commit_count: ${{ steps.analyze.outputs.commit_count }}
+      pr_numbers: ${{ steps.analyze.outputs.pr_numbers }}
+      commits: ${{ steps.analyze.outputs.commits }}
+
+  create-release:
+    name: 创建 GitHub Release
+    runs-on: ubuntu-latest
+    needs: analyze-changes
     permissions:
       contents: write
     
     steps:
-      - name: Checkout code
+      - name: 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Validate project structure
+      
+      - name: 验证项目结构
         run: |
           if [ ! -f "main.py" ]; then
-            echo "错误: main.py 文件不存在"
+            echo "❌ 错误: main.py 文件不存在"
             exit 1
           fi
           if [ ! -f "requirements.txt" ]; then
-            echo "错误: requirements.txt 文件不存在"
+            echo "❌ 错误: requirements.txt 文件不存在"
             exit 1
           fi
           if [ ! -d "core" ]; then
-            echo "错误: core 目录不存在"
+            echo "❌ 错误: core 目录不存在"
             exit 1
           fi
-          echo "项目结构验证通过"
-
-      - name: Set up Python
+          echo "✅ 项目结构验证通过"
+      
+      - name: 设置 Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       
-      - name: Get current version
+      - name: 获取当前版本
         id: get_version
         run: |
-          # 从main.py中提取版本号
           if [ -f "main.py" ]; then
             PY_VERSION=$(grep -o "__version__ = \"[^\"]*\"" main.py | cut -d'"' -f2)
             echo "PY_VERSION=${PY_VERSION}" >> $GITHUB_OUTPUT
             echo "当前版本: ${PY_VERSION}"
           else
-            echo "错误: main.py文件不存在"
+            echo "❌ 错误: main.py 文件不存在"
             exit 1
           fi
-
-      - name: Check if version changed
+      
+      - name: 检查版本是否已存在
         id: check_version
         run: |
           VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
           TAG_NAME="v${VERSION}"
+          
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            echo "版本 $VERSION 的发布已存在，将跳过创建"
+            echo "⚠️ 版本 $VERSION 的发布已存在，将跳过创建"
             echo "SHOULD_CREATE=false" >> $GITHUB_OUTPUT
           else
-            echo "版本 $VERSION 是新版本，将创建发布"
+            echo "✅ 版本 $VERSION 是新版本，将创建发布"
             echo "SHOULD_CREATE=true" >> $GITHUB_OUTPUT
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate release name
+      
+      - name: 生成发布信息
         if: steps.check_version.outputs.SHOULD_CREATE == 'true'
         id: generate_release_info
         run: |
@@ -80,16 +145,17 @@ jobs:
           echo "RELEASE_NAME=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "发布标签: ${TAG_NAME}"
           
-          RELEASE_TITLE="Release v${VERSION}"
+          RELEASE_TITLE="🚀 Release v${VERSION}"
           echo "RELEASE_TITLE=${RELEASE_TITLE}" >> $GITHUB_OUTPUT
       
-      - name: Generate release notes from CHANGELOG
+      - name: 从 CHANGELOG 生成发布说明
         id: generate_changelog
         if: steps.check_version.outputs.SHOULD_CREATE == 'true'
         run: |
           VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
           
           if [ -f "CHANGELOG.md" ]; then
+            # 提取当前版本的变更日志
             awk -v version="$VERSION" '
               BEGIN { in_section=0; found=0 }
               index($0, "## [" version "]") == 1 { in_section=1; found=1; print; next }
@@ -102,25 +168,34 @@ jobs:
               cat release_notes.md >> $GITHUB_OUTPUT
               echo "EOF" >> $GITHUB_OUTPUT
             else
-              COMMIT_MSG="${{ github.event.head_commit.message }}"
-              echo "notes<<EOF" >> $GITHUB_OUTPUT
-              echo "## [$VERSION] - $(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-              echo "" >> $GITHUB_OUTPUT
-              echo "基于提交: $COMMIT_MSG" >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
+              echo "未在 CHANGELOG 中找到版本 $VERSION 的条目" >&2
             fi
-          else
-            COMMIT_MSG="${{ github.event.head_commit.message }}"
+          fi
+          
+          # 如果没有找到，生成基本的发布说明
+          if [ ! -s "release_notes.md" ]; then
+            COMMITS_COUNT="${{ needs.analyze-changes.outputs.commit_count }}"
+            PR_NUMBERS="${{ needs.analyze-changes.outputs.pr_numbers }}"
+            
             echo "notes<<EOF" >> $GITHUB_OUTPUT
-            echo "## [$VERSION] - $(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+            echo "## 🎉 Release v${VERSION}" >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
-            echo "基于提交: $COMMIT_MSG" >> $GITHUB_OUTPUT
+            echo "**发布日期**: $(date +'%Y年%m月%d日')" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "### 📊 变更统计" >> $GITHUB_OUTPUT
+            echo "- 包含提交数: ${COMMITS_COUNT}" >> $GITHUB_OUTPUT
+            if [ -n "$PR_NUMBERS" ]; then
+              echo "- 相关 PR: ${PR_NUMBERS}" >> $GITHUB_OUTPUT
+            fi
+            echo "" >> $GITHUB_OUTPUT
+            echo "### 📝 主要变更" >> $GITHUB_OUTPUT
+            echo "请查看 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) 获取详细信息" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
       
-      - name: Create GitHub Release
+      - name: 创建 GitHub Release
         if: steps.check_version.outputs.SHOULD_CREATE == 'true'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.generate_release_info.outputs.RELEASE_NAME }}
           name: ${{ steps.generate_release_info.outputs.RELEASE_TITLE }}
@@ -129,7 +204,7 @@ jobs:
           prerelease: false
           generate_release_notes: false
       
-      - name: Create release assets
+      - name: 创建发布资源包
         if: steps.check_version.outputs.SHOULD_CREATE == 'true'
         run: |
           VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
@@ -138,50 +213,125 @@ jobs:
           
           mkdir -p "$RELEASE_DIR"
           
+          echo "📦 正在打包发布资源..."
+          
           # 复制核心代码
           if [ -f "main.py" ]; then cp main.py "$RELEASE_DIR/"; fi
+          if [ -f "qa_bot.py" ]; then cp qa_bot.py "$RELEASE_DIR/"; fi
           find core -name "*.py" -exec cp --parents {} "$RELEASE_DIR/" \;
           rm -rf "$RELEASE_DIR/core/__pycache__"
           
-          # 创建 data 目录
+          # 创建必要的目录
           mkdir -p "$RELEASE_DIR/data"
+          mkdir -p "$RELEASE_DIR/data/sessions"
+          mkdir -p "$RELEASE_DIR/data/vectors"
           
-          # 复制配置文件及其他必要资源
+          # 复制配置文件
           [ -f "data/.env.example" ] && cp "data/.env.example" "$RELEASE_DIR/data/"
           [ -f "data/config.example.json" ] && cp "data/config.example.json" "$RELEASE_DIR/data/"
+          [ -f "data/prompt.txt" ] && cp "data/prompt.txt" "$RELEASE_DIR/data/"
+          [ -f "data/poll_prompt.txt" ] && cp "data/poll_prompt.txt" "$RELEASE_DIR/data/"
+          [ -f "data/qa_persona.txt" ] && cp "data/qa_persona.txt" "$RELEASE_DIR/data/"
+          
+          # 复制必要文件
           [ -f "requirements.txt" ] && cp requirements.txt "$RELEASE_DIR/"
           [ -f "README.md" ] && cp README.md "$RELEASE_DIR/"
           [ -f "README_EN.md" ] && cp README_EN.md "$RELEASE_DIR/"
           [ -f "CHANGELOG.md" ] && cp CHANGELOG.md "$RELEASE_DIR/"
           [ -f "LICENSE" ] && cp LICENSE "$RELEASE_DIR/"
           
-          # 脚本及 Docker
-          for f in start.bat start.sh Dockerfile docker-compose.yml docker-entrypoint.sh; do
-            [ -f "$f" ] && cp "$f" "$RELEASE_DIR/"
-          done
+          # 复制启动脚本
+          [ -f "start.bat" ] && cp start.bat "$RELEASE_DIR/"
+          [ -f "start.sh" ] && cp start.sh "$RELEASE_DIR/"
           
-          # 提示词
-          [ -f "data/prompt.txt" ] && cp "data/prompt.txt" "$RELEASE_DIR/data/"
-          [ -f "data/poll_prompt.txt" ] && cp "data/poll_prompt.txt" "$RELEASE_DIR/data/"
+          # 复制 Docker 文件
+          [ -f "Dockerfile" ] && cp Dockerfile "$RELEASE_DIR/"
+          [ -f "docker-compose.yml" ] && cp docker-compose.yml "$RELEASE_DIR/"
+          [ -f "docker-entrypoint.sh" ] && cp docker-entrypoint.sh "$RELEASE_DIR/"
+          [ -f ".dockerignore" ] && cp .dockerignore "$RELEASE_DIR/"
           
+          # 设置可执行权限
           chmod +x "$RELEASE_DIR/start.sh" 2>/dev/null || true
           chmod +x "$RELEASE_DIR/docker-entrypoint.sh" 2>/dev/null || true
           
+          # 创建压缩包
+          echo "正在创建压缩包..."
           tar -czf "${RELEASE_DIR}.tar.gz" "$RELEASE_DIR/"
-          zip -r "${RELEASE_DIR}.zip" "$RELEASE_DIR/"
-
-      - name: Upload release assets
+          zip -q -r "${RELEASE_DIR}.zip" "$RELEASE_DIR/"
+          
+          echo "✅ 资源包创建完成"
+      
+      - name: 上传发布资源
         if: steps.check_version.outputs.SHOULD_CREATE == 'true'
         run: |
           RELEASE_NAME="${{ steps.generate_release_info.outputs.RELEASE_NAME }}"
           ASSET_NAME="Sakura-Bot-${RELEASE_NAME}"
+          
+          echo "正在上传资源到 Release..."
           gh release upload "$RELEASE_NAME" "${ASSET_NAME}.tar.gz" "${ASSET_NAME}.zip" --clobber
+          
+          echo "✅ 资源上传完成"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cleanup
+      
+      - name: 发送 Telegram 通知
+        if: steps.check_version.outputs.SHOULD_CREATE == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHANNEL_ID }}
+        run: |
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
+            COMMITS_COUNT="${{ needs.analyze-changes.outputs.commit_count }}"
+            PR_NUMBERS="${{ needs.analyze-changes.outputs.pr_numbers }}"
+            RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/v${VERSION}"
+            
+            MESSAGE="🚀 **新版本发布通知**
+            
+            Sakura-Bot v${VERSION} 已发布！
+            
+            📦 版本: v${VERSION}
+            📊 包含提交: ${COMMITS_COUNT} 个
+            
+            📝 相关 PR: ${PR_NUMBERS}
+            
+            📥 **下载链接**:
+            ${RELEASE_URL}
+            
+            ---
+            由 GitHub Actions 自动发布"
+            
+            # 发送消息到 Telegram
+            curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -d "chat_id=${TELEGRAM_CHAT_ID}" \
+              -d "text=${MESSAGE}" \
+              -d "parse_mode=Markdown" \
+              -d "disable_web_page_preview=true"
+            
+            echo "✅ Telegram 通知已发送"
+          else
+            echo "⚠️ 未配置 Telegram 通知"
+          fi
+      
+      - name: 生成发布摘要
+        if: steps.check_version.outputs.SHOULD_CREATE == 'true'
+        run: |
+          VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
+          RELEASE_NAME="${{ steps.generate_release_info.outputs.RELEASE_NAME }}"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${RELEASE_NAME}"
+          
+          echo "# 🚀 Release ${RELEASE_NAME} 创建成功" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ 版本: **v${VERSION}**" >> $GITHUB_STEP_SUMMARY
+          echo "📊 包含提交: **${{ needs.analyze-changes.outputs.commit_count }}** 个" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 发布页面: [${RELEASE_URL}](${RELEASE_URL})" >> $GITHUB_STEP_SUMMARY
+      
+      - name: 清理临时文件
         if: always()
         run: |
           rm -f release_notes.md
-          rm -rf "Sakura-Bot-v${{ steps.get_version.outputs.PY_VERSION }}"
-          rm -f Sakura-Bot-v${{ steps.get_version.outputs.PY_VERSION }}.*
+          VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
+          rm -rf "Sakura-Bot-v${VERSION}"
+          rm -f "Sakura-Bot-v${VERSION}.tar.gz"
+          rm -f "Sakura-Bot-v${VERSION}.zip"
+          echo "✅ 临时文件已清理"

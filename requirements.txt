@@ -22,3 +22,22 @@ chromadb>=0.4.0
 
 # Telegram Bot API (用于QA Bot)
 python-telegram-bot>=20.0
+
+# ========== 测试和开发工具 ==========
+
+# 测试框架
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+
+# 代码质量检查
+ruff>=0.1.0
+isort>=5.12.0
+pylint>=3.0.0
+
+# 类型检查
+mypy>=1.5.0
+
+# 安全扫描
+safety>=2.3.0
+pip-audit>=2.6.0
