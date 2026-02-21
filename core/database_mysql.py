@@ -363,7 +363,7 @@ class MySQLManager(DatabaseManagerBase):
                         if row.get("summary_message_ids"):
                             try:
                                 row["summary_message_ids"] = json.loads(row["summary_message_ids"])
-                            except:
+                            except Exception:
                                 row["summary_message_ids"] = []
                         else:
                             row["summary_message_ids"] = []
@@ -388,7 +388,7 @@ class MySQLManager(DatabaseManagerBase):
                         if row.get("summary_message_ids"):
                             try:
                                 row["summary_message_ids"] = json.loads(row["summary_message_ids"])
-                            except:
+                            except Exception:
                                 row["summary_message_ids"] = []
                         else:
                             row["summary_message_ids"] = []
@@ -806,7 +806,7 @@ class MySQLManager(DatabaseManagerBase):
                                 row["topics"] = json.loads(row["topics"])
                             if row.get("keywords_freq"):
                                 row["keywords_freq"] = json.loads(row["keywords_freq"])
-                        except:
+                        except Exception:
                             pass
                         return row
                     return None
@@ -851,7 +851,7 @@ class MySQLManager(DatabaseManagerBase):
                         # 更新关键词频率
                         try:
                             keywords_freq = json.loads(existing[4]) if existing[4] else {}
-                        except:
+                        except Exception:
                             keywords_freq = {}
 
                         if keywords:
@@ -1023,7 +1023,7 @@ class MySQLManager(DatabaseManagerBase):
                         if row.get("metadata"):
                             try:
                                 item["metadata"] = json.loads(row["metadata"])
-                            except:
+                            except Exception:
                                 pass
                         history.append(item)
 
@@ -1153,7 +1153,7 @@ class MySQLManager(DatabaseManagerBase):
                     # 先检查用户是否存在
                     await cursor.execute("SELECT registered_at FROM users WHERE user_id = %s", (user_id,))
                     existing = await cursor.fetchone()
-                    
+
                     if existing:
                         # 用户已存在，更新信息
                         await cursor.execute(
@@ -1197,7 +1197,7 @@ class MySQLManager(DatabaseManagerBase):
                         if row.get("preferences"):
                             try:
                                 row["preferences"] = json.loads(row["preferences"])
-                            except:
+                            except Exception:
                                 pass
                         return row
                     return None
@@ -1497,12 +1497,12 @@ class MySQLManager(DatabaseManagerBase):
                         if req.get("params"):
                             try:
                                 req["params"] = json.loads(req["params"])
-                            except:
+                            except Exception:
                                 pass
                         if req.get("result"):
                             try:
                                 req["result"] = json.loads(req["result"])
-                            except:
+                            except Exception:
                                 pass
 
                     return requests
@@ -1550,12 +1550,12 @@ class MySQLManager(DatabaseManagerBase):
                         if req.get("params"):
                             try:
                                 req["params"] = json.loads(req["params"])
-                            except:
+                            except Exception:
                                 pass
                         if req.get("result"):
                             try:
                                 req["result"] = json.loads(req["result"])
-                            except:
+                            except Exception:
                                 pass
                         return req
                     return None
@@ -1641,7 +1641,7 @@ class MySQLManager(DatabaseManagerBase):
                         if notif.get("content"):
                             try:
                                 notif["content"] = json.loads(notif["content"])
-                            except:
+                            except Exception:
                                 pass
 
                     return notifications
@@ -1853,11 +1853,11 @@ class MySQLManager(DatabaseManagerBase):
     async def execute_query(self, query: str, params: tuple = None) -> int:
         """
         执行SQL查询并返回影响的行数
-        
+
         Args:
             query: SQL查询语句
             params: 查询参数
-            
+
         Returns:
             int: 影响的行数
         """

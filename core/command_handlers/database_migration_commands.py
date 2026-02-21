@@ -16,7 +16,6 @@
 处理从SQLite到MySQL的数据库迁移相关命令
 """
 
-import logging
 import os
 
 from telethon.events import NewMessage
@@ -198,26 +197,26 @@ async def handle_migrate_start(event: NewMessage.Event):
 
             # 🔧 自动化流程：修改配置、删除旧文件、重启
             message += f"\n\n🔄 {get_text('database.migrate.auto_switch')}\n"
-            
+
             try:
                 # 1. 修改 .env 配置
                 env_path = "data/.env"
                 with open(env_path, 'r', encoding='utf-8') as f:
                     env_content = f.read()
-                
+
                 # 替换 DATABASE_TYPE
                 new_env_content = env_content
                 for line in env_content.split('\n'):
                     if line.strip().startswith('DATABASE_TYPE='):
                         new_env_content = new_env_content.replace(line, 'DATABASE_TYPE=mysql')
                         break
-                
+
                 with open(env_path, 'w', encoding='utf-8') as f:
                     f.write(new_env_content)
-                
+
                 message += f"✅ {get_text('database.migrate.auto_switch')}\n"
                 logger.info("✅ 已自动切换 .env 配置为 MySQL")
-                
+
                 # 2. 删除旧 SQLite 文件（已有备份）
                 sqlite_db_path = "data/summaries.db"
                 if os.path.exists(sqlite_db_path):
@@ -226,27 +225,27 @@ async def handle_migrate_start(event: NewMessage.Event):
                     logger.info(f"✅ 已删除旧 SQLite 数据库文件: {sqlite_db_path}")
                 else:
                     message += f"ℹ️ {get_text('database.migrate.sqlite_not_found')}\n"
-                
+
                 # 3. 准备重启
                 message += f"\n🔄 {get_text('database.migrate.restart_in_3s')}\n\n"
                 message += f"💡 {get_text('database.migrate.warning_keep_backup')}\n"
                 message += f"📁 备份文件: {backup}"
-                
+
                 # 延迟3秒后重启
                 import asyncio
                 await asyncio.sleep(3)
-                
+
                 # 调用重启命令
                 from core.command_handlers.other_commands import handle_restart
                 await handle_restart(event)
-                
+
             except Exception as e:
                 message += f"\n\n❌ {get_text('database.migrate.manual_switch_required')}\n"
                 message += f"错误: {str(e)}\n\n"
                 message += f"📝 {get_text('database.migrate.manual_switch_steps')}\n"
-                message += f"1️⃣ 在 data/.env 中设置: DATABASE_TYPE=mysql\n"
-                message += f"2️⃣ 重启机器人: /restart\n"
-                message += f"3️⃣ 重启成功后，使用 /migrate_cleanup 删除旧 SQLite 文件"
+                message += "1️⃣ 在 data/.env 中设置: DATABASE_TYPE=mysql\n"
+                message += "2️⃣ 重启机器人: /restart\n"
+                message += "3️⃣ 重启成功后，使用 /migrate_cleanup 删除旧 SQLite 文件"
                 logger.error(f"自动切换失败: {e}", exc_info=True)
 
         else:
@@ -347,13 +346,13 @@ async def handle_db_clear(event: NewMessage.Event):
             password=os.getenv("MYSQL_PASSWORD"),
             database=os.getenv("MYSQL_DATABASE"),
         )
-        
+
         # 初始化数据库连接
         await db_manager.init_database()
-        
+
         # 获取当前数据统计
         stats = await db_manager.get_statistics()
-        
+
         # 构建确认消息
         message = f"⚠️ {get_text('database.clear.warning')}\n\n"
         message += f"📊 {get_text('database.clear.current_data')}:\n"
@@ -405,10 +404,10 @@ async def handle_db_clear_confirm(event: NewMessage.Event):
             password=os.getenv("MYSQL_PASSWORD"),
             database=os.getenv("MYSQL_DATABASE"),
         )
-        
+
         # 初始化数据库连接
         await db_manager.init_database()
-        
+
         # 清空所有表
         tables = [
             "summaries",
@@ -500,7 +499,7 @@ async def handle_migrate_cleanup(event: NewMessage.Event):
             return
 
         sqlite_db_path = "data/summaries.db"
-        
+
         # 检查 SQLite 文件是否存在
         if not os.path.exists(sqlite_db_path):
             await event.reply(
@@ -548,7 +547,7 @@ async def handle_migrate_cleanup_confirm(event: NewMessage.Event):
 
     try:
         sqlite_db_path = "data/summaries.db"
-        
+
         # 检查文件是否存在
         if not os.path.exists(sqlite_db_path):
             await event.reply(
@@ -564,18 +563,18 @@ async def handle_migrate_cleanup_confirm(event: NewMessage.Event):
         # 检查是否有备份文件
         import glob
         backup_files = glob.glob(f"{sqlite_db_path}.backup_*")
-        
-        message = f"✅ SQLite 数据库文件已删除\n\n"
+
+        message = "✅ SQLite 数据库文件已删除\n\n"
         message += f"📁 已删除: {sqlite_db_path}\n\n"
-        
+
         if backup_files:
             message += f"💾 发现 {len(backup_files)} 个备份文件:\n"
             for backup in backup_files[:3]:  # 只显示前3个
                 message += f"  • {os.path.basename(backup)}\n"
             if len(backup_files) > 3:
                 message += f"  • ... 还有 {len(backup_files) - 3} 个\n"
-            message += f"\n💡 建议保留备份文件一段时间，确认 MySQL 工作正常后再删除"
-        
+            message += "\n💡 建议保留备份文件一段时间，确认 MySQL 工作正常后再删除"
+
         await event.reply(message)
 
     except Exception as e:

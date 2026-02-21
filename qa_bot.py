@@ -96,17 +96,17 @@ class QABot:
         try:
             from core.database import get_db_manager
             db = get_db_manager()
-            
+
             # 如果是MySQL数据库，需要初始化连接池
             if hasattr(db, 'init_database') and hasattr(db, 'pool') and db.pool is None:
                 logger.info("正在初始化MySQL数据库连接池...")
                 await db.init_database()
-                
+
                 # 检查连接池是否成功创建
                 if db.pool is None:
                     logger.error("数据库连接池初始化失败，pool 仍为 None")
                     raise RuntimeError("MySQL连接池创建失败")
-                
+
                 logger.info("MySQL数据库连接池初始化完成")
         except Exception as e:
             logger.error(f"初始化数据库失败: {type(e).__name__}: {e}", exc_info=True)
@@ -690,7 +690,7 @@ class QABot:
             """注册命令菜单和初始化数据库"""
             # 初始化数据库连接
             await self.initialize_database()
-            
+
             logger.info("注册问答Bot命令菜单...")
             commands = [
                 BotCommand("start", "查看欢迎信息"),

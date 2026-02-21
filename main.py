@@ -92,7 +92,6 @@ from core.settings import (
 # 版本信息
 __version__ = "1.6.0"
 
-from core.process_manager import start_qa_bot, stop_qa_bot
 from core.command_handlers.database_migration_commands import (
     handle_db_clear,
     handle_db_clear_cancel,
@@ -102,6 +101,7 @@ from core.command_handlers.database_migration_commands import (
     handle_migrate_status,
 )
 from core.database import get_db_manager
+from core.process_manager import start_qa_bot, stop_qa_bot
 
 
 def cleanup_handler(signum, frame):
@@ -625,10 +625,10 @@ async def main():
 
         # 检查数据库类型，如果使用SQLite则建议迁移
         logger.info("检查数据库类型...")
-        
+
         # 读取环境变量判断当前使用的数据库类型
         current_db_type = os.getenv("DATABASE_TYPE", "sqlite").lower()
-        
+
         # 只在当前使用 SQLite 时才提示迁移
         if current_db_type == "sqlite":
             db_manager = get_db_manager()
@@ -636,13 +636,13 @@ async def main():
 
             # 检查SQLite数据库文件是否存在且有数据
             sqlite_db_path = "data/summaries.db"
-            
+
             if os.path.exists(sqlite_db_path):
                 # 检查数据库大小，如果有数据则提示迁移
                 db_size = os.path.getsize(sqlite_db_path)
                 if db_size > 0:
                     logger.info(f"检测到SQLite数据库，大小: {db_size} 字节")
-                    
+
                     for admin_id in ADMIN_LIST:
                         try:
                             await client.send_message(

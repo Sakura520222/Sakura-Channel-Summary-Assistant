@@ -16,7 +16,6 @@
 提供从SQLite到MySQL的数据库迁移功能，采用流式读取+分批插入策略
 """
 
-import asyncio
 import json
 import logging
 import os
@@ -24,9 +23,8 @@ import shutil
 from datetime import UTC, datetime
 from typing import Any
 
-from .database_base import DatabaseManagerBase
-from .database_sqlite import SQLiteManager
 from .database_mysql import MySQLManager
+from .database_sqlite import SQLiteManager
 from .i18n import get_text
 
 logger = logging.getLogger(__name__)
@@ -200,7 +198,7 @@ class DatabaseMigrator:
 
             # 验证数据完整性
             verification = await self._verify_migration()
-            
+
             # ⚠️ 不在迁移过程中删除 SQLite 文件
             # 删除操作应在重启成功后、验证 MySQL 可用后再执行
             logger.info("✅ 迁移完成，但保留 SQLite 文件。请在重启并验证 MySQL 后手动删除。")
@@ -273,7 +271,7 @@ class DatabaseMigrator:
         try:
             # 使用同步方式读取 SQLite
             rows = self._get_sqlite_data("SELECT * FROM users")
-            
+
             for row in rows:
                 try:
                     # SQLite row: (user_id, username, first_name, registered_at, last_active, is_admin, preferences)
@@ -306,7 +304,7 @@ class DatabaseMigrator:
 
         try:
             rows = self._get_sqlite_data("SELECT * FROM subscriptions")
-            
+
             for row in rows:
                 try:
                     user_id = row[1]
@@ -338,7 +336,7 @@ class DatabaseMigrator:
 
         try:
             rows = self._get_sqlite_data("SELECT * FROM usage_quota")
-            
+
             for row in rows:
                 try:
                     user_id = row[1]
@@ -375,7 +373,7 @@ class DatabaseMigrator:
 
         try:
             rows = self._get_sqlite_data("SELECT * FROM summaries")
-            
+
             for row in rows:
                 try:
                     # 解析数据
@@ -383,16 +381,16 @@ class DatabaseMigrator:
                     channel_name = row[2]
                     summary_text = row[3]
                     message_count = row[4]
-                    
+
                     # 🔧 修复：将 SQLite 字符串时间转换为 datetime 对象
                     start_time_str = row[5] if len(row) > 5 else None
                     end_time_str = row[6] if len(row) > 6 else None
-                    
+
                     # 转换时间字符串为 datetime 对象
                     from datetime import datetime
                     start_time = None
                     end_time = None
-                    
+
                     if start_time_str:
                         try:
                             # 尝试解析 ISO 格式时间字符串
@@ -402,7 +400,7 @@ class DatabaseMigrator:
                                 start_time = start_time_str
                         except Exception as e:
                             logger.warning(f"解析 start_time 失败: {start_time_str}, {e}")
-                    
+
                     if end_time_str:
                         try:
                             if isinstance(end_time_str, str):
@@ -411,7 +409,7 @@ class DatabaseMigrator:
                                 end_time = end_time_str
                         except Exception as e:
                             logger.warning(f"解析 end_time 失败: {end_time_str}, {e}")
-                    
+
                     ai_model = row[8] if len(row) > 8 else "unknown"
                     summary_type = row[9] if len(row) > 9 else "weekly"
 
@@ -420,7 +418,7 @@ class DatabaseMigrator:
                     if len(row) > 10 and row[10]:
                         try:
                             summary_message_ids = json.loads(row[10])
-                        except:
+                        except Exception:
                             pass
 
                     poll_message_id = row[11] if len(row) > 11 else None
@@ -462,7 +460,7 @@ class DatabaseMigrator:
 
         try:
             rows = self._get_sqlite_data("SELECT * FROM channel_profiles")
-            
+
             for row in rows:
                 try:
                     channel_id = row[0]
@@ -490,7 +488,7 @@ class DatabaseMigrator:
 
         try:
             rows = self._get_sqlite_data("SELECT * FROM conversation_history")
-            
+
             for row in rows:
                 try:
                     user_id = row[1]
@@ -502,7 +500,7 @@ class DatabaseMigrator:
                     if len(row) > 6 and row[6]:
                         try:
                             metadata = json.loads(row[6])
-                        except:
+                        except Exception:
                             pass
 
                     await self.mysql_db.save_conversation(
@@ -530,7 +528,7 @@ class DatabaseMigrator:
 
         try:
             rows = self._get_sqlite_data("SELECT * FROM request_queue")
-            
+
             for row in rows:
                 try:
                     request_type = row[1]
@@ -541,7 +539,7 @@ class DatabaseMigrator:
                     if len(row) > 4 and row[4]:
                         try:
                             params = json.loads(row[4])
-                        except:
+                        except Exception:
                             pass
 
                     await self.mysql_db.create_request(
@@ -568,7 +566,7 @@ class DatabaseMigrator:
 
         try:
             rows = self._get_sqlite_data("SELECT * FROM notification_queue")
-            
+
             for row in rows:
                 try:
                     user_id = row[1]
@@ -578,7 +576,7 @@ class DatabaseMigrator:
                     if len(row) > 3 and row[3]:
                         try:
                             content = json.loads(row[3])
-                        except:
+                        except Exception:
                             pass
 
                     await self.mysql_db.create_notification(
@@ -619,7 +617,7 @@ class DatabaseMigrator:
                 try:
                     rows = self._get_sqlite_data(f"SELECT COUNT(*) FROM {table}")
                     sqlite_stats[table] = rows[0][0] if rows else 0
-                except:
+                except Exception:
                     sqlite_stats[table] = 0
 
             # 获取MySQL统计
@@ -630,7 +628,7 @@ class DatabaseMigrator:
                             await cursor.execute(f"SELECT COUNT(*) FROM {table}")
                             count = (await cursor.fetchone())[0]
                             mysql_stats[table] = count
-                        except:
+                        except Exception:
                             mysql_stats[table] = 0
 
             # 比较结果

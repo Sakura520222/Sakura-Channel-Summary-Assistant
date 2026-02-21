@@ -502,7 +502,6 @@ MESSAGE_ZH_CN = {
     "database.migrate.manual_switch_steps": "📝 手动切换步骤",
     "database.migrate.sqlite_deleted": "✅ 原 SQLite 数据库文件已删除",
     "database.migrate.sqlite_delete_failed": "⚠️ 删除 SQLite 数据库文件失败",
-    "database.migrate.sqlite_not_found": "未找到 SQLite 数据库文件（可能已被删除）",
     "database.migrate.auto_restart_required": "🔄 机器人将自动重启以应用 MySQL 数据库配置",
     "database.migrate.restart_in_3s": "✅ 3 秒后自动重启，重启后将使用 MySQL 数据库",
     "database.migrate.next_steps": "🎉 迁移成功！后续步骤",
@@ -1006,7 +1005,6 @@ MESSAGE_EN_US = {
     "database.migrate.manual_switch_steps": "📝 Manual switch steps",
     "database.migrate.sqlite_deleted": "✅ Original SQLite database file deleted",
     "database.migrate.sqlite_delete_failed": "⚠️ Failed to delete SQLite database file",
-    "database.migrate.sqlite_not_found": "SQLite database file not found (may have been deleted)",
     "database.migrate.auto_restart_required": "🔄 Bot will auto-restart to apply MySQL database configuration",
     "database.migrate.restart_in_3s": "✅ Auto-restart in 3 seconds, MySQL database will be used after restart",
     # ========== Database Clear ==========
