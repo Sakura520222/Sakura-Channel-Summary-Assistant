@@ -105,6 +105,54 @@ from core.database import get_db_manager
 from core.process_manager import start_qa_bot, stop_qa_bot
 
 
+async def graceful_shutdown_resources():
+    """优雅关闭所有资源"""
+    logger.info("开始关闭所有资源...")
+
+    # 1. 停止问答Bot
+    logger.info("停止问答Bot...")
+    stop_qa_bot()
+
+    # 2. 停止调度器
+    from core.config import get_scheduler_instance
+
+    scheduler = get_scheduler_instance()
+    if scheduler and scheduler.running:
+        logger.info("停止调度器...")
+        scheduler.shutdown(wait=False)
+
+    # 3. 关闭数据库连接池
+    db_manager = get_db_manager()
+    if hasattr(db_manager, "close") and asyncio.iscoroutinefunction(db_manager.close):
+        logger.info("关闭数据库连接池...")
+        try:
+            await db_manager.close()
+        except Exception as e:
+            logger.error(f"关闭数据库连接池时出错: {type(e).__name__}: {e}")
+
+    # 4. 断开 Telethon 客户端
+    from core.telegram_client import get_active_client
+
+    client = get_active_client()
+    if client and client.is_connected():
+        logger.info("断开Telegram客户端...")
+        try:
+            await client.disconnect()
+        except Exception as e:
+            logger.error(f"断开Telegram客户端时出错: {type(e).__name__}: {e}")
+
+    # 5. 等待所有待处理的任务完成（最多3秒）
+    logger.info("等待待处理任务完成...")
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    if tasks:
+        try:
+            await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=3.0)
+        except TimeoutError:
+            logger.warning(f"部分任务未能在超时前完成，剩余 {len(tasks)} 个任务")
+
+    logger.info("所有资源已关闭")
+
+
 def cleanup_handler(signum, frame):
     """清理处理器"""
     logger.info(f"收到信号 {signum}，正在清理资源...")
@@ -652,9 +700,9 @@ async def main():
             # 检查SQLite数据库文件是否存在且有数据
             sqlite_db_path = "data/summaries.db"
 
-            if await aiofiles.os.path.exists(sqlite_db_path):
+            if await asyncio.to_thread(os.path.exists, sqlite_db_path):
                 # 检查数据库大小，如果有数据则提示迁移
-                db_size = await aiofiles.os.path.getsize(sqlite_db_path)
+                db_size = await asyncio.to_thread(os.path.getsize, sqlite_db_path)
                 if db_size > 0:
                     logger.info(f"检测到SQLite数据库，大小: {db_size} 字节")
 
@@ -677,10 +725,10 @@ async def main():
             logger.info(f"使用 {current_db_type.upper()} 数据库，无需迁移")
 
         # 检查是否是重启后的首次运行
-        if await aiofiles.os.path.exists(RESTART_FLAG_FILE):
+        if await asyncio.to_thread(os.path.exists, RESTART_FLAG_FILE):
             try:
                 async with aiofiles.open(RESTART_FLAG_FILE) as f:
-                    content = await f.read().strip()
+                    content = (await f.read()).strip()
 
                 # 尝试解析为用户ID
                 try:
@@ -695,17 +743,17 @@ async def main():
                     logger.info(f"检测到重启标记，但内容不是有效的用户ID: {content}")
 
                 # 删除重启标记文件
-                await aiofiles.os.remove(RESTART_FLAG_FILE)
+                await asyncio.to_thread(os.remove, RESTART_FLAG_FILE)
                 logger.info("重启标记文件已删除")
             except Exception as e:
                 logger.error(f"处理重启标记时出错: {type(e).__name__}: {e}", exc_info=True)
 
         # 检查关机标记文件
         SHUTDOWN_FLAG_FILE = ".shutdown_flag"
-        if await aiofiles.os.path.exists(SHUTDOWN_FLAG_FILE):
+        if await asyncio.to_thread(os.path.exists, SHUTDOWN_FLAG_FILE):
             try:
                 async with aiofiles.open(SHUTDOWN_FLAG_FILE) as f:
-                    shutdown_user = await f.read().strip()
+                    shutdown_user = (await f.read()).strip()
 
                 logger.info(f"检测到关机标记，操作者: {shutdown_user}")
 
@@ -720,7 +768,7 @@ async def main():
                         logger.error(f"向管理员 {admin_id} 发送关机通知失败: {e}")
 
                 # 删除关机标记文件
-                await aiofiles.os.remove(SHUTDOWN_FLAG_FILE)
+                await asyncio.to_thread(os.remove, SHUTDOWN_FLAG_FILE)
                 logger.info("关机标记文件已删除")
 
                 # 等待消息发送完成
@@ -734,8 +782,8 @@ async def main():
                 logger.error(f"处理关机标记时出错: {type(e).__name__}: {e}", exc_info=True)
                 # 即使出错也尝试删除关机标记文件，避免遗留
                 try:
-                    if await aiofiles.os.path.exists(SHUTDOWN_FLAG_FILE):
-                        await aiofiles.os.remove(SHUTDOWN_FLAG_FILE)
+                    if await asyncio.to_thread(os.path.exists, SHUTDOWN_FLAG_FILE):
+                        await asyncio.to_thread(os.remove, SHUTDOWN_FLAG_FILE)
                         logger.info("出错后已清理关机标记文件")
                 except Exception as cleanup_error:
                     logger.error(f"清理关机标记文件时出错: {cleanup_error}")
