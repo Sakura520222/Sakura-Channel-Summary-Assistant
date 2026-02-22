@@ -394,7 +394,7 @@ class DatabaseManagerLegacy:
                 if summary["summary_message_ids"]:
                     try:
                         summary["summary_message_ids"] = json.loads(summary["summary_message_ids"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         summary["summary_message_ids"] = []
                 else:
                     summary["summary_message_ids"] = []
@@ -433,7 +433,7 @@ class DatabaseManagerLegacy:
                 if summary["summary_message_ids"]:
                     try:
                         summary["summary_message_ids"] = json.loads(summary["summary_message_ids"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         summary["summary_message_ids"] = []
                 else:
                     summary["summary_message_ids"] = []
@@ -958,7 +958,7 @@ class DatabaseManagerLegacy:
                         profile["topics"] = json.loads(profile["topics"])
                     if profile.get("keywords_freq"):
                         profile["keywords_freq"] = json.loads(profile["keywords_freq"])
-                except:
+                except (json.JSONDecodeError, TypeError):
                     pass
                 return profile
             return None
@@ -1014,7 +1014,7 @@ class DatabaseManagerLegacy:
                 # 更新关键词频率
                 try:
                     keywords_freq = json.loads(existing[4]) if existing[4] else {}
-                except:
+                except (json.JSONDecodeError, TypeError):
                     keywords_freq = {}
 
                 if keywords:
@@ -1228,7 +1228,7 @@ class DatabaseManagerLegacy:
                 if row["metadata"]:
                     try:
                         item["metadata"] = json.loads(row["metadata"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 history.append(item)
 
@@ -1456,7 +1456,7 @@ class DatabaseManagerLegacy:
                 if user.get("preferences"):
                     try:
                         user["preferences"] = json.loads(user["preferences"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 return user
             return None
@@ -1903,12 +1903,12 @@ class DatabaseManagerLegacy:
                 if req.get("params"):
                     try:
                         req["params"] = json.loads(req["params"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 if req.get("result"):
                     try:
                         req["result"] = json.loads(req["result"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 requests.append(req)
 
@@ -1981,12 +1981,12 @@ class DatabaseManagerLegacy:
                 if req.get("params"):
                     try:
                         req["params"] = json.loads(req["params"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 if req.get("result"):
                     try:
                         req["result"] = json.loads(req["result"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 return req
             return None
@@ -2107,7 +2107,7 @@ class DatabaseManagerLegacy:
                 if notif.get("content"):
                     try:
                         notif["content"] = json.loads(notif["content"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 notifications.append(notif)
 
