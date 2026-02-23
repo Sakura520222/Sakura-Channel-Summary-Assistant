@@ -207,7 +207,6 @@ jobs:
         if: success() && github.event_name == 'pull_request'
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: coverage.json
           MINIMUM_GREEN: 60
           MINIMUM_ORANGE: 40
 
