@@ -137,13 +137,13 @@ jobs:
           if [ -d tests ]; then
             coverage run -m pytest tests/ -v -m "not slow and not integration" \
               --cov=core \
-              --cov-report=xml:coverage.xml \
-              --cov-report=json:coverage.json \
-              --cov-report=term-missing \
-              --cov-report=html:htmlcov \
               --cov-fail-under=20 \
               --tb=short \
               --strict-markers
+            coverage xml -o coverage.xml
+            coverage json -o coverage.json
+            coverage html -d htmlcov
+            coverage report
           else
             echo "未找到测试目录，跳过测试"
           fi
