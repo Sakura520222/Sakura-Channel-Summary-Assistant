@@ -173,6 +173,18 @@ jobs:
               --strict-markers || true
           fi
       
+      - name: 验证 coverage 数据文件
+        if: always()
+        run: |
+          echo "📊 检查 coverage 数据文件..."
+          if [ -f .coverage ]; then
+            echo "✅ .coverage 文件存在"
+            coverage report
+          else
+            echo "⚠️ .coverage 文件不存在"
+            ls -lah | grep coverage || echo "未找到任何 coverage 相关文件"
+          fi
+      
       - name: 生成测试报告摘要
         if: always()
         run: |
@@ -202,13 +214,14 @@ jobs:
           path: htmlcov/
           retention-days: 30
       
-      - name: PR 评论覆盖率报告
+      - name: PR 评论覆盖率报告（调试模式）
         uses: py-cov-action/python-coverage-comment-action@v3
         if: success() && github.event_name == 'pull_request'
         with:
           GITHUB_TOKEN: ${{ github.token }}
           MINIMUM_GREEN: 60
           MINIMUM_ORANGE: 40
+          VERBOSE: "true"
 
   summary:
     name: CI 检查汇总
