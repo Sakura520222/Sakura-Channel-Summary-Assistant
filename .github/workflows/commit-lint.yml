@@ -24,9 +24,8 @@ jobs:
           # 清理输入：移除多余空格和换行符
           CLEANED_COMMITS=$(echo "$COMMITS" | tr -s '\n' | sed 's/^[ \t]*//;s/[ \t]*$//' | grep -v '^$')
           
-          echo "commits<<EOF" >> $GITHUB_OUTPUT
-          echo "$CLEANED_COMMITS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # 写入临时文件，避免 GitHub Actions 变量展开问题
+          echo "$CLEANED_COMMITS" > /tmp/commits.txt
           
           echo "检测到以下提交:"
           echo "$CLEANED_COMMITS"
@@ -34,12 +33,11 @@ jobs:
       - name: 验证提交信息格式
         id: lint_commits
         run: |
-          COMMITS="${{ steps.get_commits.outputs.commits }}"
           INVALID_COMMITS=""
           VALID_TYPES="feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert"
           
-          # 使用 printf 避免变量被当作命令执行
-          printf '%s\n' "$COMMITS" | while IFS= read -r commit || [ -n "$commit" ]; do
+          # 从临时文件读取提交信息，避免 GitHub Actions 变量展开问题
+          while IFS= read -r commit || [ -n "$commit" ]; do
             # 跳过空行
             [ -z "$commit" ] && continue
             
@@ -56,7 +54,7 @@ jobs:
             else
               echo "✅ $commit_title"
             fi
-          done
+          done < /tmp/commits.txt
           
           if [ -n "$INVALID_COMMITS" ]; then
             echo "invalid=true" >> $GITHUB_OUTPUT
