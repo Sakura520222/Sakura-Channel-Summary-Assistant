@@ -18,13 +18,18 @@ jobs:
       - name: 获取 PR 的所有提交
         id: get_commits
         run: |
+          # 获取提交信息，每行一个提交
           COMMITS=$(git log --pretty=format:"%s" ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          
+          # 清理输入：移除多余空格和换行符
+          CLEANED_COMMITS=$(echo "$COMMITS" | tr -s '\n' | sed 's/^[ \t]*//;s/[ \t]*$//' | grep -v '^$')
+          
           echo "commits<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "$CLEANED_COMMITS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
           echo "检测到以下提交:"
-          echo "$COMMITS"
+          echo "$CLEANED_COMMITS"
       
       - name: 验证提交信息格式
         id: lint_commits
