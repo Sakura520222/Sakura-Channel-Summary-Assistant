@@ -1,13 +1,10 @@
 name: 自动创建 Release
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'main.py'
-      - 'core/**/*.py'
-      - 'CHANGELOG.md'
+  workflow_run:
+    workflows: ["PR 自动分析并更新 Release"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       force_update:
@@ -39,6 +36,7 @@ jobs:
   analyze-changes:
     name: 分析代码变更
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
       pull-requests: read
