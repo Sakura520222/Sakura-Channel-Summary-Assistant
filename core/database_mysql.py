@@ -90,7 +90,7 @@ class MySQLManager(DatabaseManagerBase):
                 password=self.password,
                 db=self.database,
                 charset=self.charset,
-                autocommit=False,
+                autocommit=True,  # 改为 True，确保跨进程数据立即可见
                 maxsize=self.pool_size,
                 minsize=1,
                 connect_timeout=self.pool_timeout,
@@ -98,7 +98,7 @@ class MySQLManager(DatabaseManagerBase):
                 # 设置时区为UTC，确保时间一致性
                 init_command="SET time_zone='+00:00';",
             )
-            logger.info("MySQL连接池创建成功（时区: UTC）")
+            logger.info("MySQL连接池创建成功（时区: UTC, autocommit=True）")
 
             # 初始化表结构
             async with self.pool.acquire() as conn:

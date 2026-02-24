@@ -388,15 +388,15 @@ class QABot:
 
         # 检查参数
         if not context.args or len(context.args) < 1:
-            message = """📝 **请求生成总结**
+            message = """📝 <b>请求生成总结</b>
 
 使用方法:
-`/request_summary <频道链接>`
+<code>/request_summary <频道链接></code>
 
 此命令会向管理员提交请求，请管理员为指定频道生成总结。
 
-💡 使用 `/listchannels` 查看可用的频道。"""
-            await update.message.reply_text(message, parse_mode="Markdown")
+💡 使用 <code>/listchannels</code> 查看可用的频道。"""
+            await update.message.reply_text(message, parse_mode="HTML")
             return
 
         channel_url = context.args[0]
@@ -412,9 +412,9 @@ class QABot:
         if not channel_name:
             channel_name = channel_url.split("/")[-1]
 
-        # 创建请求
-        result = self.user_system.create_summary_request(user_id, channel_url, channel_name)
-        await update.message.reply_text(result["message"], parse_mode="Markdown")
+        # 创建请求（异步调用）
+        result = await self.user_system.create_summary_request(user_id, channel_url, channel_name)
+        await update.message.reply_text(result["message"], parse_mode="HTML")
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """处理用户消息（流式输出 - 单条消息动态编辑）"""
@@ -761,15 +761,25 @@ class QABot:
 
                 push_handler = get_mainbot_push_handler()
 
+                # 检查推送处理器是否初始化
+                if push_handler.qa_bot is None:
+                    logger.warning("⚠️ 问答Bot推送处理器未初始化，跳过通知检查")
+                    return 0
+
                 count = await push_handler.process_pending_notifications()
+
                 if count > 0:
-                    logger.info(f"已处理 {count} 条通知")
+                    logger.info(f"✅ 通知检查任务完成：已处理 {count} 条通知")
+                else:
+                    logger.debug("📭 通知检查任务完成：无待处理通知")
+
             except Exception as e:
-                logger.error(f"检查通知任务失败: {type(e).__name__}: {e}")
+                logger.error(f"❌ 检查通知任务失败: {type(e).__name__}: {e}", exc_info=True)
+                return 0
 
         # 每30秒检查一次通知队列
         self.application.job_queue.run_repeating(check_notifications_job, interval=30, first=10)
-        logger.info("跨Bot通知检查任务已启动：每30秒执行一次")
+        logger.info("✅ 跨Bot通知检查任务已启动：每30秒执行一次，首次执行延迟10秒")
 
         # 启动Bot
         logger.info("问答Bot已启动，等待消息...")
