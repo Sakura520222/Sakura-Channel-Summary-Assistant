@@ -1,13 +1,12 @@
 name: 自动创建 Release
 
 on:
-  push:
+  workflow_run:
+    workflows: ["PR 自动分析并更新 Release"]
+    types:
+      - completed
     branches:
       - main
-    paths:
-      - 'main.py'
-      - 'core/**/*.py'
-      - 'CHANGELOG.md'
   workflow_dispatch:
     inputs:
       force_update:
@@ -196,13 +195,6 @@ jobs:
           
           RELEASE_TITLE="🚀 Release v${VERSION}"
           echo "RELEASE_TITLE=${RELEASE_TITLE}" >> $GITHUB_OUTPUT
-      
-      - name: 等待 pr-analyzer 完成
-        if: steps.check_version.outputs.SHOULD_CREATE == 'true'
-        run: |
-          echo "⏳ 等待 pr-analyzer.yml 工作流完成..."
-          sleep 30
-          echo "✅ 等待完成"
       
       - name: 读取现有 Release 描述
         id: read_release_notes
