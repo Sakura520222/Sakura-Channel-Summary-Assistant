@@ -18,6 +18,17 @@
 
 ## [1.6.3] - 2026-02-25
 
+### 文档
+- **Wiki 重组与分类规范**：按照 GitHub 官方 Wiki 最佳实践重组项目文档
+  - 创建 Wiki 首页（`Home.md`）作为文档导航中心
+  - 按用户和开发者分类创建文档索引页
+  - 创建用户和开发者快速开始指南（`User-Getting-Started.md`、`Developer-Getting-Started.md`）
+  - 重命名所有 Wiki 文件，使用连字符命名规范
+  - 创建系统架构设计文档（`Developer-Architecture.md`）
+  - 添加文档分类标识（用户文档/开发者文档、类型、难度、更新时间）
+  - 更新 README.md 添加 Wiki 导航链接
+  - 采用 Diátaxis 文档框架（教程/操作指南/参考资料/解释说明）
+
 ### 修复
 - **GitHub 工作流 Release 附件缺失问题**：修复了 PR 合并后 Release 创建时没有附件的问题
   - **问题根源**：`pr-analyzer.yml` 在 PR 合并时创建/更新 Release（仅描述，无附件），`create-tag.yml` 发现 Release 已存在后默认跳过
