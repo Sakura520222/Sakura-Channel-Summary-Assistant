@@ -197,6 +197,13 @@ jobs:
           RELEASE_TITLE="🚀 Release v${VERSION}"
           echo "RELEASE_TITLE=${RELEASE_TITLE}" >> $GITHUB_OUTPUT
       
+      - name: 等待 pr-analyzer 完成
+        if: steps.check_version.outputs.SHOULD_CREATE == 'true'
+        run: |
+          echo "⏳ 等待 pr-analyzer.yml 工作流完成..."
+          sleep 30
+          echo "✅ 等待完成"
+      
       - name: 读取现有 Release 描述
         id: read_release_notes
         if: steps.check_version.outputs.SHOULD_CREATE == 'true'

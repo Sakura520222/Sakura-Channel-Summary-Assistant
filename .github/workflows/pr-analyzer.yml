@@ -223,10 +223,9 @@ jobs:
           echo "---"
           cat release_notes.txt
           
-          # 输出到 GITHUB_OUTPUT（用于 PR 评论）
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          cat release_notes.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # 只输出版本信息，不输出完整内容（避免参数过长）
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "exists=${EXISTS}" >> $GITHUB_OUTPUT
       
       - name: 创建或更新 Release
         run: |
@@ -294,16 +293,25 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const notes = `${{ steps.generate_release_notes.outputs.notes }}`;
             const version = `${{ steps.read_version.outputs.current_version }}`;
             const exists = `${{ steps.check_release.outputs.exists }}`;
             const action = exists === 'true' ? '更新' : '创建';
+            
+            // 读取 release_notes.txt 文件内容（前 500 字符）
+            const fs = require('fs');
+            let notesPreview = '';
+            try {
+              const notes = fs.readFileSync('release_notes.txt', 'utf8');
+              notesPreview = notes.length > 500 ? notes.substring(0, 500) + '...' : notes;
+            } catch (e) {
+              notesPreview = '(无法读取预览)';
+            }
             
             github.rest.issues.createComment({
               issue_number: context.payload.pull_request.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `📝 **已${action} Release v${version} 描述**\n\n${notes}\n\n---\n\n✅ 变更已记录到 [GitHub Releases](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/v${version})`
+              body: `📝 **已${action} Release v${version} 描述**\n\n\`\`\`\n${notesPreview}\n\`\`\`\n\n---\n\n✅ 变更已记录到 [GitHub Releases](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/v${version})`
             })
       
       - name: 清理临时文件
