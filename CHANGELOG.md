@@ -21,7 +21,7 @@
 ### 修复
 - **GitHub 工作流 Release 附件缺失问题**：修复了 PR 合并后 Release 创建时没有附件的问题
   - **问题根源**：`pr-analyzer.yml` 在 PR 合并时创建/更新 Release（仅描述，无附件），`create-tag.yml` 发现 Release 已存在后默认跳过
-  - **解决方案**：增强 `create-tag.yml` 的检测逻辑，区分三种情况
+  - **解决方案**：增强 `create-tag.yml` 的检测逻辑，区分四种情况
     - Release 不存在 → 创建新 Release（含描述+附件）
     - Release 存在但无附件 → 仅添加附件（不修改描述）
     - Release 存在有附件 + force_update=true → 更新附件
