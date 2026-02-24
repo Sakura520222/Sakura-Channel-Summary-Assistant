@@ -125,6 +125,7 @@ jobs:
         id: generate_release_notes
         run: |
           COMMITS_FILE="/tmp/commits_list.txt"
+          EXISTS="${{ steps.check_release.outputs.exists }}"
           
           if [ "$EXISTS" = "false" ]; then
             # 新 Release：生成初始描述
