@@ -22,8 +22,10 @@ from .i18n import get_text
 logger = logging.getLogger(__name__)
 
 
-class DatabaseManager:
-    """总结历史记录数据库管理器"""
+# ⚠️ 警告：此类已废弃，请使用 get_db_manager() 函数获取数据库管理器
+# 保留此类仅用于向后兼容，将来的版本可能会移除
+class DatabaseManagerLegacy:
+    """总结历史记录数据库管理器（已废弃）"""
 
     def __init__(self, db_path=None):
         """
@@ -32,6 +34,14 @@ class DatabaseManager:
         Args:
             db_path: 数据库文件路径，默认为 data/summaries.db
         """
+        import warnings
+
+        warnings.warn(
+            "DatabaseManager 类已废弃，请使用 get_db_manager() 函数获取数据库管理器实例",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         if db_path is None:
             db_path = os.path.join("data", "summaries.db")
         self.db_path = db_path
@@ -384,7 +394,7 @@ class DatabaseManager:
                 if summary["summary_message_ids"]:
                     try:
                         summary["summary_message_ids"] = json.loads(summary["summary_message_ids"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         summary["summary_message_ids"] = []
                 else:
                     summary["summary_message_ids"] = []
@@ -423,7 +433,7 @@ class DatabaseManager:
                 if summary["summary_message_ids"]:
                     try:
                         summary["summary_message_ids"] = json.loads(summary["summary_message_ids"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         summary["summary_message_ids"] = []
                 else:
                     summary["summary_message_ids"] = []
@@ -948,7 +958,7 @@ class DatabaseManager:
                         profile["topics"] = json.loads(profile["topics"])
                     if profile.get("keywords_freq"):
                         profile["keywords_freq"] = json.loads(profile["keywords_freq"])
-                except:
+                except (json.JSONDecodeError, TypeError):
                     pass
                 return profile
             return None
@@ -1004,7 +1014,7 @@ class DatabaseManager:
                 # 更新关键词频率
                 try:
                     keywords_freq = json.loads(existing[4]) if existing[4] else {}
-                except:
+                except (json.JSONDecodeError, TypeError):
                     keywords_freq = {}
 
                 if keywords:
@@ -1218,7 +1228,7 @@ class DatabaseManager:
                 if row["metadata"]:
                     try:
                         item["metadata"] = json.loads(row["metadata"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 history.append(item)
 
@@ -1446,7 +1456,7 @@ class DatabaseManager:
                 if user.get("preferences"):
                     try:
                         user["preferences"] = json.loads(user["preferences"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 return user
             return None
@@ -1893,12 +1903,12 @@ class DatabaseManager:
                 if req.get("params"):
                     try:
                         req["params"] = json.loads(req["params"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 if req.get("result"):
                     try:
                         req["result"] = json.loads(req["result"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 requests.append(req)
 
@@ -1971,12 +1981,12 @@ class DatabaseManager:
                 if req.get("params"):
                     try:
                         req["params"] = json.loads(req["params"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 if req.get("result"):
                     try:
                         req["result"] = json.loads(req["result"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 return req
             return None
@@ -2097,7 +2107,7 @@ class DatabaseManager:
                 if notif.get("content"):
                     try:
                         notif["content"] = json.loads(notif["content"])
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 notifications.append(notif)
 
@@ -2288,13 +2298,15 @@ class DatabaseManager:
             cursor.execute("SELECT COUNT(*) FROM request_queue")
             stats["total_requests"] = cursor.fetchone()[0] or 0
 
-            # 活跃用户排行（前10）
+            # 活跃用户排行（前10）- 使用 LEFT JOIN 确保所有有查询记录的用户都显示
             cursor.execute("""
-                SELECT u.user_id, u.username, u.first_name,
+                SELECT COALESCE(u.user_id, q.user_id) as user_id,
+                       u.username,
+                       u.first_name,
                        SUM(q.usage_count) as query_count
-                FROM users u
-                INNER JOIN usage_quota q ON u.user_id = q.user_id
-                GROUP BY u.user_id, u.username, u.first_name
+                FROM usage_quota q
+                LEFT JOIN users u ON q.user_id = u.user_id
+                GROUP BY q.user_id, u.user_id, u.username, u.first_name
                 ORDER BY query_count DESC
                 LIMIT 10
             """)
@@ -2309,6 +2321,12 @@ class DatabaseManager:
                     }
                 )
             stats["top_users"] = top_users
+
+            logger.info(f"查询到 {len(top_users)} 个活跃用户排名")
+            for user in top_users[:3]:  # 记录前3名用于调试
+                logger.info(
+                    f"  - 用户ID={user['user_id']}, 用户名={user['username']}, 查询次数={user['query_count']}"
+                )
 
             # 频道订阅分布
             cursor.execute("""
@@ -2337,10 +2355,116 @@ class DatabaseManager:
 db_manager = None
 
 
+def reload_db_manager():
+    """
+    强制重新加载数据库管理器实例
+
+    重新读取环境变量并创建新的数据库管理器实例
+    用于迁移后切换数据库类型
+
+    ⚠️ 注意：此函数为同步函数，但可能需要关闭异步数据库连接
+    """
+    global db_manager
+
+    # 关闭旧连接（如果有 close 方法）
+    if db_manager and hasattr(db_manager, "close"):
+        try:
+            # 检查是否是异步数据库管理器
+            import asyncio
+
+            # 尝试创建事件循环来关闭异步连接
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 事件循环正在运行，创建任务
+                    if asyncio.iscoroutinefunction(db_manager.close):
+                        asyncio.create_task(db_manager.close())
+                        logger.info("✅ 已调度异步数据库连接关闭任务")
+                    else:
+                        db_manager.close()
+                        logger.info("✅ 已关闭旧的数据库连接")
+                else:
+                    # 事件循环未运行，直接运行
+                    if asyncio.iscoroutinefunction(db_manager.close):
+                        loop.run_until_complete(db_manager.close())
+                        logger.info("✅ 已关闭旧的异步数据库连接")
+                    else:
+                        db_manager.close()
+                        logger.info("✅ 已关闭旧的数据库连接")
+            except RuntimeError:
+                # 没有事件循环，尝试创建新的
+                if asyncio.iscoroutinefunction(db_manager.close):
+                    asyncio.run(db_manager.close())
+                    logger.info("✅ 已关闭旧的异步数据库连接")
+                else:
+                    db_manager.close()
+                    logger.info("✅ 已关闭旧的数据库连接")
+
+        except Exception as e:
+            logger.error(f"❌ 关闭旧数据库连接失败: {e}")
+            # 即使关闭失败也继续，允许旧连接被垃圾回收
+
+    # 重置为 None
+    db_manager = None
+
+    # 重新加载环境变量
+    import os
+
+    from .settings import get_settings
+
+    # 强制重新读取 .env 文件
+    env_path = os.path.join("data", ".env")
+    if os.path.exists(env_path):
+        from dotenv import load_dotenv
+
+        load_dotenv(env_path, override=True)
+        logger.info(f"✅ 已重新加载环境变量: {env_path}")
+
+    # 创建新实例
+    settings = get_settings()
+    db_type = getattr(settings, "DATABASE_TYPE", "sqlite").lower()
+
+    logger.info(f"🔄 正在切换数据库管理器到: {db_type.upper()}")
+
+    if db_type == "mysql":
+        from .database_mysql import MySQLManager
+
+        db_manager = MySQLManager()
+        logger.info("✅ 数据库管理器已切换到: MySQL")
+    else:
+        from .database_sqlite import SQLiteManager
+
+        db_manager = SQLiteManager()
+        logger.info("✅ 数据库管理器已切换到: SQLite")
+
+    return db_manager
+
+
 def get_db_manager():
-    """获取全局数据库管理器实例"""
+    """
+    获取全局数据库管理器实例
+
+    根据环境变量 DATABASE_TYPE 选择数据库管理器:
+    - 'sqlite': 使用 SQLiteManager
+    - 'mysql': 使用 MySQLManager
+    """
     global db_manager
     if db_manager is None:
-        # 使用 data/summaries.db 作为默认路径
-        db_manager = DatabaseManager(os.path.join("data", "summaries.db"))
+        from .settings import get_settings
+
+        settings = get_settings()
+        # 正确的属性访问方式：settings.database.database_type
+        db_type = settings.database.database_type
+
+        if db_type == "mysql":
+            from .database_mysql import MySQLManager
+
+            logger.info("使用 MySQL 数据库管理器")
+            db_manager = MySQLManager()
+        else:
+            from .database_sqlite import SQLiteManager
+
+            logger.info("使用 SQLite 数据库管理器")
+            db_manager = SQLiteManager()
+
     return db_manager
