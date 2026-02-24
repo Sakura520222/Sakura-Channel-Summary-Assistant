@@ -102,6 +102,9 @@ jobs:
   tests:
     name: 单元测试
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
     
     steps:
       - name: 检出代码
@@ -137,14 +140,13 @@ jobs:
           if [ -d tests ]; then
             pytest tests/ -v -m "not slow and not integration" \
               --cov=core \
-              --cov-report=xml \
-              --cov-report=json \
-              --cov-report=html:htmlcov \
+              --cov-report= \
               --cov-report=term-missing \
               --cov-fail-under=20 \
               --tb=short \
               --strict-markers
             coverage xml
+            coverage json
           else
             echo "未找到测试目录，跳过测试"
           fi
@@ -217,11 +219,13 @@ jobs:
       
       - name: PR 评论覆盖率报告
         uses: py-cov-action/python-coverage-comment-action@v3
-        if: success() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
         with:
           GITHUB_TOKEN: ${{ github.token }}
           MINIMUM_GREEN: 60
           MINIMUM_ORANGE: 40
+          VERBOSE: true
 
   summary:
     name: CI 检查汇总
