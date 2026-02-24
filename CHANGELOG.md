@@ -28,6 +28,14 @@
     - Release 存在有附件 + force_update=false → 跳过
   - **影响范围**：`.github/workflows/create-tag.yml`
   - **技术实现**：
+
+- **GitHub 工作流标志位与代码重复问题**：修复了 `create-tag.yml` 中的多个逻辑问题
+  - **问题 1 - SHOULD_UPDATE 标志位缺失**：新逻辑引入了 `SHOULD_ADD_ASSETS`/`SHOULD_UPDATE_ASSETS`，但未设置 `SHOULD_UPDATE`，导致更新流程步骤无法触发
+    - **修复**：在所有分支中正确设置 `SHOULD_UPDATE` 标志位
+  - **问题 2 - 重复的发布信息生成步骤**：三个完全相同的 `generate_release_info` 步骤（创建/更新/添加附件）
+    - **修复**：合并为单个步骤，使用 `||` 条件同时覆盖三种场景
+  - **问题 3 - 重复的打包与上传逻辑**：打包和上传代码重复了三次（创建/添加/更新附件）
+    - **修复**：合并为统一的打包和上传步骤，根据标志位输出不同提示信息
     - 新增附件检测逻辑，使用 GitHub API 检查 Release 附件数量
     - 新增 `SHOULD_ADD_ASSETS` 标志，处理"添加附件"场景
     - 新增"添加附件"流程：创建资源包、上传资源、发送通知、生成摘要
