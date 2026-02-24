@@ -761,15 +761,25 @@ class QABot:
 
                 push_handler = get_mainbot_push_handler()
 
+                # 检查推送处理器是否初始化
+                if push_handler.qa_bot is None:
+                    logger.warning("⚠️ 问答Bot推送处理器未初始化，跳过通知检查")
+                    return 0
+
                 count = await push_handler.process_pending_notifications()
+
                 if count > 0:
-                    logger.info(f"已处理 {count} 条通知")
+                    logger.info(f"✅ 通知检查任务完成：已处理 {count} 条通知")
+                else:
+                    logger.debug("📭 通知检查任务完成：无待处理通知")
+
             except Exception as e:
-                logger.error(f"检查通知任务失败: {type(e).__name__}: {e}")
+                logger.error(f"❌ 检查通知任务失败: {type(e).__name__}: {e}", exc_info=True)
+                return 0
 
         # 每30秒检查一次通知队列
         self.application.job_queue.run_repeating(check_notifications_job, interval=30, first=10)
-        logger.info("跨Bot通知检查任务已启动：每30秒执行一次")
+        logger.info("✅ 跨Bot通知检查任务已启动：每30秒执行一次，首次执行延迟10秒")
 
         # 启动Bot
         logger.info("问答Bot已启动，等待消息...")

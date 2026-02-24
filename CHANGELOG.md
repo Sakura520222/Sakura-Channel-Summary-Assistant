@@ -16,11 +16,25 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [1.6.1] - 2026-02-24
+  ## [1.6.1] - 2026-02-24
 
 ### 修复
+- **跨进程通知系统不可见问题**：修复了 MySQL 连接池 `autocommit=False` 导致跨进程数据不可见的严重问题
+  - **问题根源**：Main Bot 进程插入通知记录后，由于 `autocommit=False` 且未显式提交事务，数据被锁定在未提交状态
+  - **影响**：QA Bot 进程（独立运行的 Python 进程）查询通知队列时，无法看到未提交的数据，导致通知一直无法发送
+  - **解决**：将 MySQL 连接池的 `autocommit` 参数从 `False` 改为 `True`，确保每个 SQL 语句立即提交，跨进程立即可见
+  - **影响文件**：`core/database_mysql.py` - 连接池初始化参数
+  - **修复效果**：
+    - ✅ Main Bot 创建通知后，QA Bot 立即可见
+    - ✅ 无需重启即可正常发送通知
+    - ✅ 解决了通知延迟或根本不发送的问题
+  - **技术背景**：
+    - Main Bot 和 QA Bot 是两个独立的 Python 进程，各自维护独立的 MySQL 连接池
+    - MySQL 的默认事务隔离级别为 REPEATABLE-READ，未提交的数据对其他事务不可见
+    - 跨进程通信必须确保数据立即可见，`autocommit=True` 是最佳实践
+
 - **MySQL 日期时间格式错误**：修复用户注册时 `OperationalError: Incorrect datetime value` 错误
-  - 问题：`database_mysql.py` 中的 `register_user()`, `update_user_activity()`, `update_channel_profile()` 函数使用了 `datetime.now(UTC).isoformat()` 生成 ISO 格式字符串（如 `'2026-02-24T12:50:02+00:00'`）
+  - 问题：`database_mysql.py` 中的 `register_user()`, `update_user_activity()`, `update_channel_profile()` 函数使用了 `datetime.now(UTC).isoformat()` 生成 ISO 格式字符串
   - 原因：MySQL 的 DATETIME 字段不接受带时区信息的 ISO 格式字符串
   - 修复：直接传递 `datetime` 对象而不是字符串，让 aiomysql 自动处理格式转换
   - 影响：修复了用户注册失败、更新活跃时间失败、更新频道画像失败的问题
@@ -37,6 +51,30 @@
     - 修复：将 `/request_summary` 命令的响应消息改为 HTML 格式，避免 Markdown 解析问题
     - 影响：`qa_bot.py` 的 `request_summary_command()` 方法现在使用 `parse_mode="HTML"`
     - 修复效果：所有频道名称都能正确显示，不再出现格式错误
+
+- **通知消息格式不一致**：统一了通知系统中的消息格式
+  - 问题：`mainbot_push_handler.py` 中的格式化方法使用 Markdown 语法（`**加粗**`），但发送时使用 `parse_mode="HTML"`
+  - 影响：Markdown 格式标记不会被正确渲染，显示为普通文本
+  - 解决：
+    - 将 `process_pending_notifications()` 中的 `parse_mode` 参数从 `"HTML"` 改为 `"Markdown"`
+    - 确保格式化方法和发送方法使用相同的格式标准
+    - 在格式化方法的文档字符串中明确标注"Markdown格式"
+  - 修复效果：通知消息中的加粗格式正确显示，提升用户体验
+
+### 改进
+- **日志增强**：大幅改进了通知处理相关的日志记录
+  - **qa_bot.py 通知检查任务**：
+    - 添加推送处理器初始化检查，避免未初始化时尝试处理通知
+    - 使用 emoji 图标区分日志级别（✅ 成功、❌ 错误、⚠️ 警告、📭 信息）
+    - 详细记录处理数量和状态，便于排查问题
+    - 显示每个通知的详细信息（ID、用户ID、类型、状态、content类型）
+  
+  - **mainbot_push_handler.py 错误处理**：
+    - 区分不同类型的 Telegram 错误（用户阻止Bot、账号停用、聊天未找到、其他API错误）
+    - 统计成功和失败数量，在结束时输出总结日志
+    - 使用异常堆栈跟踪（`exc_info=True`）记录详细错误信息
+    - 改进日志消息，使用 emoji 和结构化格式提升可读性
+  - 修复效果：日志更加详细和友好，便于运维和问题排查
 
 ### 测试
 - **新增日期时间格式单元测试**：`test_database_mysql_datetime_fix.py`

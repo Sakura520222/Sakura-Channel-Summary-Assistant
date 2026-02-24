@@ -137,17 +137,28 @@ class MainBotPushHandler:
         """
         try:
             if not self.qa_bot:
+                logger.warning("❌ 问答Bot未初始化，无法处理通知")
                 return 0
 
             # 获取待发送通知
             notifications = await self.db.get_pending_notifications(limit=50)
 
             if not notifications:
+                logger.debug("📭 无待处理通知")
                 return 0
 
-            logger.info(f"发现 {len(notifications)} 个待发送通知")
+            logger.info(f"🔍 发现 {len(notifications)} 个待发送通知")
+            # 详细日志：显示每个通知的信息
+            for notif in notifications:
+                logger.debug(
+                    f"  通知ID={notif.get('id')}, 用户={notif.get('user_id')}, "
+                    f"类型={notif.get('notification_type')}, "
+                    f"状态={notif.get('status')}, "
+                    f"content类型={type(notif.get('content'))}"
+                )
 
             success_count = 0
+            failed_count = 0
 
             for notification in notifications:
                 try:
@@ -164,55 +175,99 @@ class MainBotPushHandler:
                     else:
                         message = "您有新的通知"
 
-                    # 发送消息 (使用HTML格式)
-                    await self.qa_bot.send_message(chat_id=user_id, text=message, parse_mode="HTML")
+                    # 发送消息 (使用Markdown格式)
+                    await self.qa_bot.send_message(
+                        chat_id=user_id, text=message, parse_mode="Markdown"
+                    )
 
                     # 更新状态
                     await self.db.update_notification_status(notification_id, "sent")
                     success_count += 1
+                    logger.info(f"✅ 成功发送通知给用户 {user_id}, 通知ID: {notification_id}")
 
                 except TelegramError as e:
-                    if "bot was blocked by the user" in str(e):
-                        logger.warning(f"用户 {user_id} 已阻止Bot")
-                        await self.db.update_notification_status(notification["id"], "failed")
+                    failed_count += 1
+                    error_msg = str(e)
+                    if "bot was blocked by the user" in error_msg:
+                        logger.warning(f"⚠️ 用户 {user_id} 已阻止Bot，标记通知为失败")
+                    elif "user is deactivated" in error_msg:
+                        logger.warning(f"⚠️ 用户 {user_id} 账号已停用，标记通知为失败")
+                    elif "chat not found" in error_msg:
+                        logger.warning(f"⚠️ 未找到与用户 {user_id} 的聊天，标记通知为失败")
                     else:
-                        logger.error(f"发送通知失败: {e}")
-                        await self.db.update_notification_status(notification["id"], "failed")
-                except Exception as e:
-                    logger.error(f"处理通知失败: {type(e).__name__}: {e}")
+                        logger.error(f"❌ Telegram API 错误: {error_msg}")
+
                     await self.db.update_notification_status(notification["id"], "failed")
+
+                except Exception as e:
+                    failed_count += 1
+                    logger.error(
+                        f"❌ 处理通知 {notification.get('id')} 时发生异常: {type(e).__name__}: {e}",
+                        exc_info=True,
+                    )
+                    await self.db.update_notification_status(notification["id"], "failed")
+
+            # 总结日志
+            total = len(notifications)
+            if failed_count > 0:
+                logger.warning(
+                    f"⚠️ 通知处理完成: 成功 {success_count}/{total}, 失败 {failed_count}/{total}"
+                )
+            else:
+                logger.info(f"✅ 通知处理完成: 全部成功 ({success_count}/{total})")
 
             return success_count
 
         except Exception as e:
-            logger.error(f"处理通知队列失败: {type(e).__name__}: {e}", exc_info=True)
+            logger.error(f"❌ 处理通知队列失败: {type(e).__name__}: {e}", exc_info=True)
             return 0
 
     def _format_request_result(self, content: dict[str, Any]) -> str:
-        """格式化请求结果通知"""
+        """格式化请求结果通知（Markdown格式）"""
         request_id = content.get("request_id", "未知")
         channel_id = content.get("channel_id", "未知频道")
         message = content.get("message", "")
+
+        # 转义 Markdown 特殊字符（下划线、星号、方括号等）
+        import re
+
+        def escape_markdown(text: str) -> str:
+            """转义 Markdown 特殊字符"""
+            # 需要转义的特殊字符
+            special_chars = r"_*[]()~`>#+-=|{}.!"
+            return re.sub(f"([{re.escape(special_chars)}])", r"\\\1", text)
+
+        channel_escaped = escape_markdown(channel_id)
 
         return f"""📝 **请求结果通知**
 
 您的总结请求已处理完成！
 
 **请求ID**: {request_id}
-**频道**: {channel_id}
+**频道**: {channel_escaped}
 
 **结果**: {message}
 
 💡 感谢使用！"""
 
     def _format_summary_push(self, content: dict[str, Any]) -> str:
-        """格式化总结推送通知"""
+        """格式化总结推送通知（Markdown格式）"""
         channel_name = content.get("channel_name", "未知频道")
         summary_preview = content.get("summary_preview", "")
 
+        # 转义 Markdown 特殊字符（频道名称可能包含下划线、星号等）
+        import re
+
+        def escape_markdown(text: str) -> str:
+            """转义 Markdown 特殊字符"""
+            special_chars = r"_*[]()~`>#+-=|{}.!"
+            return re.sub(f"([{re.escape(special_chars)}])", r"\\\1", text)
+
+        channel_escaped = escape_markdown(channel_name)
+
         return f"""📬 **新总结通知**
 
-频道 {channel_name} 有新的总结发布了！
+频道 {channel_escaped} 有新的总结发布了！
 
 **总结预览**:
 {summary_preview}
