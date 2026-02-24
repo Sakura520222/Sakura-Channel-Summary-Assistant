@@ -1,9 +1,58 @@
+# 📋 变更日志
+
+> **查看最新的变更日志，请访问 [GitHub Releases](https://github.com/Sakura520222/Sakura-Bot/releases)**
+
+本文件仅保留用于历史记录参考。完整的版本发布说明和功能变更记录请查看 GitHub Releases 页面。
+
+---
+
+## 历史变更记录
+
+
 # 更新日志
 
 所有对项目的显著更改都将记录在此文件中。
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+
+## [1.6.0] - 2026-02-24
+
+### 🎉 重大更新 - 数据库架构全面升级与完善
+
+#### 新增
+- MySQL数据库支持
+- 数据库迁移系统
+- 迁移命令系统
+- 启动时数据库检查
+
+#### 修复
+- **数据库异步接口兼容性**
+  - 为 SQLiteManager 添加完整的异步方法包装层（30+ 方法）
+  - 修复 SQLite 和 MySQL 统一异步 API 问题
+  
+- **aiofiles.os.path 使用错误**
+  - 修复所有使用 `aiofiles.os.path` 的地方，改用 `asyncio.to_thread()`
+  - 影响多个模块：database_migrator、database_migration_commands、summary_commands
+  
+- **数据库连接池检查逻辑**
+  - 修复 mainbot_push_handler 中的检查逻辑，改用 `_db_type` 属性
+  
+- **用户排名显示问题**
+  - 修复用户信息未保存、查询逻辑错误等问题
+  - 优化用户显示格式（优先用户名，其次名字）
+
+#### 改进
+- **CI/CD 完善**
+  - 修复提交信息检查、环境变量、覆盖率评论等问题
+  
+- **代码质量**
+  - 运行 Ruff 代码风格检查，修复 403 个问题
+
+#### 测试
+- **数据库迁移器单元测试**
+  - 新增 test_database_migrator.py，17 个测试用例，覆盖率 40%+
+
 
 ## [1.5.9] - 2026-02-19
 

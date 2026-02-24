@@ -90,7 +90,7 @@ async def handle_qa_status(event):
 
         try:
             db = get_db_manager()
-            stats = db.get_qa_bot_statistics()
+            stats = await db.get_qa_bot_statistics()
 
             lines.append(get_text("qabot.total_users", count=stats.get("total_users", 0)))
             lines.append(get_text("qabot.active_users", count=stats.get("active_users", 0)))
@@ -263,7 +263,7 @@ async def handle_qa_stats(event):
         # 获取数据库统计
         try:
             db = get_db_manager()
-            stats = db.get_qa_bot_statistics()
+            stats = await db.get_qa_bot_statistics()
 
             lines.append(get_text("qabot.user_stats"))
             lines.append(get_text("qabot.total_users", count=stats.get("total_users", 0)))
@@ -301,14 +301,26 @@ async def handle_qa_stats(event):
             if top_users:
                 lines.append(get_text("qabot.top_users"))
                 for i, user in enumerate(top_users[:10], 1):
-                    username = (
-                        user.get("username")
-                        or user.get("first_name")
-                        or f"User{user.get('user_id')}"
-                    )
+                    user_id = user.get("user_id")
+                    username = user.get("username")
+                    first_name = user.get("first_name")
                     query_count = user.get("query_count", 0)
+
+                    # 构建 Telegram user mention 格式
+                    if username:
+                        # 有用户名，使用可点击的 @username
+                        user_display = f"@{username}"
+                    elif first_name:
+                        # 没有用户名但有名字，显示名字（不可点击链接）
+                        user_display = first_name
+                    else:
+                        # 既没有用户名也没有名字，使用 ID
+                        user_display = f"User{user_id}"
+
                     lines.append(
-                        get_text("qabot.user_rank_item", index=i, name=username, count=query_count)
+                        get_text(
+                            "qabot.user_rank_item", index=i, name=user_display, count=query_count
+                        )
                     )
                 lines.append("")
 

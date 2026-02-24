@@ -197,50 +197,29 @@ jobs:
           RELEASE_TITLE="🚀 Release v${VERSION}"
           echo "RELEASE_TITLE=${RELEASE_TITLE}" >> $GITHUB_OUTPUT
       
-      - name: 从 CHANGELOG 生成发布说明
-        id: generate_changelog
+      - name: 读取现有 Release 描述
+        id: read_release_notes
         if: steps.check_version.outputs.SHOULD_CREATE == 'true'
         run: |
           VERSION="${{ steps.get_version.outputs.PY_VERSION }}"
+          TAG_NAME="v${VERSION}"
           
-          if [ -f "CHANGELOG.md" ]; then
-            # 提取当前版本的变更日志
-            awk -v version="$VERSION" '
-              BEGIN { in_section=0; found=0 }
-              index($0, "## [" version "]") == 1 { in_section=1; found=1; print; next }
-              /^## \[/ && in_section { in_section=0 }
-              in_section { print }
-            ' CHANGELOG.md > release_notes.md
-            
-            if [ -s "release_notes.md" ]; then
-              echo "notes<<EOF" >> $GITHUB_OUTPUT
-              cat release_notes.md >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
-            else
-              echo "未在 CHANGELOG 中找到版本 $VERSION 的条目" >&2
-            fi
-          fi
-          
-          # 如果没有找到，生成基本的发布说明
-          if [ ! -s "release_notes.md" ]; then
-            COMMITS_COUNT="${{ needs.analyze-changes.outputs.commit_count }}"
-            PR_NUMBERS="${{ needs.analyze-changes.outputs.pr_numbers }}"
-            
+          # Release 描述已由 pr-analyzer.yml 维护，这里直接读取
+          if gh release view "$TAG_NAME" --json body -q .body > existing_notes.md 2>/dev/null; then
+            echo "ℹ️ 读取现有 Release 描述"
+            echo "notes<<EOF" >> $GITHUB_OUTPUT
+            cat existing_notes.md >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Release 描述为空，将使用默认描述"
             echo "notes<<EOF" >> $GITHUB_OUTPUT
             echo "## 🎉 Release v${VERSION}" >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
-            echo "**发布日期**: $(date +'%Y年%m月%d日')" >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            echo "### 📊 变更统计" >> $GITHUB_OUTPUT
-            echo "- 包含提交数: ${COMMITS_COUNT}" >> $GITHUB_OUTPUT
-            if [ -n "$PR_NUMBERS" ]; then
-              echo "- 相关 PR: ${PR_NUMBERS}" >> $GITHUB_OUTPUT
-            fi
-            echo "" >> $GITHUB_OUTPUT
-            echo "### 📝 主要变更" >> $GITHUB_OUTPUT
-            echo "请查看 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) 获取详细信息" >> $GITHUB_OUTPUT
+            echo "Release 描述由 PR 合并自动维护" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: 创建 GitHub Release
         if: steps.check_version.outputs.SHOULD_CREATE == 'true'
@@ -248,7 +227,7 @@ jobs:
         with:
           tag_name: ${{ steps.generate_release_info.outputs.RELEASE_NAME }}
           name: ${{ steps.generate_release_info.outputs.RELEASE_TITLE }}
-          body: "${{ steps.generate_changelog.outputs.notes }}"
+          body: "${{ steps.read_release_notes.outputs.notes }}"
           draft: false
           prerelease: false
           generate_release_notes: false
@@ -387,18 +366,16 @@ jobs:
             
             📝 相关 PR: ${PR_NUMBERS}
             
-            📥 **下载链接**:
-            ${RELEASE_URL}
-            
             ---
             由 GitHub Actions 自动发布"
             
-            # 发送消息到 Telegram
+            # 发送消息到 Telegram，附带按钮
             curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
               -d "chat_id=${TELEGRAM_CHAT_ID}" \
               -d "text=${MESSAGE}" \
               -d "parse_mode=Markdown" \
-              -d "disable_web_page_preview=true"
+              -d "disable_web_page_preview=true" \
+              -d 'reply_markup={"inline_keyboard":[[{"text":"📄 View Release Notes","url":"'"${RELEASE_URL}"'"}]]}'
             
             echo "✅ Telegram 通知已发送"
           else
