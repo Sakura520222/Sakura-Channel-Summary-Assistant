@@ -16,7 +16,27 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-  ## [1.6.2] - 2026-02-25
+## [1.6.3] - 2026-02-25
+
+### 修复
+- **GitHub 工作流 Release 附件缺失问题**：修复了 PR 合并后 Release 创建时没有附件的问题
+  - **问题根源**：`pr-analyzer.yml` 在 PR 合并时创建/更新 Release（仅描述，无附件），`create-tag.yml` 发现 Release 已存在后默认跳过
+  - **解决方案**：增强 `create-tag.yml` 的检测逻辑，区分三种情况
+    - Release 不存在 → 创建新 Release（含描述+附件）
+    - Release 存在但无附件 → 仅添加附件（不修改描述）
+    - Release 存在有附件 + force_update=true → 更新附件
+    - Release 存在有附件 + force_update=false → 跳过
+  - **影响范围**：`.github/workflows/create-tag.yml`
+  - **技术实现**：
+    - 新增附件检测逻辑，使用 GitHub API 检查 Release 附件数量
+    - 新增 `SHOULD_ADD_ASSETS` 标志，处理"添加附件"场景
+    - 新增"添加附件"流程：创建资源包、上传资源、发送通知、生成摘要
+  - **修复效果**：
+    - ✅ Release 自动包含描述（由 pr-analyzer.yml 维护）和附件（由 create-tag.yml 添加）
+    - ✅ 两个工作流协同工作，互不干扰
+    - ✅ 支持手动强制更新附件（force_update=true）
+
+## [1.6.2] - 2026-02-25
 
 ### 重构
 - **AI 客户端异步化改造**：将 AI 客户端调用从同步模式改为异步模式
