@@ -12,7 +12,6 @@
 
 import asyncio
 import os
-import signal
 import sys
 
 import aiofiles
@@ -151,18 +150,6 @@ async def graceful_shutdown_resources():
             logger.warning(f"部分任务未能在超时前完成，剩余 {len(tasks)} 个任务")
 
     logger.info("所有资源已关闭")
-
-
-def cleanup_handler(signum, frame):
-    """清理处理器"""
-    logger.info(f"收到信号 {signum}，正在清理资源...")
-    stop_qa_bot()
-    sys.exit(0)
-
-
-# 注册清理处理器
-signal.signal(signal.SIGTERM, cleanup_handler)
-signal.signal(signal.SIGINT, cleanup_handler)
 
 
 async def send_startup_message(client):
@@ -790,8 +777,39 @@ async def main():
 
         # 保持客户端运行
         await client.run_until_disconnected()
+    except KeyboardInterrupt:
+        logger.info("收到键盘中断，正在优雅关闭...")
+        raise  # 重新抛出以便在上层处理
     except Exception as e:
         logger.critical(f"机器人服务初始化或运行失败: {type(e).__name__}: {e}", exc_info=True)
+    finally:
+        # 在主事件循环关闭前清理资源
+        logger.info("正在清理资源...")
+
+        # 1. 停止调度器
+        from core.config import get_scheduler_instance
+
+        scheduler = get_scheduler_instance()
+        if scheduler and scheduler.running:
+            logger.info("停止调度器...")
+            scheduler.shutdown(wait=False)
+
+        # 2. 关闭数据库连接池
+        db_manager = get_db_manager()
+        if hasattr(db_manager, "close") and asyncio.iscoroutinefunction(db_manager.close):
+            try:
+                await db_manager.close()
+                logger.info("数据库连接池已关闭")
+            except Exception as e:
+                logger.error(f"关闭数据库连接池时出错: {type(e).__name__}: {e}")
+
+        # 3. 断开 Telegram 客户端
+        if client.is_connected():
+            try:
+                await client.disconnect()
+                logger.info("Telegram客户端已断开")
+            except Exception as e:
+                logger.error(f"断开Telegram客户端时出错: {type(e).__name__}: {e}")
 
 
 if __name__ == "__main__":
@@ -820,5 +838,7 @@ if __name__ == "__main__":
         except Exception as e:
             logger.critical(f"主函数执行失败: {type(e).__name__}: {e}", exc_info=True)
         finally:
-            # 确保问答Bot被停止
+            # 确保问答Bot被停止（已在main()的finally中处理了其他资源）
+            logger.info("正在停止问答Bot...")
             stop_qa_bot()
+            logger.info("程序已退出")
