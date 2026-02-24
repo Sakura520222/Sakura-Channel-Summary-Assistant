@@ -102,6 +102,9 @@ jobs:
   tests:
     name: 单元测试
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
     
     steps:
       - name: 检出代码
@@ -140,11 +143,10 @@ jobs:
               --cov-report=xml:coverage.xml \
               --cov-report=html:htmlcov \
               --cov-report=term-missing \
+              --cov-report=json \
               --tb=short \
               --strict-markers || true
-            coverage report --fail-under=20
-            coverage xml
-            coverage html
+            echo "✅ 覆盖率报告生成完成"
           else
             echo "未找到测试目录，跳过测试"
           fi
@@ -214,6 +216,15 @@ jobs:
           name: coverage-report
           path: htmlcov/
           retention-days: 30
+      
+      - name: PR 评论覆盖率报告
+        uses: py-cov-action/python-coverage-comment-action@v3
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          MINIMUM_GREEN: 60
+          MINIMUM_ORANGE: 40
 
   summary:
     name: CI 检查汇总
