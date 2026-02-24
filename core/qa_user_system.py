@@ -16,6 +16,7 @@
 """
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from .database import get_db_manager
@@ -213,24 +214,36 @@ class QAUserSystem:
         安全地格式化日期字段为 YYYY-MM-DD 字符串
 
         Args:
-            date_value: 日期值（可能是 datetime、字符串或 None）
+            date_value: 日期值，支持 datetime/date 对象或形如 YYYY-MM-DD 的字符串
 
         Returns:
-            格式化后的日期字符串
+            严格的 YYYY-MM-DD 格式日期字符串；无法解析时返回空字符串
         """
         if not date_value:
             return ""
 
-        # 如果是 datetime 对象，使用 strftime 格式化
+        # 如果是 datetime/date 对象，使用 strftime 格式化
         if hasattr(date_value, "strftime"):
-            return date_value.strftime("%Y-%m-%d")
+            try:
+                return date_value.strftime("%Y-%m-%d")
+            except Exception:
+                # 理论上不会走到这里，但保证异常不向外冒泡
+                return ""
 
-        # 如果是字符串，安全地切片
+        # 如果是字符串，尝试按 YYYY-MM-DD 解析
         if isinstance(date_value, str):
-            return date_value[:10]
+            candidate = date_value.strip()[:10]
+            if len(candidate) != 10:
+                return ""
+            try:
+                # 解析并再格式化一遍，确保符合 YYYY-MM-DD
+                parsed = datetime.strptime(candidate, "%Y-%m-%d")
+                return parsed.strftime("%Y-%m-%d")
+            except Exception:
+                return ""
 
-        # 其他情况，转换为字符串后切片
-        return str(date_value)[:10]
+        # 非支持类型一律返回空字符串，避免返回非 YYYY-MM-DD 格式
+        return ""
 
     def format_channels_list(self, channels: list[dict[str, Any]]) -> str:
         """

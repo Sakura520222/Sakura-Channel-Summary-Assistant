@@ -61,17 +61,48 @@ class TestFormatDateField:
         assert result == ""
 
     def test_format_short_string(self):
-        """测试格式化短字符串（少于10个字符）"""
+        """测试格式化短字符串（少于10个字符）应返回空字符串"""
         short_str = "2026-02"
         result = self.qa_system._format_date_field(short_str)
-        assert result == "2026-02"
+        assert result == ""
+
+    def test_format_invalid_string_format(self):
+        """测试格式化无效的字符串格式应返回空字符串"""
+        invalid_str = "not-a-date"
+        result = self.qa_system._format_date_field(invalid_str)
+        assert result == ""
+
+    def test_format_string_with_spaces(self):
+        """测试格式化带空格的字符串"""
+        date_str = "  2026-02-24  "
+        result = self.qa_system._format_date_field(date_str)
+        assert result == "2026-02-24"
+
+    def test_format_invalid_yyyy_mm_dd(self):
+        """测试格式化不符合 YYYY-MM-DD 格式的字符串"""
+        invalid_str = "2026/02/24"
+        result = self.qa_system._format_date_field(invalid_str)
+        assert result == ""
 
     def test_format_numeric_timestamp(self):
-        """测试格式化数字时间戳"""
+        """测试格式化数字时间戳应返回空字符串"""
         timestamp = 1706109045
         result = self.qa_system._format_date_field(timestamp)
-        # 应该返回字符串的前10个字符
-        assert len(result) <= 10
+        assert result == ""
+
+    def test_format_random_object(self):
+        """测试格式化随机对象应返回空字符串"""
+        random_obj = {"key": "value"}
+        result = self.qa_system._format_date_field(random_obj)
+        assert result == ""
+
+    def test_format_date_object(self):
+        """测试格式化 date 对象（不含时间）"""
+        from datetime import date
+
+        date_obj = date(2026, 2, 24)
+        result = self.qa_system._format_date_field(date_obj)
+        assert result == "2026-02-24"
 
 
 class TestFormatChannelsList:
