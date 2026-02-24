@@ -19,7 +19,7 @@ on:
     branches: [main]
 ```
 
-当 `pr-analyzer.yml` 由 `pull_request: [closed]` 触发时，它完成**不会**触发 `workflow_run` 事件，导致 `create-tag.yml` 永远不会执行。
+当 `pr-analyzer.yml` 由 `pull_request: [closed]` 触发时，它完成后不会触发 `workflow_run` 事件，导致 `create-tag.yml` 永远不会执行。
 
 ## 解决方案
 
