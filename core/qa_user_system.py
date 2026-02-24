@@ -16,6 +16,7 @@
 """
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from .database import get_db_manager
@@ -208,6 +209,42 @@ class QAUserSystem:
             logger.error(f"获取请求状态失败: {type(e).__name__}: {e}", exc_info=True)
             return None
 
+    def _format_date_field(self, date_value: Any) -> str:
+        """
+        安全地格式化日期字段为 YYYY-MM-DD 字符串
+
+        Args:
+            date_value: 日期值，支持 datetime/date 对象或形如 YYYY-MM-DD 的字符串
+
+        Returns:
+            严格的 YYYY-MM-DD 格式日期字符串；无法解析时返回空字符串
+        """
+        if not date_value:
+            return ""
+
+        # 如果是 datetime/date 对象，使用 strftime 格式化
+        if hasattr(date_value, "strftime"):
+            try:
+                return date_value.strftime("%Y-%m-%d")
+            except Exception:
+                # 理论上不会走到这里，但保证异常不向外冒泡
+                return ""
+
+        # 如果是字符串，尝试按 YYYY-MM-DD 解析
+        if isinstance(date_value, str):
+            candidate = date_value.strip()[:10]
+            if len(candidate) != 10:
+                return ""
+            try:
+                # 解析并再格式化一遍，确保符合 YYYY-MM-DD
+                parsed = datetime.strptime(candidate, "%Y-%m-%d")
+                return parsed.strftime("%Y-%m-%d")
+            except Exception:
+                return ""
+
+        # 非支持类型一律返回空字符串，避免返回非 YYYY-MM-DD 格式
+        return ""
+
     def format_channels_list(self, channels: list[dict[str, Any]]) -> str:
         """
         格式化频道列表为可读文本
@@ -226,7 +263,7 @@ class QAUserSystem:
         for i, channel in enumerate(channels, 1):
             channel_name = channel.get("channel_name", "未知频道")
             channel_id = channel.get("channel_id", "")
-            last_time = channel.get("last_summary_time", "")[:10]
+            last_time = self._format_date_field(channel.get("last_summary_time"))
             lines.append(f"{i}. **{channel_name}**")
             lines.append(f"   链接: `{channel_id}`")
             lines.append(f"   最后更新: {last_time}")
@@ -258,7 +295,7 @@ class QAUserSystem:
         for i, sub in enumerate(subscriptions, 1):
             channel_name = sub.get("channel_name", sub.get("channel_id", "未知频道"))
             channel_id = sub.get("channel_id", "")
-            created_at = sub.get("created_at", "")[:10]
+            created_at = self._format_date_field(sub.get("created_at"))
             lines.append(f"{i}. **{channel_name}**")
             lines.append(f"   链接: `{channel_id}`")
             lines.append(f"   订阅时间: {created_at}")
