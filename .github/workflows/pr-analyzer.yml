@@ -293,6 +293,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const core = require('@actions/core');
             const version = `${{ steps.read_version.outputs.current_version }}`;
             const exists = `${{ steps.check_release.outputs.exists }}`;
             const action = exists === 'true' ? '更新' : '创建';
@@ -304,21 +305,16 @@ jobs:
               const notes = fs.readFileSync('release_notes.txt', 'utf8');
               notesPreview = notes.length > 500 ? notes.substring(0, 500) + '...' : notes;
             } catch (e) {
-              // 在工作流日志中记录警告，便于调试读取失败原因
-              if (typeof core !== 'undefined' && core && typeof core.warning === 'function') {
-                core.warning(`读取 release_notes.txt 失败: ${e instanceof Error ? e.message : String(e)}`);
-              } else {
-                console.warn('读取 release_notes.txt 失败:', e);
-              }
+              core.warning(`读取 release_notes.txt 失败: ${e instanceof Error ? e.message : String(e)}`);
               notesPreview = '(无法读取预览)';
             }
             
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.payload.pull_request.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: `📝 **已${action} Release v${version} 描述**\n\n\`\`\`\n${notesPreview}\n\`\`\`\n\n---\n\n✅ 变更已记录到 [GitHub Releases](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/v${version})`
-            })
+            });
       
       - name: 清理临时文件
         if: always()
