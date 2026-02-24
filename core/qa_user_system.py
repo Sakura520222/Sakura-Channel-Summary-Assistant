@@ -208,6 +208,30 @@ class QAUserSystem:
             logger.error(f"获取请求状态失败: {type(e).__name__}: {e}", exc_info=True)
             return None
 
+    def _format_date_field(self, date_value: Any) -> str:
+        """
+        安全地格式化日期字段为 YYYY-MM-DD 字符串
+
+        Args:
+            date_value: 日期值（可能是 datetime、字符串或 None）
+
+        Returns:
+            格式化后的日期字符串
+        """
+        if not date_value:
+            return ""
+
+        # 如果是 datetime 对象，使用 strftime 格式化
+        if hasattr(date_value, "strftime"):
+            return date_value.strftime("%Y-%m-%d")
+
+        # 如果是字符串，安全地切片
+        if isinstance(date_value, str):
+            return date_value[:10]
+
+        # 其他情况，转换为字符串后切片
+        return str(date_value)[:10]
+
     def format_channels_list(self, channels: list[dict[str, Any]]) -> str:
         """
         格式化频道列表为可读文本
@@ -226,7 +250,7 @@ class QAUserSystem:
         for i, channel in enumerate(channels, 1):
             channel_name = channel.get("channel_name", "未知频道")
             channel_id = channel.get("channel_id", "")
-            last_time = channel.get("last_summary_time", "")[:10]
+            last_time = self._format_date_field(channel.get("last_summary_time"))
             lines.append(f"{i}. **{channel_name}**")
             lines.append(f"   链接: `{channel_id}`")
             lines.append(f"   最后更新: {last_time}")
@@ -258,7 +282,7 @@ class QAUserSystem:
         for i, sub in enumerate(subscriptions, 1):
             channel_name = sub.get("channel_name", sub.get("channel_id", "未知频道"))
             channel_id = sub.get("channel_id", "")
-            created_at = sub.get("created_at", "")[:10]
+            created_at = self._format_date_field(sub.get("created_at"))
             lines.append(f"{i}. **{channel_name}**")
             lines.append(f"   链接: `{channel_id}`")
             lines.append(f"   订阅时间: {created_at}")
