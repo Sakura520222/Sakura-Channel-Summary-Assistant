@@ -466,7 +466,7 @@ tar -czf backup-$(date +%Y%m%d).tar.gz data/
 1. **Fork 项目** - 在 GitHub 上点击 Fork 按钮
 2. **克隆到本地**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/Sakura-Bot.git
+   git clone https://github.com/Sakura520222/Sakura-Bot.git
    cd Sakura-Bot
    ```
 3. **创建功能分支**
