@@ -1,4 +1,4 @@
-name: PR 自动分析并更新 Changelog
+name: PR 自动分析并更新 Release
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   analyze-and-update:
-    name: 分析 PR 并更新 CHANGELOG
+    name: 分析 PR 并更新 Release
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true
     permissions:
@@ -81,8 +81,8 @@ jobs:
           echo "相关提交:"
           echo "$COMMITS"
       
-      - name: 读取当前版本和最新条目
-        id: read_current_version
+      - name: 读取当前版本
+        id: read_version
         run: |
           # 读取 main.py 中的当前版本号
           if [ -f main.py ]; then
@@ -93,166 +93,200 @@ jobs:
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "main.py 当前版本: $CURRENT_VERSION"
           
-          # 读取 CHANGELOG.md 中记录的最新版本号
-          LAST_VERSION=$(grep -oP '^## \[\K[^\]]+' CHANGELOG.md | head -1)
-          echo "last_version=$LAST_VERSION" >> $GITHUB_OUTPUT
-          echo "CHANGELOG 最新版本: $LAST_VERSION"
-          
           # 获取今天日期
           TODAY=$(date +'%Y-%m-%d')
           echo "today=$TODAY" >> $GITHUB_OUTPUT
           echo "今天日期: $TODAY"
-          
-          # 读取 CHANGELOG 最新条目的日期
-          LAST_DATE=$(head -n 5 CHANGELOG.md | grep -oP '\d{4}-\d{2}-\d{2}' | head -1)
-          if [ -z "$LAST_DATE" ]; then
-            LAST_DATE=""
-          fi
-          echo "last_date=$LAST_DATE" >> $GITHUB_OUTPUT
-          echo "最新条目日期: $LAST_DATE"
-          
-          # 判断是否需要创建新版本块
-          if [ "$CURRENT_VERSION" = "$LAST_VERSION" ]; then
-            # 版本号相同，追加到当前版本
-            if [ "$LAST_DATE" = "$TODAY" ]; then
-              echo "mode=append_today" >> $GITHUB_OUTPUT
-              echo "模式: 追加到当天条目"
-            else
-              echo "mode=append_existing" >> $GITHUB_OUTPUT
-              echo "模式: 追加到现有版本（不同日期）"
-            fi
-          else
-            # 版本号不同，创建新版本块
-            echo "mode=new" >> $GITHUB_OUTPUT
-            echo "模式: 创建新版本块 ($CURRENT_VERSION > $LAST_VERSION)"
-          fi
       
-      - name: 生成 Changelog 条目
-        id: generate_changelog
+      - name: 检查 Release 是否存在
+        id: check_release
         run: |
-          CURRENT_VERSION="${{ steps.read_current_version.outputs.current_version }}"
-          TODAY="${{ steps.read_current_version.outputs.today }}"
-          MODE="${{ steps.read_current_version.outputs.mode }}"
+          VERSION="${{ steps.read_version.outputs.current_version }}"
+          TAG_NAME="v${VERSION}"
+          
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Release $TAG_NAME 已存在"
+            
+            # 获取现有 Release 描述
+            gh release view "$TAG_NAME" --json body -q .body > current_body.txt
+            echo "现有 Release 描述已读取"
+            
+            # 解析现有描述中的最新日期
+            LAST_DATE=$(grep -oP '\d{4}-\d{2}-\d{2}' current_body.txt | head -1)
+            if [ -z "$LAST_DATE" ]; then
+              LAST_DATE=""
+            fi
+            echo "last_date=$LAST_DATE" >> $GITHUB_OUTPUT
+            echo "最新条目日期: $LAST_DATE"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ Release $TAG_NAME 不存在，将创建新 Release"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_RELEASE_PAT || secrets.GITHUB_TOKEN }}
+      
+      - name: 生成 Release 描述
+        id: generate_release_notes
+        run: |
+          VERSION="${{ steps.read_version.outputs.current_version }}"
+          TODAY="${{ steps.read_version.outputs.today }}"
           CHANGE_TYPE="${{ steps.analyze_type.outputs.change_type }}"
           TITLE="${{ github.event.pull_request.title }}"
           COMMITS="${{ steps.extract_commits.outputs.commits }}"
           PR_NUM="${{ github.event.pull_request.number }}"
+          EXISTS="${{ steps.check_release.outputs.exists }}"
           
-          # 根据模式生成不同的条目格式
-          if [ "$MODE" = "new" ]; then
-            # 新版本模式：生成完整的版本块
+          if [ "$EXISTS" = "false" ]; then
+            # 新 Release：生成初始描述
             {
-              echo "## [\${VERSION}] - \${DATE}"
+              echo "## 🎉 Release v${VERSION} - ${TODAY}"
               echo ""
-              echo "### \${CHANGE_TYPE}"
-              echo "- \${TITLE} (PR #\${PR_NUM})"
+              echo "### ${CHANGE_TYPE}"
+              echo "- **${TITLE}** (PR #${PR_NUM})"
               echo ""
-            } > changelog_entry.txt
-            # 处理提交信息
+            } > new_entry.txt
+            
+            # 添加提交信息
             if [ -n "$COMMITS" ]; then
               echo "$COMMITS" | while IFS= read -r commit; do
-                echo "- $commit" >> changelog_entry.txt
+                echo "- ${commit}" >> new_entry.txt
               done
+              echo "" >> new_entry.txt
             fi
+            
+            echo "---" >> new_entry.txt
+            echo "" >> new_entry.txt
+            
+            cat new_entry.txt > release_notes.txt
+            rm -f new_entry.txt
+            
+            echo "生成了新的 Release 描述"
+          else
+            # 更新现有 Release
+            LAST_DATE="${{ steps.check_release.outputs.last_date }}"
+            
+            # 生成新条目
             {
+              echo "### ${CHANGE_TYPE}"
+              echo "- **${TITLE}** (PR #${PR_NUM})"
+              echo ""
+            } > new_entry.txt
+            
+            if [ -n "$COMMITS" ]; then
+              echo "$COMMITS" | while IFS= read -r commit; do
+                echo "- ${commit}" >> new_entry.txt
+              done
+              echo "" >> new_entry.txt
+            fi
+            
+            # 判断追加位置
+            if [ "$LAST_DATE" = "$TODAY" ]; then
+              # 日期相同：追加到当天条目末尾（在 --- 之前）
+              awk -v new_entry="new_entry.txt" '
+                BEGIN {
+                  inserted = 0
+                  while ((getline line < new_entry) > 0) {
+                    new_entries[++n] = line
+                  }
+                  close(new_entry)
+                }
+                /^---$/ && inserted == 0 {
+                  # 在分隔线之前插入新条目
+                  for (i = 1; i <= n; i++) {
+                    print new_entries[i]
+                  }
+                  print ""
+                  inserted = 1
+                }
+                { print }
+              ' current_body.txt > release_notes.txt
+              echo "已追加到今天的条目"
+            else
+              # 日期不同：在文件开头插入新日期分组
+              {
+                echo "## 🎉 Release v${VERSION} - ${TODAY}"
+                echo ""
+              } > header.txt
+              cat new_entry.txt >> header.txt
+              echo "---" >> header.txt
+              echo "" >> header.txt
+              cat current_body.txt >> header.txt
+              mv header.txt release_notes.txt
+              echo "已创建新的日期分组"
+            fi
+            
+            rm -f new_entry.txt
+          fi
+          
+          echo "✅ Release 描述已生成"
+          echo "---"
+          cat release_notes.txt
+          
+          # 输出到 GITHUB_OUTPUT（用于 PR 评论）
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: 创建或更新 Release
+        run: |
+          VERSION="${{ steps.read_version.outputs.current_version }}"
+          TAG_NAME="v${VERSION}"
+          EXISTS="${{ steps.check_release.outputs.exists }}"
+          
+          if [ "$EXISTS" = "false" ]; then
+            # 创建新 Release
+            echo "📝 正在创建 Release ${TAG_NAME}..."
+            gh release create "$TAG_NAME" \
+              --title "Release ${TAG_NAME}" \
+              --notes-file release_notes.txt \
+              --latest
+            echo "✅ Release ${TAG_NAME} 已创建"
+          else
+            # 更新现有 Release
+            echo "📝 正在更新 Release ${TAG_NAME}..."
+            gh release edit "$TAG_NAME" \
+              --notes-file release_notes.txt
+            echo "✅ Release ${TAG_NAME} 已更新"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_RELEASE_PAT || secrets.GITHUB_TOKEN }}
+      
+      - name: 更新 CHANGELOG.md 为引流页面
+        run: |
+          # 检查 CHANGELOG.md 是否已包含引流提示
+          if ! grep -q "查看最新的变更日志，请访问" CHANGELOG.md; then
+            echo "📝 正在更新 CHANGELOG.md 为引流页面..."
+            
+            # 创建临时文件
+            {
+              echo "# 📋 变更日志"
+              echo ""
+              echo "> **查看最新的变更日志，请访问 [GitHub Releases](https://github.com/${{ github.repository }}/releases)**"
+              echo ""
+              echo "本文件仅保留用于历史记录参考。完整的版本发布说明和功能变更记录请查看 GitHub Releases 页面。"
               echo ""
               echo "---"
               echo ""
-            } >> changelog_entry.txt
-          else
-            # 追加模式：只生成分类和条目
-            {
-              echo "### \${CHANGE_TYPE}"
-              echo "- **\${TITLE}** (PR #\${PR_NUM})"
+              echo "## 历史变更记录"
               echo ""
-            } > changelog_entry.txt
-          fi
-          
-          # 替换变量（使用临时文件避免替换问题）
-          sed "s/\${VERSION}/${CURRENT_VERSION}/g; s/\${DATE}/${TODAY}/g; s/\${CHANGE_TYPE}/${CHANGE_TYPE}/g; s/\${TITLE}/${TITLE}/g; s/\${PR_NUM}/${PR_NUM}/g" changelog_entry.txt > changelog_entry.tmp
-          mv changelog_entry.tmp changelog_entry.txt
-          
-          echo "entry_file=changelog_entry.txt" >> $GITHUB_OUTPUT
-          
-          # 同时输出changelog内容到GITHUB_OUTPUT（用于PR评论）
-          echo "entry<<EOF" >> $GITHUB_OUTPUT
-          cat changelog_entry.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          
-          echo "生成的 Changelog 条目:"
-          cat changelog_entry.txt
-      
-      - name: 更新 CHANGELOG.md
-        run: |
-          ENTRY_FILE="${{ steps.generate_changelog.outputs.entry_file }}"
-          MODE="${{ steps.read_current_version.outputs.mode }}"
-          
-          if [ "$MODE" = "new" ]; then
-            # 新版本模式：在文件标题之后插入新版本块
-            awk -v entry_file="$ENTRY_FILE" '
-              BEGIN { 
-                inserted = 0
-                # 读取新条目到数组
-                while ((getline line < entry_file) > 0) {
-                  new_entries[++n] = line
-                }
-                close(entry_file)
-              }
-              /^## \[/ && inserted == 0 {
-                # 在第一个版本块之前插入新条目
-                for (i = 1; i <= n; i++) {
-                  print new_entries[i]
-                }
-                print ""
-                inserted = 1
-              }
-              { print }
-            ' CHANGELOG.md > CHANGELOG.md.new
+              # 保留原有内容
+              cat CHANGELOG.md
+            } > CHANGELOG.md.new
+            
             mv CHANGELOG.md.new CHANGELOG.md
+            
+            # 提交更改
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add CHANGELOG.md
+            git commit -m "docs: 更新 CHANGELOG.md 为引流页面"
+            git push
+            
+            echo "✅ CHANGELOG.md 已更新为引流页面"
           else
-            # 追加模式：在当前版本块的第一个 ### 分类之前插入
-            awk -v entry_file="$ENTRY_FILE" '
-              BEGIN { 
-                inserted = 0
-                in_version = 0
-                # 读取新条目到数组
-                while ((getline line < entry_file) > 0) {
-                  new_entries[++n] = line
-                }
-                close(entry_file)
-              }
-              /^## \[/ {
-                in_version = 1
-              }
-              /^### / && in_version == 1 && inserted == 0 {
-                # 在当前版本块的第一个分类之前插入新条目
-                for (i = 1; i <= n; i++) {
-                  print new_entries[i]
-                }
-                print ""
-                inserted = 1
-              }
-              { print }
-            ' CHANGELOG.md > CHANGELOG.md.new
-            mv CHANGELOG.md.new CHANGELOG.md
+            echo "ℹ️ CHANGELOG.md 已是引流页面，跳过更新"
           fi
-          
-          # 清理临时文件
-          rm -f changelog_entry.txt
-          
-          echo "✅ CHANGELOG.md已更新"
-          echo "---"
-          head -n 30 CHANGELOG.md
-      
-      - name: 提交更改
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git add CHANGELOG.md
-          git commit -m "docs: 自动更新 CHANGELOG - PR #${{ github.event.pull_request.number }}"
-          
-          git push
         env:
           GITHUB_TOKEN: ${{ secrets.MY_RELEASE_PAT || secrets.GITHUB_TOKEN }}
       
@@ -260,10 +294,20 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const changelog = `${{ steps.generate_changelog.outputs.entry }}`;
+            const notes = `${{ steps.generate_release_notes.outputs.notes }}`;
+            const version = `${{ steps.read_version.outputs.current_version }}`;
+            const exists = `${{ steps.check_release.outputs.exists }}`;
+            const action = exists === 'true' ? '更新' : '创建';
+            
             github.rest.issues.createComment({
               issue_number: context.payload.pull_request.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `📝 **已自动更新 CHANGELOG.md**\n\n${changelog}\n\n---\n\n✅ 此条目将在下次 Release 时包含在发布说明中。`
+              body: `📝 **已${action} Release v${version} 描述**\n\n${notes}\n\n---\n\n✅ 变更已记录到 [GitHub Releases](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/v${version})`
             })
+      
+      - name: 清理临时文件
+        if: always()
+        run: |
+          rm -f release_notes.txt current_body.txt 2>/dev/null || true
+          echo "✅ 临时文件已清理"

@@ -1,3 +1,14 @@
+# 📋 变更日志
+
+> **查看最新的变更日志，请访问 [GitHub Releases](https://github.com/Sakura520222/Sakura-Bot/releases)**
+
+本文件仅保留用于历史记录参考。完整的版本发布说明和功能变更记录请查看 GitHub Releases 页面。
+
+---
+
+## 历史变更记录
+
+
 # 更新日志
 
 所有对项目的显著更改都将记录在此文件中。
