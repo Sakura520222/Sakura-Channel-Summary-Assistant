@@ -72,9 +72,9 @@ jobs:
       
       - name: 提取提交信息到文件
         run: |
-          git log --pretty=format:"%s" ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} > /tmp/commits_list.txt
+          git log --pretty=format:"%s" ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} > "${{ runner.temp }}/commits_list.txt"
           
-          echo "📝 提交信息已写入 /tmp/commits_list.txt"
+          echo "📝 提交信息已写入 ${{ runner.temp }}/commits_list.txt"
       
       - name: 读取当前版本
         id: read_version
@@ -124,8 +124,7 @@ jobs:
       - name: 生成 Release 描述
         id: generate_release_notes
         run: |
-          COMMITS_FILE="/tmp/commits_list.txt"
-          EXISTS="${{ steps.check_release.outputs.exists }}"
+          COMMITS_FILE="${RUNNER_TEMP}/commits_list.txt"
           
           if [ "$EXISTS" = "false" ]; then
             # 新 Release：生成初始描述
@@ -343,5 +342,5 @@ jobs:
         if: always()
         run: |
           rm -f release_notes.txt current_body.txt new_entry.txt header.txt 2>/dev/null || true
-          rm -f /tmp/commits.txt /tmp/commits_list.txt 2>/dev/null || true
+          rm -f "${RUNNER_TEMP}/commits_list.txt" 2>/dev/null || true
           echo "✅ 临时文件已清理"
