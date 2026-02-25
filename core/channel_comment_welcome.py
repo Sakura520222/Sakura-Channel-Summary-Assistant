@@ -119,6 +119,7 @@ class CommentWelcomeHandler:
         logger.info(f"Worker-{worker_id}启动")
 
         while self.is_running:
+            task_data = None
             try:
                 # 从队列获取任务（阻塞等待，带超时避免无法退出）
                 task_data = await asyncio.wait_for(self.task_queue.get(), timeout=5.0)
@@ -139,9 +140,6 @@ class CommentWelcomeHandler:
                     channel_msg_id=task_data["channel_msg_id"],
                 )
 
-                # 标记任务完成
-                self.task_queue.task_done()
-
             except TimeoutError:
                 # 超时是正常的，继续下一次循环
                 continue
@@ -150,6 +148,10 @@ class CommentWelcomeHandler:
                     f"Worker-{worker_id}处理任务时出错: {type(e).__name__}: {e}",
                     exc_info=True,
                 )
+            finally:
+                # 确保即使出错也要标记任务完成，防止队列挂起
+                if task_data is not None:
+                    self.task_queue.task_done()
 
         logger.info(f"Worker-{worker_id}已停止")
 
@@ -182,7 +184,7 @@ class CommentWelcomeHandler:
 
             # 获取配置
             if channel_url:
-                config = get_channel_comment_welcome_config(channel_url)
+                config = await get_channel_comment_welcome_config(channel_url)
             else:
                 # 使用默认配置
                 from .channel_comment_welcome_config import get_default_comment_welcome_config

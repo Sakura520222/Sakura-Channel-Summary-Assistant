@@ -67,8 +67,9 @@ async def _show_single_channel_config(event, channel: str):
         return
 
     # 获取配置
-    config = get_channel_comment_welcome_config(channel)
-    is_custom = channel in get_all_comment_welcome_configs()
+    config = await get_channel_comment_welcome_config(channel)
+    all_configs = await get_all_comment_welcome_configs()
+    is_custom = channel in all_configs
 
     # 构建显示文本
     status_text = (
@@ -98,7 +99,7 @@ async def _show_single_channel_config(event, channel: str):
 
 async def _show_all_channels_config(event):
     """显示所有频道的配置"""
-    all_configs = get_all_comment_welcome_configs()
+    all_configs = await get_all_comment_welcome_configs()
 
     if not CHANNELS:
         await event.reply(get_text("error.no_channels"))
@@ -107,7 +108,7 @@ async def _show_all_channels_config(event):
     message = f"{get_text('comment_welcome.config.all_title')}\n\n"
 
     for channel in CHANNELS:
-        config = get_channel_comment_welcome_config(channel)
+        config = await get_channel_comment_welcome_config(channel)
         is_custom = channel in all_configs
 
         status_text = (
@@ -248,7 +249,7 @@ async def handle_set_comment_welcome(event):
             button_text = tokens[4]
 
         # 设置配置
-        config = set_channel_comment_welcome_config(
+        config = await set_channel_comment_welcome_config(
             channel_url=channel,
             enabled=enabled,
             welcome_message=welcome_message,
@@ -317,7 +318,7 @@ async def handle_delete_comment_welcome(event):
             return
 
         # 删除配置
-        deleted = delete_channel_comment_welcome_config(channel)
+        deleted = await delete_channel_comment_welcome_config(channel)
 
         if deleted:
             # 获取默认配置

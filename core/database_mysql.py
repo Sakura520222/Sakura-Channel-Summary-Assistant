@@ -1974,8 +1974,8 @@ class MySQLManager(DatabaseManagerBase):
         try:
             async with self.pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
-                    conditions = ["request_type = 'summary_request'"]
-                    params = []
+                    conditions = ["request_type = %s"]
+                    params = ["summary_request"]
 
                     if channel_id:
                         conditions.append("target_channel = %s")

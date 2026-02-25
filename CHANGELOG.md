@@ -20,6 +20,43 @@
 
 ### 新增
 - **频道评论区欢迎配置系统**：实现可配置的评论区欢迎消息功能
+
+### 修复
+- **SQL注入安全问题**（安全）：修复2处SQL字符串拼接导致的安全隐患
+  - **database.py**: 修复 `get_summary_requests()` 中的SQL注入风险，将不受信任的输入与原始SQL查询拼接改为使用TextualSQL预编译语句
+  - **database_mysql.py**: 修复 `get_summary_requests()` 中的SQL注入风险，使用 `%s` 参数化查询替换字符串拼接
+  - **影响**：防止恶意用户通过构造特殊输入执行任意SQL命令
+  - **参考**：Sourcery AI安全建议
+
+- **Worker异常处理缺陷**（Bug）：修复队列任务异常时task_done未调用的问题
+  - **问题**：`_worker` 方法中只有成功时才调用 `task_done()`，异常时不调用导致队列挂起
+  - **修复**：使用 try/finally 包裹处理逻辑，确保每次 get() 都对应一次 task_done()
+  - **影响**：防止队列join()永久挂起和未完成任务计数错误
+  - **参考**：Sourcery AI Bug风险提示
+
+- **TimeoutError捕获优化**（代码质量）：将裸的 `TimeoutError` 改为 `asyncio.TimeoutError`
+  - **问题**：捕获更宽泛的 `TimeoutError` 可能掩盖其他超时错误
+  - **修复**：明确捕获 `asyncio.TimeoutError`，使行为更精确
+  - **影响**：避免掩盖无关的超时问题
+  - **参考**：Sourcery AI代码建议
+
+- **配置辅助函数异步化**（异步规范）：将配置函数改为异步实现
+  - **修改模块**：`core/channel_comment_welcome_config.py`
+  - **变更**：`get_channel_comment_welcome_config()`, `set_channel_comment_welcome_config()`, `delete_channel_comment_welcome_config()`, `get_all_comment_welcome_configs()` 改为异步
+  - **实现**：使用 `asyncio.to_thread()` 包装同步IO操作，避免阻塞事件循环
+  - **影响**：符合项目异步编程规范，确保所有IO操作非阻塞
+
+- **测试改进**（测试质量）：改进测试隔离和覆盖
+  - **使用monkeypatch模拟**：`tests/test_channel_comment_welcome_config.py` 使用 monkeypatch 模拟配置文件操作，避免读写真实文件
+  - **补充测试覆盖**：新增 `TestGetAllCommentWelcomeConfigs` 测试类，补充 `get_all_comment_welcome_configs()` 的测试用例
+  - **异步测试**：所有测试使用 `@pytest.mark.asyncio` 和 `async def`，匹配异步API
+  - **影响**：测试更安全、更独立、覆盖更全面
+
+### 改进
+- **代码质量**：运行Ruff检查并修复所有问题
+  - 修复 UP041: 使用 `TimeoutError` 替代 `asyncio.TimeoutError` 别名
+  - 修复 W292: 文件末尾添加换行符
+  - **结果**：All checks passed!
   - **配置管理模块**（`core/channel_comment_welcome_config.py`）：
     - 支持为每个频道单独配置欢迎消息
     - 默认配置和频道特定配置分离

@@ -2458,8 +2458,8 @@ class DatabaseManagerLegacy:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            conditions = ["request_type = 'summary_request'"]
-            params = []
+            conditions = ["request_type = ?"]
+            params = ["summary_request"]
 
             if channel_id:
                 conditions.append("target_channel = ?")
