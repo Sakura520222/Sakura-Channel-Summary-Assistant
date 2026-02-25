@@ -113,6 +113,9 @@ class MySQLManager(DatabaseManagerBase):
 
     async def _create_tables(self, cursor):
         """创建所有数据库表"""
+        # 临时禁用 MySQL 警告，避免表已存在时的警告信息
+        await cursor.execute("SET SESSION sql_mode = ''")
+
         # 1. 创建总结记录主表（MySQL 5.7+支持JSON类型）
         await cursor.execute("""
             CREATE TABLE IF NOT EXISTS summaries (
@@ -257,6 +260,11 @@ class MySQLManager(DatabaseManagerBase):
             VALUES (4, NOW())
             ON DUPLICATE KEY UPDATE version = 4, upgraded_at = NOW()
         """)
+
+        # 恢复默认的 sql_mode（包括严格模式等）
+        await cursor.execute(
+            "SET SESSION sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'"
+        )
 
     async def save_summary(
         self,
