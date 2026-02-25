@@ -30,6 +30,7 @@
     3. 使用 Python 的 `warnings.catch_warnings()` 上下文管理器过滤所有 Warning 类别的警告
     4. 将所有 CREATE TABLE 语句放在 `with warnings.catch_warnings():` 块内执行
     5. 在 `finally` 块中恢复原始的 sql_mode 设置
+    6. 使用参数化查询避免 SQL 注入风险
   - 影响：`core/database_mysql.py`
   - 修复效果：日志输出更清洁，不再显示表已存在的警告信息
   - 技术细节：
@@ -38,6 +39,7 @@
     - 使用 `try/finally` 确保 sql_mode 恢复的可靠性
     - 使用 `warnings.filterwarnings("ignore", category=Warning)` 过滤警告
     - 避免硬编码 sql_mode 值，确保兼容不同 MySQL 版本的默认配置
+    - 使用参数化查询 `SET SESSION sql_mode = %s` 替代字符串拼接，通过安全审计工具检查
 
 ### 新增
 - **频道评论区欢迎配置系统**：实现可配置的评论区欢迎消息功能，支持频道级自定义配置和默认配置

@@ -273,11 +273,12 @@ class MySQLManager(DatabaseManagerBase):
 
         finally:
             # 恢复原始的 sql_mode 设置，确保即使建表失败也能恢复
+            # 使用参数化查询避免 SQL 注入风险
             if original_sql_mode:
-                await cursor.execute(f"SET SESSION sql_mode = '{original_sql_mode}'")
+                await cursor.execute("SET SESSION sql_mode = %s", (original_sql_mode,))
             else:
                 # 如果原始值为空，恢复到空字符串
-                await cursor.execute("SET SESSION sql_mode = ''")
+                await cursor.execute("SET SESSION sql_mode = %s", ("",))
 
     async def save_summary(
         self,
