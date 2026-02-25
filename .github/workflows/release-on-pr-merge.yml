@@ -449,7 +449,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: 检查 Release 附件状态
+      - name: 检查并清理 Release 附件状态
         id: check_assets
         run: |
           TAG_NAME="${{ steps.get_version.outputs.TAG_NAME }}"
@@ -458,15 +458,25 @@ jobs:
           ASSETS=$(gh release view "$TAG_NAME" --json assets -q '.assets | length')
           echo "现有附件数量: $ASSETS"
           
-          if [ "$ASSETS" -eq 0 ]; then
-            echo "ℹ️ Release 没有附件，将添加附件"
-            echo "should_upload=true" >> $GITHUB_OUTPUT
-            echo "has_assets=false" >> $GITHUB_OUTPUT
+          if [ "$ASSETS" -gt 0 ]; then
+            echo "🗑️ 检测到已有附件，正在清理旧附件..."
+            
+            # 获取所有附件名称并删除
+            ASSET_NAMES=$(gh release view "$TAG_NAME" --json assets -q '.assets[].name')
+            for asset in $ASSET_NAMES; do
+              echo "  删除附件: $asset"
+              gh release delete-asset "$TAG_NAME" "$asset" -y
+            done
+            
+            echo "✅ 已删除 $ASSETS 个旧附件"
           else
-            echo "ℹ️ Release 已有附件，将跳过上传"
-            echo "should_upload=false" >> $GITHUB_OUTPUT
-            echo "has_assets=true" >> $GITHUB_OUTPUT
+            echo "ℹ️ Release 没有附件"
           fi
+          
+          # 无论是否有旧附件，都标记为需要上传（确保附件与代码同步）
+          echo "should_upload=true" >> $GITHUB_OUTPUT
+          echo "has_assets=false" >> $GITHUB_OUTPUT
+          echo "ℹ️ 将上传新的发布附件"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
