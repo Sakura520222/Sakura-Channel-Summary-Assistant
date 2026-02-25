@@ -349,6 +349,10 @@ if current_level != final_log_level:
 else:
     logger.info(f"当前日志级别: {logging.getLevelName(current_level)}")
 
+# 抑制第三方库的 INFO 日志输出（与 QA Bot 保持一致）
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("apscheduler").setLevel(logging.WARNING)
+
 # 机器人状态管理
 BOT_STATE_RUNNING = "running"
 BOT_STATE_PAUSED = "paused"
