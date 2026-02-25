@@ -19,6 +19,7 @@ MySQL数据库管理器模块
 import json
 import logging
 import os
+import warnings
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -113,150 +114,171 @@ class MySQLManager(DatabaseManagerBase):
 
     async def _create_tables(self, cursor):
         """创建所有数据库表"""
-        # 1. 创建总结记录主表（MySQL 5.7+支持JSON类型）
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS summaries (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                channel_id VARCHAR(255) NOT NULL,
-                channel_name VARCHAR(255),
-                summary_text TEXT NOT NULL,
-                message_count INT DEFAULT 0,
-                start_time DATETIME,
-                end_time DATETIME,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                ai_model VARCHAR(100),
-                summary_type VARCHAR(20) DEFAULT 'weekly',
-                summary_message_ids JSON,
-                poll_message_id INT,
-                button_message_id INT,
-                keywords JSON,
-                topics JSON,
-                sentiment VARCHAR(50),
-                entities JSON,
-                INDEX idx_channel_created (channel_id, created_at DESC),
-                INDEX idx_created (created_at DESC),
-                INDEX idx_channel (channel_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        """)
+        # 保存当前的 sql_mode 设置，稍后恢复
+        await cursor.execute("SELECT @@SESSION.sql_mode")
+        original_sql_mode = (await cursor.fetchone())[0]
 
-        # 2. 创建数据库版本管理表
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS db_version (
-                version INT PRIMARY KEY,
-                upgraded_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        """)
+        try:
+            # 临时禁用 MySQL 警告，避免表已存在时的警告信息
+            await cursor.execute("SET SESSION sql_mode = ''")
 
-        # 3. 创建配额管理表
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS usage_quota (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                query_date VARCHAR(10) NOT NULL,
-                usage_count INT DEFAULT 0,
-                last_reset DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_user_date (user_id, query_date),
-                INDEX idx_quota_user_date (user_id, query_date),
-                INDEX idx_quota_date (query_date)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        """)
+            # 过滤 Python warnings 模块捕获的 aiomysql 警告
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=Warning)
 
-        # 4. 创建频道画像表
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS channel_profiles (
-                channel_id VARCHAR(255) PRIMARY KEY,
-                channel_name VARCHAR(255),
-                style VARCHAR(50) DEFAULT 'neutral',
-                topics JSON,
-                keywords_freq JSON,
-                tone VARCHAR(50),
-                avg_message_length DECIMAL(10,2) DEFAULT 0,
-                total_summaries INT DEFAULT 0,
-                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        """)
+                # 1. 创建总结记录主表（MySQL 5.7+支持JSON类型）
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS summaries (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    channel_id VARCHAR(255) NOT NULL,
+                    channel_name VARCHAR(255),
+                    summary_text TEXT NOT NULL,
+                    message_count INT DEFAULT 0,
+                    start_time DATETIME,
+                    end_time DATETIME,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    ai_model VARCHAR(100),
+                    summary_type VARCHAR(20) DEFAULT 'weekly',
+                    summary_message_ids JSON,
+                    poll_message_id INT,
+                    button_message_id INT,
+                    keywords JSON,
+                    topics JSON,
+                    sentiment VARCHAR(50),
+                    entities JSON,
+                    INDEX idx_channel_created (channel_id, created_at DESC),
+                    INDEX idx_created (created_at DESC),
+                    INDEX idx_channel (channel_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
 
-        # 5. 创建对话历史表
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS conversation_history (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                session_id VARCHAR(100) NOT NULL,
-                role VARCHAR(20) NOT NULL,
-                content TEXT NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                metadata JSON,
-                INDEX idx_user_session (user_id, session_id, timestamp ASC)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        """)
+                # 2. 创建数据库版本管理表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS db_version (
+                    version INT PRIMARY KEY,
+                    upgraded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
 
-        # 6. 创建用户注册表
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id BIGINT PRIMARY KEY,
-                username VARCHAR(255),
-                first_name VARCHAR(255),
-                registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
-                is_admin BOOLEAN DEFAULT FALSE,
-                preferences JSON,
-                INDEX idx_users_last_active (last_active DESC)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        """)
+                # 3. 创建配额管理表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS usage_quota (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    query_date VARCHAR(10) NOT NULL,
+                    usage_count INT DEFAULT 0,
+                    last_reset DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY unique_user_date (user_id, query_date),
+                    INDEX idx_quota_user_date (user_id, query_date),
+                    INDEX idx_quota_date (query_date)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
 
-        # 7. 创建订阅配置表
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS subscriptions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                channel_id VARCHAR(255) NOT NULL,
-                channel_name VARCHAR(255),
-                sub_type VARCHAR(20) DEFAULT 'summary',
-                enabled BOOLEAN DEFAULT TRUE,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_subscription (user_id, channel_id, sub_type),
-                INDEX idx_subscriptions_user (user_id),
-                INDEX idx_subscriptions_channel (channel_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        """)
+                # 4. 创建频道画像表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS channel_profiles (
+                    channel_id VARCHAR(255) PRIMARY KEY,
+                    channel_name VARCHAR(255),
+                    style VARCHAR(50) DEFAULT 'neutral',
+                    topics JSON,
+                    keywords_freq JSON,
+                    tone VARCHAR(50),
+                    avg_message_length DECIMAL(10,2) DEFAULT 0,
+                    total_summaries INT DEFAULT 0,
+                    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
 
-        # 8. 创建请求队列表
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS request_queue (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                request_type VARCHAR(50) NOT NULL,
-                requested_by BIGINT NOT NULL,
-                target_channel VARCHAR(255),
-                params JSON,
-                status VARCHAR(20) DEFAULT 'pending',
-                result JSON,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                processed_at DATETIME,
-                INDEX idx_request_queue_status (status, created_at),
-                INDEX idx_request_queue_user (requested_by)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        """)
+                # 5. 创建对话历史表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS conversation_history (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    session_id VARCHAR(100) NOT NULL,
+                    role VARCHAR(20) NOT NULL,
+                    content TEXT NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    metadata JSON,
+                    INDEX idx_user_session (user_id, session_id, timestamp ASC)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
 
-        # 9. 创建通知队列表
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS notification_queue (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                notification_type VARCHAR(50) NOT NULL,
-                content JSON,
-                status VARCHAR(20) DEFAULT 'pending',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                sent_at DATETIME,
-                INDEX idx_notification_queue_status (status, created_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        """)
+                # 6. 创建用户注册表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id BIGINT PRIMARY KEY,
+                    username VARCHAR(255),
+                    first_name VARCHAR(255),
+                    registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    is_admin BOOLEAN DEFAULT FALSE,
+                    preferences JSON,
+                    INDEX idx_users_last_active (last_active DESC)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
 
-        # 插入或更新版本号
-        await cursor.execute("""
-            INSERT INTO db_version (version, upgraded_at)
-            VALUES (4, NOW())
-            ON DUPLICATE KEY UPDATE version = 4, upgraded_at = NOW()
-        """)
+                # 7. 创建订阅配置表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS subscriptions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    channel_id VARCHAR(255) NOT NULL,
+                    channel_name VARCHAR(255),
+                    sub_type VARCHAR(20) DEFAULT 'summary',
+                    enabled BOOLEAN DEFAULT TRUE,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY unique_subscription (user_id, channel_id, sub_type),
+                    INDEX idx_subscriptions_user (user_id),
+                    INDEX idx_subscriptions_channel (channel_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
+
+                # 8. 创建请求队列表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS request_queue (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    request_type VARCHAR(50) NOT NULL,
+                    requested_by BIGINT NOT NULL,
+                    target_channel VARCHAR(255),
+                    params JSON,
+                    status VARCHAR(20) DEFAULT 'pending',
+                    result JSON,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    processed_at DATETIME,
+                    INDEX idx_request_queue_status (status, created_at),
+                    INDEX idx_request_queue_user (requested_by)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
+
+                # 9. 创建通知队列表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS notification_queue (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    notification_type VARCHAR(50) NOT NULL,
+                    content JSON,
+                    status VARCHAR(20) DEFAULT 'pending',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    sent_at DATETIME,
+                    INDEX idx_notification_queue_status (status, created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
+
+                # 插入或更新版本号
+                await cursor.execute("""
+                    INSERT INTO db_version (version, upgraded_at)
+                    VALUES (4, NOW())
+                    ON DUPLICATE KEY UPDATE version = 4, upgraded_at = NOW()
+                """)
+
+        finally:
+            # 恢复原始的 sql_mode 设置，确保即使建表失败也能恢复
+            # 使用参数化查询避免 SQL 注入风险
+            if original_sql_mode:
+                await cursor.execute("SET SESSION sql_mode = %s", (original_sql_mode,))
+            else:
+                # 如果原始值为空，恢复到空字符串
+                await cursor.execute("SET SESSION sql_mode = %s", ("",))
 
     async def save_summary(
         self,

@@ -18,6 +18,29 @@
 
   ## [1.6.4] - 2026-02-25
 
+### 修复
+- **MySQL 表已存在警告**：彻底修复了数据库初始化时显示大量 "Table already exists" 警告的问题
+  - 问题：使用 `CREATE TABLE IF NOT EXISTS` 语法时，aiomysql 库仍会产生警告信息
+  - 原因：
+    1. MySQL 的 sql_mode 设置导致表已存在时触发警告
+    2. Python 的 warnings 模块捕获了 aiomysql 库产生的警告并打印到终端
+  - 解决：
+    1. 在禁用 sql_mode 前先保存原始值，避免硬编码恢复值
+    2. 使用 `try/finally` 代码块确保即使建表失败也能恢复 sql_mode
+    3. 使用 Python 的 `warnings.catch_warnings()` 上下文管理器过滤所有 Warning 类别的警告
+    4. 将所有 CREATE TABLE 语句放在 `with warnings.catch_warnings():` 块内执行
+    5. 在 `finally` 块中恢复原始的 sql_mode 设置
+    6. 使用参数化查询避免 SQL 注入风险
+  - 影响：`core/database_mysql.py`
+  - 修复效果：日志输出更清洁，不再显示表已存在的警告信息
+  - 技术细节：
+    - 添加 `import warnings` 导入
+    - 使用 `SELECT @@SESSION.sql_mode` 获取原始 sql_mode 值
+    - 使用 `try/finally` 确保 sql_mode 恢复的可靠性
+    - 使用 `warnings.filterwarnings("ignore", category=Warning)` 过滤警告
+    - 避免硬编码 sql_mode 值，确保兼容不同 MySQL 版本的默认配置
+    - 使用参数化查询 `SET SESSION sql_mode = %s` 替代字符串拼接，通过安全审计工具检查
+
 ### 新增
 - **频道评论区欢迎配置系统**：实现可配置的评论区欢迎消息功能，支持频道级自定义配置和默认配置
 
