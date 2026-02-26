@@ -548,6 +548,17 @@ MESSAGE_ZH_CN = {
     "comment_welcome.config.delete_failed": "❌ 删除失败：{error}",
     "comment_welcome.config.invalid_params": "❌ 参数无效",
     "comment_welcome.config.usage": '用法：/setcommentwelcome <channel> <enabled> [welcome_message] [button_text]\n\n示例：\n/setcommentwelcome channel1 true\n/setcommentwelcome channel1 true "欢迎来到评论区" "申请总结"\n/setcommentwelcome channel1 false',
+    # ========== 更新命令 ==========
+    "update.checking": "🔄 正在检查更新...",
+    "update.latest": "✅ 当前已是最新版本 {version}",
+    "update.new_found": "✅ 发现新版本 {remote} (当前: {local})，正在更新...",
+    "update.updating": "🔄 正在更新代码...",
+    "update.installing_deps": "📦 正在安装依赖...",
+    "update.success": "✅ 更新完成，正在重启...",
+    "update.error": "❌ 更新失败: {error}",
+    "update.no_git": "❌ 当前目录不是 Git 仓库",
+    "update.git_error": "❌ Git 操作失败: {error}",
+    "update.deps_error": "❌ 依赖安装失败: {error}",
 }
 
 # 英文翻译
@@ -1071,6 +1082,17 @@ MESSAGE_EN_US = {
     "comment_welcome.config.delete_failed": "❌ Deletion failed: {error}",
     "comment_welcome.config.invalid_params": "❌ Invalid parameters",
     "comment_welcome.config.usage": 'Usage: /setcommentwelcome <channel> <enabled> [welcome_message] [button_text]\n\nExamples:\n/setcommentwelcome channel1 true\n/setcommentwelcome channel1 true "Welcome to comments" "Request Summary"\n/setcommentwelcome channel1 false',
+    # ========== Update Command ==========
+    "update.checking": "🔄 Checking for updates...",
+    "update.latest": "✅ Already up to date {version}",
+    "update.new_found": "✅ New version {remote} found (current: {local}), updating...",
+    "update.updating": "🔄 Updating code...",
+    "update.installing_deps": "📦 Installing dependencies...",
+    "update.success": "✅ Update completed, restarting...",
+    "update.error": "❌ Update failed: {error}",
+    "update.no_git": "❌ Not a Git repository",
+    "update.git_error": "❌ Git operation failed: {error}",
+    "update.deps_error": "❌ Dependency installation failed: {error}",
 }
 
 
