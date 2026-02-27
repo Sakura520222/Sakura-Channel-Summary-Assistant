@@ -210,8 +210,26 @@ async def main():
             and hasattr(db_manager, "pool")
             and db_manager.pool is None
         ):
-            await db_manager.init_database()
-            logger.info("数据库连接池初始化完成")
+            try:
+                await db_manager.init_database()
+                logger.info("数据库连接池初始化完成")
+            except Exception as e:
+                # MySQL初始化失败，回退到SQLite
+                logger.warning(f"MySQL初始化失败: {e}")
+                logger.info("回退到 SQLite...")
+
+                # 强制重新创建
+                import core.database as db_module
+
+                db_module.db_manager = None
+
+                # 更新配置
+                os.environ["DATABASE_TYPE"] = "sqlite"
+
+                db_manager = get_db_manager()
+                if hasattr(db_manager, "init_database"):
+                    await db_manager.init_database()
+                logger.info("SQLite数据库初始化完成")
         else:
             logger.info("数据库连接已存在或不需要初始化")
 
