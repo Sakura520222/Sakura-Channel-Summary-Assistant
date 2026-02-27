@@ -139,6 +139,7 @@ jobs:
       
       - name: 生成 Release 描述
         id: generate_release_notes
+        shell: bash
         run: |
           COMMITS_FILE="${RUNNER_TEMP}/commits_list.txt"
           
@@ -177,6 +178,11 @@ jobs:
             "改进") CHANGE_TYPE_LOWER="chore" ;;
           esac
           
+          # 确保 CHANGE_TYPE_LOWER 在 TYPE_MAP 中，否则默认为 chore
+          if [[ -z "${TYPE_MAP[$CHANGE_TYPE_LOWER]}" ]]; then
+            CHANGE_TYPE_LOWER="chore"
+          fi
+          
           if [ "$EXISTS" = "false" ]; then
             # 新 Release：生成初始描述
             echo "## 🎉 Release v${VERSION} - ${TODAY}" > release_notes.txt
@@ -190,9 +196,20 @@ jobs:
             while IFS= read -r commit; do
               [ -z "$commit" ] && continue
               
-              # 提取提交类型（格式：type(scope): subject 或 type: subject）
-              if [[ "$commit" =~ ^([a-z]+)(\([^)]+\))?: ]]; then
-                commit_type="${BASH_REMATCH[1]}"
+              # 提取提交类型（支持重大变更标记 ! 和大小写混合）
+              # 格式：type(scope)!: subject 或 type(scope): subject 或 type: subject
+              if [[ "$commit" =~ ^([a-zA-Z]+)(\([^)]+\))?!: ]]; then
+                commit_type="${BASH_REMATCH[1],,}"  # 转换为小写
+                # 检查是否是已知类型
+                if [[ -n "${TYPE_MAP[$commit_type]}" ]]; then
+                  # 将提交添加到对应类型组
+                  TYPE_COMMITS[$commit_type]="${TYPE_COMMITS[$commit_type]}$commit"$'\n'
+                else
+                  # 未知类型归入 chore
+                  TYPE_COMMITS["chore"]="${TYPE_COMMITS["chore"]}$commit"$'\n'
+                fi
+              elif [[ "$commit" =~ ^([a-zA-Z]+)(\([^)]+\))?: ]]; then
+                commit_type="${BASH_REMATCH[1],,}"  # 转换为小写
                 # 检查是否是已知类型
                 if [[ -n "${TYPE_MAP[$commit_type]}" ]]; then
                   # 将提交添加到对应类型组
@@ -208,16 +225,23 @@ jobs:
             done < "$COMMITS_FILE"
           fi
           
-          # 添加 PR 标题到对应的类型组
-          if [[ "$TITLE" =~ ^([a-z]+)(\([^)]+\))?: ]]; then
-            pr_type="${BASH_REMATCH[1]}"
+          # 添加 PR 标题到对应的类型组（支持重大变更标记 ! 和大小写混合）
+          if [[ "$TITLE" =~ ^([a-zA-Z]+)(\([^)]+\))?!: ]]; then
+            pr_type="${BASH_REMATCH[1],,}"  # 转换为小写
+            if [[ -n "${TYPE_MAP[$pr_type]}" ]]; then
+              TYPE_COMMITS[$pr_type]="- **${TITLE}** (PR #${PR_NUM})"$'\n'"${TYPE_COMMITS[$pr_type]}"
+            else
+              TYPE_COMMITS["chore"]="- **${TITLE}** (PR #${PR_NUM})"$'\n'"${TYPE_COMMITS["chore"]}"
+            fi
+          elif [[ "$TITLE" =~ ^([a-zA-Z]+)(\([^)]+\))?: ]]; then
+            pr_type="${BASH_REMATCH[1],,}"  # 转换为小写
             if [[ -n "${TYPE_MAP[$pr_type]}" ]]; then
               TYPE_COMMITS[$pr_type]="- **${TITLE}** (PR #${PR_NUM})"$'\n'"${TYPE_COMMITS[$pr_type]}"
             else
               TYPE_COMMITS["chore"]="- **${TITLE}** (PR #${PR_NUM})"$'\n'"${TYPE_COMMITS["chore"]}"
             fi
           else
-            # PR 标题无类型前缀，根据 PR 标签推断
+            # PR 标题无类型前缀，根据 PR 标签推断（已在前面确保 CHANGE_TYPE_LOWER 有效）
             TYPE_COMMITS["$CHANGE_TYPE_LOWER"]="- **${TITLE}** (PR #${PR_NUM})"$'\n'"${TYPE_COMMITS[$CHANGE_TYPE_LOWER]}"
           fi
           
