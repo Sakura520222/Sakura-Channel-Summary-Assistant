@@ -27,6 +27,7 @@ from .channel_comment_welcome_config import (
     get_channel_comment_welcome_config,
     validate_callback_data_length,
 )
+from .config import normalize_channel_id
 from .database import get_db_manager
 from .error_handler import record_error
 from .i18n import get_text
@@ -494,53 +495,37 @@ async def handle_summary_request_callback(event: events.CallbackQuery.Event):
         channel_id = parts[1]
         msg_id = int(parts[2])
 
-        logger.info(f"收到周报申请请求: 频道={channel_id}, 消息ID={msg_id}")
+        # 标准化频道ID
+        normalized_channel_id = normalize_channel_id(channel_id)
+        if normalized_channel_id != channel_id:
+            logger.info(f"频道ID已标准化: '{channel_id}' -> '{normalized_channel_id}'")
 
-        # 检查数据库中是否已有处理中的请求
+        logger.info(f"收到周报申请请求: 频道={normalized_channel_id}, 消息ID={msg_id}")
+
+        # 检查数据库中是否已有处理中的请求（使用标准化后的ID）
         db = get_db_manager()
         if hasattr(db, "check_pending_summary_request"):
-            has_pending = await db.check_pending_summary_request(channel_id)
+            has_pending = await db.check_pending_summary_request(normalized_channel_id)
             if has_pending:
                 # 已有处理中的请求
                 await event.answer(get_text("comment_welcome.already_requested"), alert=True)
-                logger.info(f"频道 {channel_id} 已有处理中的周报请求")
+                logger.info(f"频道 {normalized_channel_id} 已有处理中的周报请求")
                 return
 
-        # 记录请求到数据库
+        # 记录请求到数据库（使用标准化后的ID）
+        # 注意：不需要单独发送通知给管理员，因为轮询任务会自动检查并发送通知
         if hasattr(db, "add_summary_request"):
             await db.add_summary_request(
-                channel_id=channel_id,
+                channel_id=normalized_channel_id,
                 message_id=msg_id,
                 request_type="manual",
                 requested_by=event.sender_id,
             )
-            logger.info(f"已记录周报请求到数据库: 频道={channel_id}")
+            logger.info(f"已记录周报请求到数据库，等待轮询任务处理: 频道={normalized_channel_id}")
 
-        # 发送通知给管理员
-        from .config import ADMIN_LIST
-        from .telegram_client import get_active_client
-
-        client = get_active_client()
-        if client:
-            notification = (
-                f"📝 <b>新的周报申请</b>\n\n"
-                f"频道: {channel_id}\n"
-                f"消息ID: {msg_id}\n"
-                f"申请用户: {event.sender_id}\n\n"
-                f"请使用 /summary 命令处理该请求"
-            )
-
-            for admin_id in ADMIN_LIST:
-                if admin_id != "me":
-                    try:
-                        await client.send_message(admin_id, notification, parse_mode="HTML")
-                        logger.info(f"已通知管理员 {admin_id}")
-                    except Exception as e:
-                        logger.error(f"通知管理员 {admin_id} 失败: {e}")
-
-        # 发送callback响应
+        # 发送callback响应（告知用户请求已提交）
         await event.answer(get_text("comment_welcome.request_sent"), alert=True)
-        logger.info(f"周报申请处理完成: 频道={channel_id}")
+        logger.info(f"周报申请已提交，等待轮询处理: 频道={normalized_channel_id}")
 
     except Exception as e:
         record_error(e, "handle_summary_request_callback")

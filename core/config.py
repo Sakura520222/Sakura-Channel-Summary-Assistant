@@ -60,6 +60,45 @@ LAST_SUMMARY_FILE = os.path.join("data", ".last_summary_time.json")
 # 避免频繁调用GetFullChannelRequest,提升性能
 LINKED_CHAT_CACHE = {}
 
+
+def normalize_channel_id(channel_id: str) -> str:
+    """
+    标准化频道ID格式，确保所有频道ID使用统一格式
+
+    Args:
+        channel_id: 频道ID（可能是各种格式）
+
+    Returns:
+        str: 标准化后的频道ID（完整URL格式）
+
+    Examples:
+        >>> normalize_channel_id('jffnekjdnfn')
+        'https://t.me/jffnekjdnfn'
+        >>> normalize_channel_id('@jffnekjdnfn')
+        'https://t.me/jffnekjdnfn'
+        >>> normalize_channel_id('https://t.me/jffnekjdnfn')
+        'https://t.me/jffnekjdnfn'
+        >>> normalize_channel_id('https://t.me/jffnekjdnfn/')
+        'https://t.me/jffnekjdnfn'
+    """
+    if not channel_id:
+        return channel_id
+
+    # 去除首尾空格
+    channel_id = channel_id.strip()
+
+    # 如果已经是完整URL，直接返回（去除尾部斜杠）
+    if channel_id.startswith("https://t.me/") or channel_id.startswith("http://t.me/"):
+        return channel_id.rstrip("/")
+
+    # 去除@前缀
+    if channel_id.startswith("@"):
+        channel_id = channel_id[1:]
+
+    # 返回标准化格式
+    return f"https://t.me/{channel_id}"
+
+
 # 默认提示词
 DEFAULT_PROMPT = "请总结以下 Telegram 消息，提取核心要点并列出重要消息的链接：\n\n"
 
@@ -352,6 +391,10 @@ else:
 # 抑制第三方库的 INFO 日志输出（与 QA Bot 保持一致）
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("apscheduler").setLevel(logging.WARNING)
+# 降低 Telethon 网络连接日志级别（重连是正常机制，不需要警告）
+logging.getLogger("telethon.network.connection.connection").setLevel(logging.ERROR)
+# 抑制 Telethon mtprotosender 的重连日志
+logging.getLogger("telethon.network.mtprotosender").setLevel(logging.WARNING)
 
 # 机器人状态管理
 BOT_STATE_RUNNING = "running"

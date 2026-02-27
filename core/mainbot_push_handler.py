@@ -228,23 +228,13 @@ class MainBotPushHandler:
         channel_id = content.get("channel_id", "未知频道")
         message = content.get("message", "")
 
-        # 转义 Markdown 特殊字符（下划线、星号、方括号等）
-        import re
-
-        def escape_markdown(text: str) -> str:
-            """转义 Markdown 特殊字符"""
-            # 需要转义的特殊字符
-            special_chars = r"_*[]()~`>#+-=|{}.!"
-            return re.sub(f"([{re.escape(special_chars)}])", r"\\\1", text)
-
-        channel_escaped = escape_markdown(channel_id)
-
+        # 使用代码块显示频道ID，避免转义问题
         return f"""📝 **请求结果通知**
 
 您的总结请求已处理完成！
 
 **请求ID**: {request_id}
-**频道**: {channel_escaped}
+**频道**: `{channel_id}`
 
 **结果**: {message}
 
@@ -255,19 +245,10 @@ class MainBotPushHandler:
         channel_name = content.get("channel_name", "未知频道")
         summary_preview = content.get("summary_preview", "")
 
-        # 转义 Markdown 特殊字符（频道名称可能包含下划线、星号等）
-        import re
-
-        def escape_markdown(text: str) -> str:
-            """转义 Markdown 特殊字符"""
-            special_chars = r"_*[]()~`>#+-=|{}.!"
-            return re.sub(f"([{re.escape(special_chars)}])", r"\\\1", text)
-
-        channel_escaped = escape_markdown(channel_name)
-
+        # 使用代码块显示频道名称，避免转义问题
         return f"""📬 **新总结通知**
 
-频道 {channel_escaped} 有新的总结发布了！
+频道 `{channel_name}` 有新的总结发布了！
 
 **总结预览**:
 {summary_preview}

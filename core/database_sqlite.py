@@ -142,8 +142,9 @@ class SQLiteManager(DatabaseManagerLegacy):
         return await asyncio.to_thread(super().get_user, user_id)
 
     async def get_user_info(self, user_id: int) -> dict[str, Any] | None:
-        """异步包装：获取用户信息（别名方法）"""
-        return await asyncio.to_thread(super().get_user_info, user_id)
+        """异步包装：获取用户信息（别名方法，指向 get_user）"""
+        # SQLite 的 get_user_info 是 get_user 的别名，需要异步包装
+        return await self.get_user(user_id)
 
     async def get_all_channels(self) -> list[dict[str, Any]]:
         """异步包装：获取所有可用频道"""
@@ -306,3 +307,13 @@ class SQLiteManager(DatabaseManagerLegacy):
     async def update_summary_request_status(self, request_id: int, status: str) -> bool:
         """异步包装：更新周报请求状态"""
         return await asyncio.to_thread(super().update_summary_request_status, request_id, status)
+
+    # ============ 通知队列方法（异步包装） ============
+
+    async def create_notification(
+        self, user_id: int, notification_type: str, content: dict[str, Any]
+    ) -> int | None:
+        """异步包装：创建通知"""
+        return await asyncio.to_thread(
+            super().create_notification, user_id, notification_type, content
+        )
