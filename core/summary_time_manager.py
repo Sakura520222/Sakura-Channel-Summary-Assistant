@@ -18,6 +18,8 @@ import tempfile
 import time
 from datetime import UTC, datetime
 
+from core.config import normalize_channel_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,6 +36,12 @@ def load_last_summary_time(channel=None, include_report_ids=False):
     from core.config import LAST_SUMMARY_FILE
 
     logger.info(f"开始读取上次总结时间文件: {LAST_SUMMARY_FILE}")
+
+    # 标准化频道ID（如果提供）
+    normalized_channel = normalize_channel_id(channel) if channel else None
+    if normalized_channel and normalized_channel != channel:
+        logger.info(f"频道ID已标准化: '{channel}' -> '{normalized_channel}'")
+
     try:
         with open(LAST_SUMMARY_FILE, encoding="utf-8") as f:
             content = f.read().strip()
@@ -41,9 +49,9 @@ def load_last_summary_time(channel=None, include_report_ids=False):
                 last_data = json.loads(content)
                 logger.info(f"成功读取所有频道的上次总结数据: {last_data}")
 
-                if channel:
-                    # 返回指定频道的信息
-                    channel_data = last_data.get(channel)
+                if normalized_channel:
+                    # 返回指定频道的信息（使用标准化后的ID）
+                    channel_data = last_data.get(normalized_channel)
                     if channel_data:
                         if include_report_ids:
                             # 兼容旧格式: report_message_ids
@@ -152,7 +160,12 @@ def save_last_summary_time(
     """
     from core.config import LAST_SUMMARY_FILE
 
-    logger.info(f"开始保存频道 {channel} 的上次总结时间到文件: {LAST_SUMMARY_FILE}")
+    # 标准化频道ID
+    normalized_channel = normalize_channel_id(channel)
+    if normalized_channel != channel:
+        logger.info(f"频道ID已标准化: '{channel}' -> '{normalized_channel}'")
+
+    logger.info(f"开始保存频道 {normalized_channel} 的上次总结时间到文件: {LAST_SUMMARY_FILE}")
     try:
         # 先读取现有数据
         existing_data = {}
@@ -190,7 +203,7 @@ def save_last_summary_time(
             logger.error(f"button_message_ids类型错误: {type(button_message_ids)}, 使用空列表")
             button_message_ids = []
 
-        # 更新指定频道的时间和消息ID
+        # 更新指定频道的时间和消息ID（使用标准化后的频道ID）
         # 使用UTC时间的isoformat()，会自动带上+00:00后缀
         channel_data = {
             "time": time_to_save.isoformat(),
@@ -198,7 +211,7 @@ def save_last_summary_time(
             "poll_message_ids": poll_message_ids or [],
             "button_message_ids": button_message_ids or [],
         }
-        existing_data[channel] = channel_data
+        existing_data[normalized_channel] = channel_data
 
         # 使用临时文件+原子重命名的方式写入（避免文件被锁定的问题）
         max_retries = 5
