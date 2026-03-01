@@ -709,6 +709,9 @@ async def main():
 
                 logger.info(f"转发功能监听的源频道: {source_channel_ids}")
 
+                # 媒体组缓存字典（在闭包中共享）
+                media_group_cache: dict = {}
+
                 # 添加频道消息监听器（只监听配置的源频道）
                 async def handle_channel_message(event):
                     """处理频道消息，触发转发"""
@@ -734,12 +737,88 @@ async def main():
 
                         logger.info(f"检测到源频道 {chat_username or chat_id} 的消息，开始处理转发")
 
-                        # 是源频道，处理转发
-                        await forwarding_handler.process_message(event.message)
+                        # 检查是否是媒体组消息
+                        grouped_id = getattr(event.message, "grouped_id", None)
+
+                        if grouped_id:
+                            # 媒体组消息：检查第一条消息是否有文本说明
+                            # 通常媒体组的第一条消息会带有文本说明
+                            # 如果第一条消息没有文本，跳过收集以节省资源
+                            group_key = f"{chat_username or chat_id}_{grouped_id}"
+
+                            if group_key not in media_group_cache:
+                                # 这是媒体组的第一条消息
+                                if not event.message.message:
+                                    # 第一条消息没有文本，跳过整个媒体组
+                                    logger.debug(
+                                        f"媒体组 {grouped_id} 第一条消息没有文本说明，跳过收集"
+                                    )
+                                    return
+
+                                # 有文本，开始收集
+                                media_group_cache[group_key] = []
+                                # 设置延迟处理任务（只创建一次）
+                                asyncio.create_task(
+                                    _delayed_forward_media_group(
+                                        group_key,
+                                        grouped_id,
+                                        event.message,
+                                        chat_username or chat_id,
+                                    )
+                                )
+
+                            # 将当前消息添加到缓存
+                            if event.message.id not in [
+                                msg.id for msg in media_group_cache[group_key]
+                            ]:
+                                media_group_cache[group_key].append(event.message)
+                                logger.debug(
+                                    f"媒体组收集: grouped_id={grouped_id}, "
+                                    f"已收集 {len(media_group_cache[group_key])} 条消息"
+                                )
+                        else:
+                            # 普通消息：直接处理
+                            await forwarding_handler.process_message(event.message)
+
                     except Exception as e:
                         logger.error(
                             f"处理频道消息转发失败: {type(e).__name__}: {e}", exc_info=True
                         )
+
+                async def _delayed_forward_media_group(
+                    group_key: str, grouped_id: int, first_message, channel_id: str
+                ):
+                    """延迟处理媒体组消息，等待所有消息到达"""
+                    try:
+                        # 等待1秒，让同组的其他消息到达
+                        await asyncio.sleep(1)
+
+                        # 获取缓存的消息列表
+                        messages = media_group_cache.get(group_key, []).copy()
+
+                        # 清理缓存
+                        if group_key in media_group_cache:
+                            del media_group_cache[group_key]
+
+                        if not messages:
+                            logger.warning(f"媒体组 {grouped_id} 缓存为空")
+                            return
+
+                        logger.info(
+                            f"媒体组收集完成: grouped_id={grouped_id}, 共 {len(messages)} 条消息"
+                        )
+
+                        # 按消息ID排序，确保顺序正确
+                        messages.sort(key=lambda m: m.id)
+
+                        # 将收集的消息传递给转发处理器
+                        forwarding_handler.set_external_media_group(grouped_id, messages)
+
+                        # 只处理第一条消息（转发处理器会使用外部收集的消息）
+                        await forwarding_handler.process_message(messages[0])
+
+                    except Exception as e:
+                        logger.error(f"延迟处理媒体组失败: {type(e).__name__}: {e}", exc_info=True)
 
                 client.add_event_handler(
                     handle_channel_message,
