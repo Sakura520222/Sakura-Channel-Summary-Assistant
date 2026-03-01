@@ -305,6 +305,35 @@ python main.py
 - 迁移前自动备份，安全可靠
 - 适合生产环境和高并发场景
 
+#### UserBot 管理
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
+| `/userbot_status` | `/userbot_状态` | 查看 UserBot 运行状态和用户信息 | `/userbot_status` |
+| `/userbot_join <频道链接>` | `/userbot_加入` | 手动加入频道（支持公开频道和私有频道邀请链接） | `/userbot_join https://t.me/channel` |
+| `/userbot_leave <频道链接>` | `/userbot_离开` | 手动离开频道 | `/userbot_leave https://t.me/channel` |
+| `/userbot_list` | `/userbot_列表` | 列出 UserBot 已加入的所有频道 | `/userbot_list` |
+
+**功能说明**：
+- **UserBot 自动加入**：转发功能启用时，UserBot 会自动加入所有转发配置的源频道
+- **支持的频道链接格式**：
+  - 公开频道：`https://t.me/channelname` 或 `@channelname`
+  - 私有频道：`https://t.me/+invitecode`（邀请链接）
+- **智能错误处理**：
+  - 私有频道无法自动加入时，提示需要手动邀请
+  - 频道不存在或无权限时，显示详细错误信息
+  - 无效链接格式时，提示正确用法
+- **自动化通知**：
+  - 自动加入开始时通知管理员
+  - 自动加入完成后发送结果汇总
+  - 失败的频道列表详细说明失败原因
+
+**注意事项**：
+- 私有频道无法自动加入，需要手动将 UserBot 添加为成员
+- UserBot 需要有加入频道的权限
+- 自动加入功能仅在转发功能启用时触发
+- 可通过命令手动管理 UserBot 加入的频道
+
 **MySQL配置示例**：
 ```env
 # ===== 数据库配置 =====

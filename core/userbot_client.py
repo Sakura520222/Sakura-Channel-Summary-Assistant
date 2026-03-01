@@ -279,6 +279,350 @@ class UserBotClient:
                 "error": str(e),
             }
 
+    async def join_channel(self, channel_link: str) -> dict:
+        """
+        加入频道
+
+        Args:
+            channel_link: 频道链接（支持多种格式）
+                - https://t.me/channelname
+                - @channelname
+                - https://t.me/+invitecode (私有频道邀请链接)
+
+        Returns:
+            操作结果字典，包含 success, message, channel_info
+        """
+        try:
+            if not self.is_available():
+                return {
+                    "success": False,
+                    "message": "UserBot 不可用",
+                    "error": "client_not_available",
+                }
+
+            from telethon.errors import (
+                ChannelInvalidError,
+                ChannelPrivateError,
+                UserAlreadyParticipantError,
+            )
+            from telethon.tl.functions.channels import JoinChannelRequest
+            from telethon.tl.types import Channel
+
+            # 解析频道链接
+            channel_entity = None
+            try:
+                # 尝试获取频道实体
+                channel_entity = await self.client.get_entity(channel_link)
+            except ValueError:
+                # 尝试作为邀请链接处理
+                if "t.me/+" in channel_link or "joinchat" in channel_link:
+                    try:
+                        from telethon.tl.functions.channels import ImportChatInviteRequest
+
+                        # 提取邀请码
+                        invite_hash = channel_link.split("/")[-1]
+                        if "joinchat" in invite_hash:
+                            invite_hash = invite_hash.split("=")[-1]
+
+                        await self.client(ImportChatInviteRequest(invite_hash))
+                        logger.info(f"UserBot 通过邀请链接加入频道成功: {channel_link}")
+                        return {
+                            "success": True,
+                            "message": "通过邀请链接加入频道成功",
+                            "channel": channel_link,
+                        }
+                    except Exception as invite_error:
+                        logger.error(f"通过邀请链接加入频道失败: {invite_error}")
+                        return {
+                            "success": False,
+                            "message": "无法加入频道（可能是无效的邀请链接或需要权限）",
+                            "error": "invite_link_failed",
+                            "channel": channel_link,
+                        }
+                else:
+                    return {
+                        "success": False,
+                        "message": "无效的频道链接格式",
+                        "error": "invalid_channel_format",
+                        "channel": channel_link,
+                    }
+            except ChannelPrivateError:
+                return {
+                    "success": False,
+                    "message": "无法加入频道（私有频道，需要手动邀请）",
+                    "error": "channel_private",
+                    "channel": channel_link,
+                }
+            except ChannelInvalidError:
+                return {
+                    "success": False,
+                    "message": "无法加入频道（频道不存在或无效）",
+                    "error": "channel_invalid",
+                    "channel": channel_link,
+                }
+            except Exception as e:
+                logger.error(f"获取频道实体失败: {type(e).__name__}: {e}")
+                return {
+                    "success": False,
+                    "message": f"无法加入频道: {str(e)}",
+                    "error": "get_entity_failed",
+                    "channel": channel_link,
+                }
+
+            # 尝试加入频道
+            try:
+                await self.client(JoinChannelRequest(channel_entity))
+                logger.info(f"UserBot 加入频道成功: {channel_link}")
+
+                # 获取频道信息
+                channel_info = None
+                try:
+                    if isinstance(channel_entity, Channel):
+                        channel_info = {
+                            "id": channel_entity.id,
+                            "title": channel_entity.title,
+                            "username": channel_entity.username,
+                        }
+                except Exception:
+                    pass
+
+                return {
+                    "success": True,
+                    "message": "加入频道成功",
+                    "channel": channel_link,
+                    "channel_info": channel_info,
+                }
+
+            except UserAlreadyParticipantError:
+                logger.info(f"UserBot 已经是频道成员: {channel_link}")
+                return {
+                    "success": True,
+                    "message": "已经是频道成员",
+                    "channel": channel_link,
+                    "already_joined": True,
+                }
+
+        except Exception as e:
+            logger.error(f"加入频道失败: {type(e).__name__}: {e}", exc_info=True)
+            return {
+                "success": False,
+                "message": f"加入频道失败: {str(e)}",
+                "error": "join_failed",
+                "channel": channel_link,
+            }
+
+    async def leave_channel(self, channel_link: str) -> dict:
+        """
+        离开频道
+
+        Args:
+            channel_link: 频道链接或用户名
+
+        Returns:
+            操作结果字典，包含 success, message
+        """
+        try:
+            if not self.is_available():
+                return {
+                    "success": False,
+                    "message": "UserBot 不可用",
+                    "error": "client_not_available",
+                }
+
+            from telethon.errors import (
+                ChannelInvalidError,
+                ChannelPrivateError,
+                UserNotParticipantError,
+            )
+            from telethon.tl.functions.channels import LeaveChannelRequest
+
+            # 获取频道实体
+            try:
+                channel_entity = await self.client.get_entity(channel_link)
+            except ChannelPrivateError:
+                return {
+                    "success": False,
+                    "message": "无法离开频道（私有频道或无权限）",
+                    "error": "channel_private",
+                    "channel": channel_link,
+                }
+            except ChannelInvalidError:
+                return {
+                    "success": False,
+                    "message": "无法离开频道（频道不存在或无效）",
+                    "error": "channel_invalid",
+                    "channel": channel_link,
+                }
+            except Exception as e:
+                logger.error(f"获取频道实体失败: {type(e).__name__}: {e}")
+                return {
+                    "success": False,
+                    "message": f"无法离开频道: {str(e)}",
+                    "error": "get_entity_failed",
+                    "channel": channel_link,
+                }
+
+            # 尝试离开频道
+            try:
+                await self.client(LeaveChannelRequest(channel_entity))
+                logger.info(f"UserBot 离开频道成功: {channel_link}")
+                return {
+                    "success": True,
+                    "message": "离开频道成功",
+                    "channel": channel_link,
+                }
+
+            except UserNotParticipantError:
+                logger.info(f"UserBot 未加入频道: {channel_link}")
+                return {
+                    "success": True,
+                    "message": "未加入该频道",
+                    "channel": channel_link,
+                    "not_joined": True,
+                }
+
+        except Exception as e:
+            logger.error(f"离开频道失败: {type(e).__name__}: {e}", exc_info=True)
+            return {
+                "success": False,
+                "message": f"离开频道失败: {str(e)}",
+                "error": "leave_failed",
+                "channel": channel_link,
+            }
+
+    async def list_joined_channels(self) -> dict:
+        """
+        列出 UserBot 已加入的所有频道
+
+        Returns:
+            操作结果字典，包含 success, channels (列表)
+        """
+        try:
+            if not self.is_available():
+                return {
+                    "success": False,
+                    "message": "UserBot 不可用",
+                    "error": "client_not_available",
+                }
+
+            from telethon.tl.types import Channel
+
+            # 获取所有对话
+            channels = []
+            async for dialog in self.client.iter_dialogs():
+                if isinstance(dialog.entity, Channel):
+                    channels.append(
+                        {
+                            "id": dialog.entity.id,
+                            "title": dialog.entity.title,
+                            "username": dialog.entity.username,
+                        }
+                    )
+
+            logger.info(f"获取到 UserBot 已加入的频道: {len(channels)} 个")
+            return {
+                "success": True,
+                "channels": channels,
+                "count": len(channels),
+            }
+
+        except Exception as e:
+            logger.error(f"列出频道失败: {type(e).__name__}: {e}", exc_info=True)
+            return {
+                "success": False,
+                "message": f"列出频道失败: {str(e)}",
+                "error": "list_failed",
+            }
+
+    async def join_all_forwarding_channels(self, forwarding_config: dict) -> dict:
+        """
+        自动加入所有转发配置的源频道
+
+        Args:
+            forwarding_config: 转发配置字典（来自 config.json）
+
+        Returns:
+            操作结果字典，包含 success_count, failed_count, failed_list
+        """
+        try:
+            if not self.is_available():
+                return {
+                    "success": False,
+                    "message": "UserBot 不可用",
+                    "error": "client_not_available",
+                }
+
+            # 检查转发配置
+            if not forwarding_config or not forwarding_config.get("enabled"):
+                return {
+                    "success": False,
+                    "message": "转发功能未启用",
+                    "error": "forwarding_disabled",
+                }
+
+            rules = forwarding_config.get("rules", [])
+            if not rules:
+                return {
+                    "success": False,
+                    "message": "没有配置转发规则",
+                    "error": "no_forwarding_rules",
+                }
+
+            # 提取所有源频道（去重）
+            source_channels = set()
+            for rule in rules:
+                source = rule.get("source_channel")
+                if source:
+                    source_channels.add(source)
+
+            if not source_channels:
+                return {
+                    "success": False,
+                    "message": "转发规则中没有源频道",
+                    "error": "no_source_channels",
+                }
+
+            logger.info(f"开始自动加入 {len(source_channels)} 个源频道...")
+
+            # 逐个加入频道
+            success_count = 0
+            failed_list = []
+
+            for channel in source_channels:
+                result = await self.join_channel(channel)
+                if result.get("success"):
+                    success_count += 1
+                    logger.info(f"✅ 成功加入源频道: {channel}")
+                else:
+                    failed_list.append(
+                        {
+                            "channel": channel,
+                            "reason": result.get("message", "未知错误"),
+                        }
+                    )
+                    logger.warning(f"❌ 加入源频道失败: {channel} - {result.get('message')}")
+
+            logger.info(
+                f"自动加入源频道完成: 成功 {success_count}/{len(source_channels)}, "
+                f"失败 {len(failed_list)}"
+            )
+
+            return {
+                "success": True,
+                "total": len(source_channels),
+                "success_count": success_count,
+                "failed_count": len(failed_list),
+                "failed_list": failed_list,
+            }
+
+        except Exception as e:
+            logger.error(f"自动加入源频道失败: {type(e).__name__}: {e}", exc_info=True)
+            return {
+                "success": False,
+                "message": f"自动加入源频道失败: {str(e)}",
+                "error": "join_all_failed",
+            }
+
 
 # 全局 UserBot 客户端实例
 _userbot_client: UserBotClient | None = None

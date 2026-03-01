@@ -653,6 +653,35 @@ async def main():
             handle_userbot_status_cmd, NewMessage(pattern="/userbot_status|/userbot_状态")
         )
 
+        # 17. UserBot 频道管理命令
+        from core.command_handlers.userbot_commands import (
+            handle_userbot_join,
+            handle_userbot_leave,
+            handle_userbot_list,
+        )
+
+        async def handle_userbot_join_cmd(event):
+            """UserBot 加入频道命令"""
+            await handle_userbot_join(client, event.message)
+
+        async def handle_userbot_leave_cmd(event):
+            """UserBot 离开频道命令"""
+            await handle_userbot_leave(client, event.message)
+
+        async def handle_userbot_list_cmd(event):
+            """UserBot 列出已加入频道命令"""
+            await handle_userbot_list(client, event.message)
+
+        client.add_event_handler(
+            handle_userbot_join_cmd, NewMessage(pattern="/userbot_join|/userbot_加入")
+        )
+        client.add_event_handler(
+            handle_userbot_leave_cmd, NewMessage(pattern="/userbot_leave|/userbot_离开")
+        )
+        client.add_event_handler(
+            handle_userbot_list_cmd, NewMessage(pattern="/userbot_list|/userbot_列表")
+        )
+
         # 只处理非命令消息作为提示词或AI配置输入
         client.add_event_handler(
             handle_prompt_input, NewMessage(func=lambda e: not e.text.startswith("/"))
@@ -781,6 +810,94 @@ async def main():
                 forwarding_handler.enabled = True
                 forwarding_handler.set_config(forwarding_config)
                 logger.info(f"转发功能已启用，共 {len(forwarding_config.get('rules', []))} 条规则")
+
+                # UserBot 自动加入源频道
+                if userbot:
+                    from core.i18n import get_text
+
+                    logger.info("UserBot 开始自动加入转发配置的源频道...")
+
+                    # 通知管理员开始自动加入
+                    for admin_id in ADMIN_LIST:
+                        if admin_id != "me":
+                            try:
+                                await client.send_message(
+                                    admin_id,
+                                    get_text("userbot.join_all_start"),
+                                    parse_mode="md",
+                                    link_preview=False,
+                                )
+                            except Exception as e:
+                                logger.error(f"通知管理员失败: {e}")
+
+                    # 执行自动加入
+                    result = await userbot.join_all_forwarding_channels(forwarding_config)
+
+                    # 构建结果消息
+                    if result.get("success"):
+                        success_count = result.get("success_count", 0)
+                        failed_count = result.get("failed_count", 0)
+                        failed_list = result.get("failed_list", [])
+
+                        # 如果有失败的频道，构建失败列表
+                        failed_list_text = ""
+                        if failed_list:
+                            failed_items = []
+                            for item in failed_list:
+                                channel = item.get("channel", "未知")
+                                reason = item.get("reason", "未知原因")
+                                failed_items.append(f"• {channel}: {reason}")
+                            failed_list_text = "\n".join(failed_items)
+
+                        # 构建总结消息
+                        summary_message = get_text(
+                            "userbot.join_all_summary",
+                            success_count=success_count,
+                            failed_count=failed_count,
+                        )
+
+                        if failed_list_text:
+                            summary_message += get_text(
+                                "userbot.join_all_failed_list",
+                                failed_list=failed_list_text,
+                            )
+
+                        # 发送结果给管理员
+                        for admin_id in ADMIN_LIST:
+                            if admin_id != "me":
+                                try:
+                                    await client.send_message(
+                                        admin_id,
+                                        summary_message,
+                                        parse_mode="md",
+                                        link_preview=False,
+                                    )
+                                except Exception as e:
+                                    logger.error(f"发送结果给管理员失败: {e}")
+
+                        # 如果有失败的频道，发送警告
+                        if failed_count > 0:
+                            warning_message = get_text(
+                                "userbot.auto_join_warning",
+                                failed_list=failed_list_text,
+                            )
+                            for admin_id in ADMIN_LIST:
+                                if admin_id != "me":
+                                    try:
+                                        await client.send_message(
+                                            admin_id,
+                                            warning_message,
+                                            parse_mode="md",
+                                            link_preview=False,
+                                        )
+                                    except Exception as e:
+                                        logger.error(f"发送警告给管理员失败: {e}")
+                    else:
+                        # 自动加入失败
+                        error_message = result.get("message", "未知错误")
+                        logger.error(f"UserBot 自动加入源频道失败: {error_message}")
+                else:
+                    logger.info("UserBot 不可用，跳过自动加入源频道")
 
                 # 提取所有源频道ID
                 source_channels = forwarding_config.get("rules", [])
@@ -996,6 +1113,9 @@ async def main():
             BotCommand(command="forwarding_default_footer", description="启用/禁用默认底栏"),
             # ========== 11. UserBot 管理 ==========
             BotCommand(command="userbot_status", description="查看 UserBot 状态"),
+            BotCommand(command="userbot_join", description="UserBot 加入频道"),
+            BotCommand(command="userbot_leave", description="UserBot 离开频道"),
+            BotCommand(command="userbot_list", description="列出已加入频道"),
         ]
 
         await client(

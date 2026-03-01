@@ -4,10 +4,6 @@
 
 本文件仅保留用于历史记录参考。完整的版本发布说明和功能变更记录请查看 GitHub Releases 页面。
 
----
-
-## 历史变更记录
-
 # 更新日志
 
 所有对项目的显著更改都将记录在此文件中。
@@ -15,9 +11,13 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-  ## [1.7.0] - 2026-03-01
+---
 
-  ### 新增
+## 历史变更记录
+
+## [1.7.0] - 2026-03-02
+
+### 新增
   - **UserBot 支持**：使用真实 Telegram 账号进行消息抓取和转发
     - 可访问私有频道，不受 Bot API 限制
     - 更高的消息抓取权限，完整获取频道内容
@@ -25,6 +25,19 @@
     - 支持自动登录和 Session 持久化
     - 优雅的错误处理和降级策略
     - 新增 `/userbot_status` 命令查看运行状态
+
+  - **UserBot 自动加入频道功能**：实现 UserBot 频道管理自动化
+    - UserBot 启动时自动加入转发配置的所有源频道
+    - 新增 `/userbot_join` 命令：手动加入频道（支持公开频道和私有频道邀请链接）
+    - 新增 `/userbot_leave` 命令：手动离开频道
+    - 新增 `/userbot_list` 命令：列出 UserBot 已加入的所有频道
+    - 支持多种频道链接格式：
+      - 公开频道：`https://t.me/channelname` 或 `@channelname`
+      - 私有频道：`https://t.me/+invitecode`（邀请链接）
+    - 智能错误提示：
+      - 私有频道无法自动加入时，提示需要手动邀请
+      - 频道不存在或无权限时，显示详细错误信息
+      - 无效链接格式时，提示正确用法
 
   - **频道消息转发功能**：完整集成 TG-Forwarder 机器人到主Bot
     - 支持媒体组（相册）完整转发，保持原始顺序
@@ -53,7 +66,7 @@
     - 新增 `forwarding_stats` 表：记录转发统计信息
     - 支持 SQLite 和 MySQL 双数据库
 
-  ### 新增文件
+### 新增文件
   - `core/userbot_client.py` - UserBot 客户端管理模块
   - `core/forwarding/` - 转发功能模块目录
     - `filters.py` - 消息过滤器
@@ -62,7 +75,7 @@
     - `media_utils.py` - 媒体工具
   - `core/command_handlers/forwarding_commands.py` - 转发命令处理器
 
-  ### 配置文件增强
+### 配置文件增强
   - 新增 UserBot 配置项：
     - `USERBOT_ENABLED` - 是否启用 UserBot
     - `USERBOT_PHONE_NUMBER` - 手机号
@@ -92,7 +105,7 @@
     }
     ```
 
-  ### 技术实现
+### 技术实现
   - 所有转发操作使用异步实现
   - 新增单元测试，覆盖率 100%
   - 完善的国际化支持（20+ 翻译键）
