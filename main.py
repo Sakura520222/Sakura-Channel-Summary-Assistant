@@ -11,6 +11,7 @@
 # 许可证全文：参见 LICENSE 文件
 
 import asyncio
+import logging
 import os
 import signal
 import sys
@@ -85,6 +86,7 @@ from core.command_handlers.qa_control_commands import (
     handle_qa_status,
     handle_qa_stop,
 )
+from core.command_handlers.userbot_commands import handle_userbot_status
 from core.config import (
     ADMIN_LIST,
     CHANNELS,
@@ -202,6 +204,10 @@ async def send_startup_message(client):
 
 
 async def main():
+    # 抑制第三方库的 INFO 日志输出
+    logging.getLogger("telethon").setLevel(logging.WARNING)
+    logging.getLogger("telethon.client.updates").setLevel(logging.WARNING)
+
     logger.info(f"开始初始化机器人服务 v{__version__}...")
 
     try:
@@ -637,6 +643,16 @@ async def main():
             handle_forwarding_default_footer,
             NewMessage(pattern="/forwarding_default_footer|/默认底栏"),
         )
+
+        # 16. UserBot 状态命令
+        async def handle_userbot_status_cmd(event):
+            """UserBot 状态查询命令"""
+            await handle_userbot_status(client, event.message)
+
+        client.add_event_handler(
+            handle_userbot_status_cmd, NewMessage(pattern="/userbot_status|/userbot_状态")
+        )
+
         # 只处理非命令消息作为提示词或AI配置输入
         client.add_event_handler(
             handle_prompt_input, NewMessage(func=lambda e: not e.text.startswith("/"))
@@ -685,6 +701,32 @@ async def main():
         )
         logger.info("请求处理回调处理器已注册")
 
+        logger.info("命令处理器添加完成")
+
+        # 启动客户端
+        logger.info("正在启动Telegram机器人客户端...")
+        await client.start(bot_token=bot_token)
+        logger.info("Telegram机器人客户端启动成功")
+
+        # 初始化 UserBot 客户端（必须在转发功能之前初始化）
+        logger.info("初始化 UserBot 客户端...")
+        userbot_client = None
+        try:
+            from core.userbot_client import init_userbot_client
+
+            userbot = await init_userbot_client()
+            if userbot:
+                success = await userbot.start()
+                if success:
+                    userbot_client = userbot.get_client()
+                    logger.info("UserBot 客户端启动成功")
+                else:
+                    logger.warning("UserBot 客户端启动失败")
+            else:
+                logger.info("UserBot 未启用或配置缺失")
+        except Exception as e:
+            logger.error(f"初始化 UserBot 客户端失败: {type(e).__name__}: {e}", exc_info=True)
+
         # 初始化频道评论区欢迎消息功能
         logger.info("初始化频道评论区欢迎消息功能...")
         try:
@@ -707,14 +749,30 @@ async def main():
         except Exception as e:
             logger.error(f"初始化频道评论区欢迎消息功能失败: {type(e).__name__}: {e}")
 
-        # 初始化频道消息转发功能
+        # 初始化频道消息转发功能（需要 userbot_client，所以在 UserBot 初始化之后）
         logger.info("初始化频道消息转发功能...")
         try:
             from core.config import get_forwarding_config
             from core.forwarding import ForwardingHandler, set_forwarding_handler
 
+            # 创建转发处理器（传递两个客户端）
+            # - monitoring_client: 用于监听消息（优先 UserBot，否则 Bot）
+            # - sending_client: 总是使用 Bot 发送消息
+            if userbot_client:
+                # UserBot 可用，优先使用 UserBot 进行消息监听
+                monitoring_client = userbot_client
+                logger.info("转发功能监听使用 UserBot 客户端（更高权限）")
+            else:
+                # UserBot 不可用，使用 Bot 客户端监听
+                monitoring_client = client
+                logger.info("转发功能监听使用 Bot 客户端（UserBot 不可用）")
+
+            # 发送消息总是使用 Bot 客户端
+            sending_client = client
+            logger.info("转发功能发送使用 Bot 客户端")
+
             # 创建转发处理器
-            forwarding_handler = ForwardingHandler(db_manager, client)
+            forwarding_handler = ForwardingHandler(db_manager, monitoring_client, sending_client)
             set_forwarding_handler(forwarding_handler)
 
             # 从config.json读取转发配置
@@ -847,22 +905,25 @@ async def main():
                     except Exception as e:
                         logger.error(f"延迟处理媒体组失败: {type(e).__name__}: {e}", exc_info=True)
 
-                client.add_event_handler(
-                    handle_channel_message,
-                    NewMessage(func=lambda e: e.is_channel and not e.out),
-                )
-                logger.info("频道消息转发监听器已注册（仅监听配置的源频道）")
+                # 根据客户端类型选择注册监听器
+                if userbot_client:
+                    # 使用 UserBot 客户端注册监听器
+                    userbot_client.add_event_handler(
+                        handle_channel_message,
+                        NewMessage(func=lambda e: e.is_channel),
+                    )
+                    logger.info("频道消息转发监听器已注册到 UserBot 客户端（仅监听配置的源频道）")
+                else:
+                    # 使用 Bot 客户端注册监听器
+                    client.add_event_handler(
+                        handle_channel_message,
+                        NewMessage(func=lambda e: e.is_channel),
+                    )
+                    logger.info("频道消息转发监听器已注册到 Bot 客户端（仅监听配置的源频道）")
             else:
                 logger.info("转发功能未启用（在config.json中设置enabled=true启用）")
         except Exception as e:
             logger.error(f"初始化频道消息转发功能失败: {type(e).__name__}: {e}")
-
-        logger.info("命令处理器添加完成")
-
-        # 启动客户端
-        logger.info("正在启动Telegram机器人客户端...")
-        await client.start(bot_token=bot_token)
-        logger.info("Telegram机器人客户端启动成功")
 
         # 注册机器人命令
         logger.info("开始注册机器人命令...")
@@ -933,6 +994,8 @@ async def main():
             BotCommand(command="forwarding_stats", description="查看转发统计"),
             BotCommand(command="forwarding_footer", description="设置转发底栏"),
             BotCommand(command="forwarding_default_footer", description="启用/禁用默认底栏"),
+            # ========== 11. UserBot 管理 ==========
+            BotCommand(command="userbot_status", description="查看 UserBot 状态"),
         ]
 
         await client(
@@ -1021,7 +1084,23 @@ async def main():
             except Exception as e:
                 logger.error(f"处理重启标记时出错: {type(e).__name__}: {e}", exc_info=True)
 
-        # 保持客户端运行
+        # 保持 Bot 客户端运行
+        # 如果有 UserBot 客户端，也需要让它持续运行
+        if userbot_client and userbot_client.is_connected():
+            # 创建一个任务来保持 UserBot 客户端运行
+            async def keep_userbot_alive():
+                """保持 UserBot 客户端运行，接收更新"""
+                try:
+                    logger.info("UserBot 客户端开始接收更新...")
+                    await userbot_client.run_until_disconnected()
+                except Exception as e:
+                    logger.error(f"UserBot 客户端运行出错: {type(e).__name__}: {e}", exc_info=True)
+
+            # 启动 UserBot 保持运行任务
+            asyncio.create_task(keep_userbot_alive())
+            logger.info("UserBot 客户端已启动后台任务")
+
+        # 保持 Bot 客户端运行
         await client.run_until_disconnected()
     except KeyboardInterrupt:
         logger.info("收到键盘中断，正在优雅关闭...")

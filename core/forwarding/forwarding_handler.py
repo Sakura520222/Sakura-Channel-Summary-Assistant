@@ -50,16 +50,23 @@ class ForwardingHandler:
     - 统计信息更新
     """
 
-    def __init__(self, db: "DatabaseManagerBase", client: "TelegramClient"):
+    def __init__(
+        self,
+        db: "DatabaseManagerBase",
+        monitoring_client: "TelegramClient",
+        sending_client: "TelegramClient",
+    ):
         """
         初始化转发处理器
 
         Args:
             db: 数据库管理器（异步）
-            client: Telegram客户端
+            monitoring_client: 用于监听消息的客户端（UserBot 或 Bot）
+            sending_client: 用于发送消息的客户端（总是 Bot）
         """
         self.db = db
-        self.client = client
+        self.monitoring_client = monitoring_client
+        self.sending_client = sending_client
         self._enabled = False
         self._config = {}
         # 媒体组缓存：{grouped_id: [messages]}
@@ -278,14 +285,14 @@ class ForwardingHandler:
             # 生成底栏
             footer = await self._generate_footer(message, source_channel, target_channel, rule)
 
-            # 内存转发（小文件或无媒体）
+            # 内存转发（小文件或无媒体）- 使用 Bot 发送
             if rule.get("copy_mode", False):
                 # 使用复制模式（不显示转发来源）
                 caption = message.message or ""
                 if footer:
                     caption = f"{caption}\n\n{footer}" if caption else footer
 
-                await self.client.send_message(
+                await self.sending_client.send_message(
                     entity=target_channel,
                     message=caption,
                     file=message.media if message.media else None,
@@ -293,7 +300,7 @@ class ForwardingHandler:
                 )
             else:
                 # 使用转发模式（显示转发来源）
-                await self.client.forward_messages(
+                await self.sending_client.forward_messages(
                     entity=target_channel,
                     messages=message,
                     from_peer=message.chat_id,
@@ -349,9 +356,9 @@ class ForwardingHandler:
             message_id_str = str(message.id)
             logger.info(f"开始下载单个文件: message_id={message_id_str}")
 
-            # 下载文件
+            # 下载文件（使用 UserBot/Bot 下载）
             file_path = await self._download_manager.download_media(
-                self.client, message, "000_media", message_id_str
+                self.monitoring_client, message, "000_media", message_id_str
             )
 
             if not file_path:
@@ -363,14 +370,14 @@ class ForwardingHandler:
             # 生成底栏
             footer = await self._generate_footer(message, source_channel, target_channel, rule)
 
-            # 转发文件（下载管理器已返回绝对路径）
+            # 转发文件（下载管理器已返回绝对路径）- 使用 Bot 发送
             if rule.get("copy_mode", False):
                 # 复制模式：发送文件
                 caption = message.message or ""
                 if footer:
                     caption = f"{caption}\n\n{footer}" if caption else footer
 
-                await self.client.send_file(
+                await self.sending_client.send_file(
                     entity=target_channel,
                     file=file_path,
                     caption=caption,
@@ -384,7 +391,7 @@ class ForwardingHandler:
                 else:
                     caption = f"📎 来自: {source_channel}"
 
-                await self.client.send_file(
+                await self.sending_client.send_file(
                     entity=target_channel,
                     file=file_path,
                     caption=caption,
@@ -486,7 +493,7 @@ class ForwardingHandler:
                     media_group_messages, group_key, target_channel, source_channel, rule
                 )
 
-            # 内存转发（小文件或纯图片）
+            # 内存转发（小文件或纯图片）- 使用 Bot 发送
             if rule.get("copy_mode", False):
                 # 复制模式：逐条发送（保持原始顺序）
                 captions = []
@@ -512,7 +519,7 @@ class ForwardingHandler:
                     caption = f"{caption}\n\n{footer}" if caption else footer
 
                 # 批量发送媒体组
-                await self.client.send_file(
+                await self.sending_client.send_file(
                     entity=target_channel,
                     file=files,
                     caption=caption if caption else None,
@@ -520,7 +527,7 @@ class ForwardingHandler:
                 )
             else:
                 # 转发模式：使用forward_messages批量转发
-                await self.client.forward_messages(
+                await self.sending_client.forward_messages(
                     entity=target_channel,
                     messages=media_group_messages,
                     from_peer=message.chat_id,
@@ -579,9 +586,9 @@ class ForwardingHandler:
         try:
             logger.info(f"开始下载媒体组: {group_key}")
 
-            # 下载所有媒体文件
+            # 下载所有媒体文件（使用 UserBot/Bot 下载）
             file_paths = await self._download_manager.download_media_group(
-                self.client, messages, group_key
+                self.monitoring_client, messages, group_key
             )
 
             if not file_paths:
@@ -593,14 +600,14 @@ class ForwardingHandler:
             # 生成底栏
             footer = await self._generate_footer(messages[0], source_channel, target_channel, rule)
 
-            # 转发文件（下载管理器已返回绝对路径）
+            # 转发文件（下载管理器已返回绝对路径）- 使用 Bot 发送
             if rule.get("copy_mode", False):
                 # 复制模式：发送文件
                 caption = messages[0].message if messages and messages[0].message else ""
                 if footer:
                     caption = f"{caption}\n\n{footer}" if caption else footer
 
-                await self.client.send_file(
+                await self.sending_client.send_file(
                     entity=target_channel,
                     file=file_paths,
                     caption=caption,
@@ -614,7 +621,7 @@ class ForwardingHandler:
                 else:
                     caption = f"📎 来自: {source_channel}"
 
-                await self.client.send_file(
+                await self.sending_client.send_file(
                     entity=target_channel,
                     file=file_paths,
                     caption=caption,
@@ -804,8 +811,8 @@ class ForwardingHandler:
             格式化的底栏文本
         """
         try:
-            # 获取源频道信息
-            source_entity = await self.client.get_entity(message.chat_id)
+            # 获取源频道信息（使用监听客户端）
+            source_entity = await self.monitoring_client.get_entity(message.chat_id)
             source_username = getattr(source_entity, "username", None)
             source_title = getattr(source_entity, "title", "Unknown")
 
@@ -816,9 +823,9 @@ class ForwardingHandler:
                 # 私有频道使用数字ID（去掉负号）
                 source_link = f"https://t.me/c/{abs(message.chat_id)}/{message.id}"
 
-            # 获取目标频道信息
+            # 获取目标频道信息（使用监听客户端）
             try:
-                target_entity = await self.client.get_entity(target_channel)
+                target_entity = await self.monitoring_client.get_entity(target_channel)
                 target_title = getattr(target_entity, "title", target_channel)
                 target_username = getattr(target_entity, "username", None)
             except Exception as e:

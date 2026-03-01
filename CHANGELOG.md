@@ -15,232 +15,88 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [1.7.0] - 2026-03-01
+  ## [1.7.0] - 2026-03-01
 
-### 新增
-- **频道消息转发功能**：完整集成 TG-Forwarder 机器人到主Bot，实现智能消息转发
-  - **媒体组完整转发**：完整支持媒体组（相册）的转发，转发所有附带媒体并保持原始顺序
-  - **智能转发策略**：根据文件大小和类型自动选择最佳转发方式
-    - 纯图片媒体组：内存转发（快速）
-    - 小文件（<10MB）：内存转发
-    - 大文件（≥10MB）：下载后转发（稳定）
-    - 混合媒体组（≥50MB）：下载后转发
-  - **下载管理器**：带限速的文件下载，支持缓存管理和磁盘空间检查
-    - 并发控制：限制同时下载数量（默认2个）
-    - 磁盘空间检查：确保有足够的可用空间（≥500MB）
-    - 缓存管理：按转发ID组织缓存，支持自动清理
-    - 异步文件操作：所有文件操作都是异步的，避免阻塞
-  - **基于配置的转发规则**：在 config.json 中配置转发规则，支持多对多转发
-  - **关键词过滤**：支持白名单和黑名单关键词过滤，精确控制转发内容
-  - **正则表达式过滤**：支持复杂的正则表达式模式匹配，提供更灵活的过滤能力
-  - **原创消息过滤**：只转发频道原创消息，过滤掉来自其他频道的转发消息（可配置）
-  - **双模式转发**：支持转发模式（显示来源）和复制模式（不显示来源）
-  - **消息去重**：自动记录已转发消息，避免重复转发
-  - **转发统计**：记录每个频道的转发次数和最后转发时间
-  - **命令控制**：提供完整的命令接口控制转发功能
-  
-- **转发功能命令**：
-  - `/forwarding` - 查看转发功能状态和规则列表
-  - `/forwarding_enable` - 启用转发功能
-  - `/forwarding_disable` - 禁用转发功能
-  - `/forwarding_stats [频道]` - 查看转发统计信息
-  - 支持中英文别名：`/转发状态`、`/启用转发`、`/禁用转发`、`/转发统计`
+  ### 新增
+  - **UserBot 支持**：使用真实 Telegram 账号进行消息抓取和转发
+    - 可访问私有频道，不受 Bot API 限制
+    - 更高的消息抓取权限，完整获取频道内容
+    - 更稳定的连接，减少限流和封禁风险
+    - 支持自动登录和 Session 持久化
+    - 优雅的错误处理和降级策略
+    - 新增 `/userbot_status` 命令查看运行状态
 
-- **数据库扩展**：
-  - 新增 `forwarded_messages` 表：记录所有已转发的消息
-    - `message_id` - 消息ID
-    - `source_channel` - 源频道
-    - `target_channel` - 目标频道
-    - `content_hash` - 内容哈希（用于去重）
-    - `timestamp` - 转发时间戳
-  - 新增 `forwarding_stats` 表：记录转发统计信息
-    - `channel_id` - 频道ID
-    - `total_forwarded` - 总转发数
-    - `last_forwarded` - 最后转发时间
-  - 支持 SQLite 和 MySQL 双数据库
+  - **频道消息转发功能**：完整集成 TG-Forwarder 机器人到主Bot
+    - 支持媒体组（相册）完整转发，保持原始顺序
+    - 智能转发策略：根据文件大小自动选择内存转发或下载转发
+    - 基于配置的转发规则，支持多对多转发
+    - 关键词过滤（白名单/黑名单）
+    - 正则表达式过滤
+    - 原创消息过滤（只转发频道原创消息）
+    - 双模式转发：转发模式（显示来源）和复制模式（不显示来源）
+    - 消息去重机制
+    - 转发统计记录
+    - 自定义底栏支持，支持丰富的占位符
+    - 全局底栏开关控制
 
-- **转发消息底栏功能**：完善转发消息的底栏显示，参考 TG-Forwarder 实现
-  - **自定义底栏支持**：每个转发规则可单独设置自定义底栏模板
-    - 在 config.json 中为每条规则添加 `custom_footer` 字段
-    - 支持丰富的占位符：`{source_link}`、`{source_title}`、`{target_title}`、`{source_channel}`、`{target_channel}`、`{message_id}`
-    - 自动替换占位符为实际值，生成个性化底栏
-  
-  - **默认底栏模式**：未设置自定义底栏时使用默认格式
-    - 默认格式：`[Source](链接) @频道`
-    - 自动生成源消息链接（支持公开和私有频道）
-    - 自动获取目标频道用户名
-  
-  - **全局底栏开关**：支持全局启用/禁用底栏功能
-    - 配置项：`show_default_footer`（默认 true）
-    - 禁用后所有转发消息都不添加底栏（包括自定义底栏）
-  
-  - **底栏管理命令**：
-    - `/forwarding_footer <源频道> <目标频道> <底栏内容>` - 设置自定义底栏
-    - `/forwarding_footer <源频道> <目标频道> clear` - 清除自定义底栏
-    - `/forwarding_default_footer on|off` - 启用/禁用默认底栏
-    - 支持中英文别名：`/转发底栏`、`/默认底栏`
-  
-  - **底栏生成逻辑**（core/forwarding/forwarding_handler.py）：
-    - `_generate_footer()` 方法：三种模式的底栏生成
-    - 优先级：自定义底栏 > 全局开关 > 默认底栏
-    - 使用 `.replace()` 安全替换占位符，避免格式冲突
-    - 自动处理公开频道和私有频道的链接差异
-  
-  - **集成到所有转发场景**：
-    - 单个消息转发：在复制模式下添加底栏
-    - 下载转发（大文件）：自动附加底栏到文件说明
-    - 媒体组转发：为整个媒体组添加统一底栏
-    - 转发模式（显示来源）：不添加底栏（避免重复）
+  - **转发功能命令**：
+    - `/forwarding` - 查看转发状态和规则列表
+    - `/forwarding_enable` - 启用转发功能
+    - `/forwarding_disable` - 禁用转发功能
+    - `/forwarding_stats [频道]` - 查看转发统计
+    - `/forwarding_footer` - 设置/清除自定义底栏
+    - `/forwarding_default_footer` - 启用/禁用默认底栏
+    - 支持中英文别名
 
-- **配置文件增强**（config.json）：
-  - 新增 `forwarding.show_default_footer` 字段：全局底栏开关
-  - 新增 `forwarding.rules[].custom_footer` 字段：自定义底栏模板
-  ```json
-  {
-    "forwarding": {
-      "enabled": false,
-      "show_default_footer": true,
-      "rules": [
-        {
-          "source_channel": "https://t.me/source",
-          "target_channel": "https://t.me/target",
-          "keywords": ["关键词1", "关键词2"],
-          "blacklist": ["广告", "垃圾"],
-          "patterns": [],
-          "blacklist_patterns": [],
-          "copy_mode": false,
-          "forward_original_only": false,
-          "custom_footer": "📢 来源: {source_title}\\n🔗 {source_link}"
-        }
-      ]
-    }
-  }
-  ```
+  - **数据库扩展**：
+    - 新增 `forwarded_messages` 表：记录已转发消息（去重）
+    - 新增 `forwarding_stats` 表：记录转发统计信息
+    - 支持 SQLite 和 MySQL 双数据库
 
-### 新增文件
-- **core/forwarding/__init__.py** - 转发功能模块导出
-- **core/forwarding/filters.py** - 消息过滤器模块
-  - `should_forward_by_keywords()` - 关键词过滤
-  - `should_forward_by_regex()` - 正则表达式过滤
-- **core/forwarding/forwarding_handler.py** - 转发处理器核心模块
-  - `ForwardingHandler` 类：转发功能核心处理器
-  - `process_message()` - 处理单条消息
-  - `_should_forward()` - 判断是否应该转发
-  - `_forward_message()` - 执行消息转发
-  - `get_statistics()` - 获取转发统计
-  - `cleanup_old_records()` - 清理旧记录
-- **core/command_handlers/forwarding_commands.py** - 转发命令处理器
-  - `cmd_forwarding_status()` - 查看转发状态
-  - `cmd_forwarding_enable()` - 启用转发功能
-  - `cmd_forwarding_disable()` - 禁用转发功能
-  - `cmd_forwarding_stats()` - 查看转发统计
+  ### 新增文件
+  - `core/userbot_client.py` - UserBot 客户端管理模块
+  - `core/forwarding/` - 转发功能模块目录
+    - `filters.py` - 消息过滤器
+    - `forwarding_handler.py` - 转发处理器核心
+    - `download_manager.py` - 下载管理器
+    - `media_utils.py` - 媒体工具
+  - `core/command_handlers/forwarding_commands.py` - 转发命令处理器
 
-### 技术实现
-- **main.py 集成**：
-  - 导入转发功能模块和命令处理器
-  - 初始化 ForwardingHandler 实例
-  - 从 config.json 读取转发配置
-  - 注册频道消息监听器（NewMessage 事件）
-  - 注册转发命令事件处理器
-  - 更新 BotCommand 菜单，添加转发命令
+  ### 配置文件增强
+  - 新增 UserBot 配置项：
+    - `USERBOT_ENABLED` - 是否启用 UserBot
+    - `USERBOT_PHONE_NUMBER` - 手机号
+    - `USERBOT_SESSION_PATH` - Session 路径
+    - `USERBOT_FALLBACK_TO_BOT` - 降级策略
 
-- **异步架构**：
-  - 所有转发操作使用异步实现
-  - 使用 Telethon 的异步 API 进行消息转发
-  - 支持高并发场景，不阻塞事件循环
-
-- **国际化支持**：
-  - 新增 20+ 个翻译键（中英文）
-  - 所有转发功能消息支持多语言
-  - 翻译键前缀：`forwarding.*`
-  - 新增 `forwarding.filter.forward_skipped` 翻译键
-
-- **core/forwarding/filters.py** 新增函数：
-  - `should_forward_by_keywords()` - 关键词过滤
-  - `should_forward_by_regex()` - 正则表达式过滤
-  - `should_forward_original_only()` - 判断是否应该转发消息（基于是否为转发消息）
-  - 检查 `message.forward` 和 `message.fwd_from` 属性
-  - 支持新旧 Telethon API 的兼容性
-
-- **core/forwarding/forwarding_handler.py** 更新：
-  - 在 `_should_forward()` 方法中集成原创消息过滤器
-  - 优先级：原创消息过滤 → 关键词过滤 → 正则表达式过滤
-
-### 改进
-- **配置管理**（core/config.py）：
-  - 新增 `get_forwarding_config()` 函数读取转发配置
-  - 支持 enabled 和 rules 配置项
-  - 支持每条转发规则单独配置 `forward_original_only` 参数
-  - 提供默认配置和配置验证
-
-- **数据库扩展**（core/database.py）：
-  - 新增转发相关数据库方法
-  - 支持 SQLite 和 MySQL 双数据库
-  - 添加必要的数据库索引优化查询性能
-
-- **配置示例更新**：
-  - `data/config.example.json` 添加 `forward_original_only` 字段说明
-  - README.md 添加新配置项的详细说明
-
-- **单元测试**（tests/test_forwarding_filters.py）：
-  - 新增6个单元测试，覆盖所有原创消息过滤场景
-  - 测试启用/禁用原创消息过滤的各种情况
-  - 测试转发消息的识别（forward 和 fwd_from 属性）
-  - 测试默认值为 false 的行为
-  - 所有测试通过，覆盖率 100%
-
-### 用户体验
-- **灵活配置**：通过 config.json 配置转发规则，无需重启即可修改（需重启生效）
-- **精确过滤**：支持关键词和正则表达式过滤，确保只转发需要的内容
-- **统计透明**：提供详细的转发统计，了解转发效果
-- **命令便捷**：提供完整的命令接口，随时控制转发功能
-- **去重保护**：自动记录已转发消息，避免重复转发
-
-### 配置示例
-```json
-{
-  "forwarding": {
-    "enabled": true,
-    "rules": [
-      {
-        "source_channel": "https://t.me/news_channel",
-        "target_channel": "https://t.me/my_channel",
-        "keywords": ["重要", "新闻", "更新"],
-        "blacklist": ["广告", "推广"],
-        "patterns": [],
-        "blacklist_patterns": [],
-        "forward_original_only": true,
-        "copy_mode": false
+  - 新增转发功能配置项（config.json）：
+    ```json
+    {
+      "forwarding": {
+        "enabled": false,
+        "show_default_footer": true,
+        "rules": [
+          {
+            "source_channel": "https://t.me/source",
+            "target_channel": "https://t.me/target",
+            "keywords": ["关键词1"],
+            "blacklist": ["广告"],
+            "patterns": [],
+            "blacklist_patterns": [],
+            "copy_mode": false,
+            "forward_original_only": false,
+            "custom_footer": "📢 来源: {source_title}\\n🔗 {source_link}"
+          }
+        ]
       }
-    ]
-  }
-}
-```
+    }
+    ```
 
-### 使用场景
-- **新闻聚合**：从多个新闻频道转发重要消息到自己的频道
-- **内容过滤**：通过关键词过滤，只转发符合主题的消息
-- **原创内容筛选**：只转发频道原创消息，避免重复转发内容
-- **备份频道**：自动转发消息到备份频道
-- **跨频道同步**：实现频道间的消息同步
-
-### 向后兼容
-- **完全兼容现有功能**：
-  - 不影响任何现有的总结生成和发送流程
-  - 转发功能默认禁用，不影响现有行为
-  - 所有现有命令和配置保持不变
-
-- **可选功能**：
-  - 转发功能可通过配置开关控制
-  - 未配置时转发功能不启用
-  - 可以随时通过命令启用/禁用
-
-### 注意事项
-- 转发功能需要机器人在源频道和目标频道都有相应权限
-- 机器人需要能读取源频道的消息
-- 机器人需要在目标频道有发送消息权限
-- 建议先测试转发规则，确认无误后再启用
-- 定期清理转发记录，避免数据库过大
+  ### 技术实现
+  - 所有转发操作使用异步实现
+  - 新增单元测试，覆盖率 100%
+  - 完善的国际化支持（20+ 翻译键）
+  - 向后兼容，不影响现有功能
 
 ## [1.6.9] - 2026-02-27
 
