@@ -138,9 +138,19 @@ async def graceful_shutdown_resources():
 
 async def send_startup_message(client):
     """向所有管理员发送启动消息"""
+    from core.bot_commands import get_command_categories
     from core.i18n import get_text
 
     try:
+        # 使用 bot_commands 模块动态生成命令列表
+        categories = get_command_categories()
+
+        # 只显示常用命令（每个分类的前3个）
+        common_commands = []
+        for category_group in categories[:5]:  # 前5个分类
+            for cmd, _ in category_group["commands"][:3]:  # 每个分类前3个命令
+                common_commands.append(get_text(f"cmd.{cmd}"))
+
         # 构建帮助信息（使用 i18n，支持多语言）
         help_text = f"""🤖 **Sakura-Bot v{__version__} 已启动**
 
@@ -152,40 +162,12 @@ async def send_startup_message(client):
 • 定时任务调度
 
 **可用命令**
-{get_text("cmd.summary")}
-{get_text("cmd.showprompt")}
-{get_text("cmd.setprompt")}
-{get_text("cmd.showpollprompt")}
-{get_text("cmd.setpollprompt")}
-{get_text("cmd.showaicfg")}
-{get_text("cmd.setaicfg")}
-{get_text("cmd.showloglevel")}
-{get_text("cmd.setloglevel")}
-{get_text("cmd.restart")}
-{get_text("cmd.shutdown")}
-{get_text("cmd.pause")}
-{get_text("cmd.resume")}
-{get_text("cmd.showchannels")}
-{get_text("cmd.addchannel")}
-{get_text("cmd.deletechannel")}
-{get_text("cmd.clearsummarytime")}
-{get_text("cmd.setsendtosource")}
-{get_text("cmd.showchannelschedule")}
-{get_text("cmd.setchannelschedule")}
-{get_text("cmd.deletechannelschedule")}
-{get_text("cmd.channelpoll")}
-{get_text("cmd.setchannelpoll")}
-{get_text("cmd.deletechannelpoll")}
-{get_text("cmd.clearcache")}
-{get_text("cmd.history")}
-{get_text("cmd.export")}
-{get_text("cmd.stats")}
-{get_text("cmd.language")}
-{get_text("cmd.changelog")}
-{get_text("cmd.update")}
+{chr(10).join(common_commands)}
 
 **版本信息**
 当前版本: v{__version__}
+
+💡 使用 /help 查看完整命令列表
 
 机器人运行正常，随时为您服务！"""
 
