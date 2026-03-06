@@ -13,6 +13,8 @@
 实现语义检索 + RAG架构 + 多轮对话查询改写
 """
 
+import asyncio
+import hashlib
 import logging
 import re
 from datetime import UTC, datetime, timedelta
@@ -75,48 +77,67 @@ BASE_SYSTEM_TEMPLATE = """{persona_description}
 
 # 查询改写缓存类
 class RewriteCache:
-    """查询改写缓存"""
+    """查询改写缓存（线程安全LRU实现）"""
 
     def __init__(self, max_size: int = 1000):
-        self.cache = {}  # {(query, history_hash): rewritten_query}
+        from collections import OrderedDict
+
+        self.cache = OrderedDict()  # LRU缓存
         self.max_size = max_size
         self.hit_count = 0
         self.miss_count = 0
+        self._lock = asyncio.Lock()  # 异步锁
 
     def _hash_history(self, history: list[dict]) -> str:
-        """生成对话历史的哈希值"""
+        """生成对话历史的哈希值（防崩溃版）"""
         if not history:
             return "empty"
-        # 只使用最后3条消息生成哈希
-        recent = history[-3:] if len(history) > 3 else history
-        text = "".join(f"{msg['role']}:{msg['content'][:50]}" for msg in recent)
-        return str(hash(text))
 
-    def get(self, query: str, history: list[dict]) -> str | None:
-        """获取缓存的改写"""
-        history_hash = self._hash_history(history)
-        key = (query.strip().lower(), history_hash)
-        result = self.cache.get(key)
-        if result:
-            self.hit_count += 1
-            logger.debug(f"改写缓存命中: {query[:30]}...")
-        else:
-            self.miss_count += 1
-        return result
+        # 使用最后5条消息
+        recent = history[-5:] if len(history) > 5 else history
 
-    def set(self, query: str, history: list[dict], rewritten: str):
-        """缓存改写结果"""
+        # 使用.get()避免KeyError，取前100字符增加区分度
+        text = "".join(
+            f"{msg.get('role', 'unknown')}:{msg.get('content', '')[:100]}" for msg in recent
+        )
+
+        # 使用sha256避免哈希冲突
+        return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+    async def get(self, query: str, history: list[dict]) -> str | None:
+        """获取缓存的改写（线程安全）"""
         history_hash = self._hash_history(history)
         key = (query.strip().lower(), history_hash)
 
-        # 简单的LRU策略：缓存满了就清空一半
-        if len(self.cache) >= self.max_size:
-            items = list(self.cache.items())
-            self.cache = dict(items[len(items) // 2 :])
-            logger.info("改写缓存已清理")
+        async with self._lock:
+            if key in self.cache:
+                # LRU：移到末尾
+                self.cache.move_to_end(key)
+                self.hit_count += 1
+                logger.debug(f"改写缓存命中: {query[:30]}...")
+                return self.cache[key]
+            else:
+                self.miss_count += 1
+                return None
 
-        self.cache[key] = rewritten
-        logger.debug(f"改写已缓存: {query[:30]}... → {rewritten[:30]}...")
+    async def set(self, query: str, history: list[dict], rewritten: str):
+        """缓存改写结果（线程安全LRU）"""
+        history_hash = self._hash_history(history)
+        key = (query.strip().lower(), history_hash)
+
+        async with self._lock:
+            # 如果键已存在，更新并移到末尾
+            if key in self.cache:
+                self.cache.move_to_end(key)
+
+            self.cache[key] = rewritten
+
+            # LRU淘汰：超过最大容量时移除最旧的
+            if len(self.cache) > self.max_size:
+                self.cache.popitem(last=False)  # 移除最旧的（第一个）
+                logger.info(f"LRU淘汰: 当前缓存大小 {len(self.cache)}")
+
+            logger.debug(f"改写已缓存: {query[:30]}... → {rewritten[:30]}...")
 
     def get_stats(self) -> dict:
         """获取缓存统计"""
@@ -482,7 +503,7 @@ class QAEngineV3:
             (改写后查询, 实际使用的策略)
         """
         # 检查缓存
-        cached = self.rewrite_cache.get(query, conversation_history)
+        cached = await self.rewrite_cache.get(query, conversation_history)
         if cached:
             logger.debug(f"使用缓存的改写: {cached}")
             return cached, strategy
@@ -529,7 +550,7 @@ class QAEngineV3:
 
             if validation["valid"]:
                 # 缓存成功的改写
-                self.rewrite_cache.set(query, conversation_history, rewritten)
+                await self.rewrite_cache.set(query, conversation_history, rewritten)
                 logger.debug(f"改写验证通过: {validation.get('notes', '')}")
                 return rewritten, strategy
             else:
