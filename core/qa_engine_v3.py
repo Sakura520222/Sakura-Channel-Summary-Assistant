@@ -9,7 +9,7 @@
 # 许可证全文：参见 LICENSE 文件
 
 """
-问答引擎 v3.1.0 - 集成向量搜索和重排序
+问答引擎 v3.2.0 - 集成向量搜索和重排序
 实现语义检索 + RAG架构 + 多轮对话查询改写
 """
 
@@ -17,6 +17,7 @@ import asyncio
 import hashlib
 import logging
 import re
+from collections import OrderedDict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -77,39 +78,75 @@ BASE_SYSTEM_TEMPLATE = """{persona_description}
 
 # 查询改写缓存类
 class RewriteCache:
-    """查询改写缓存（线程安全LRU实现）"""
+    """查询改写缓存（协程安全LRU实现）
 
-    def __init__(self, max_size: int = 1000):
-        from collections import OrderedDict
+    注意：
+    - 此缓存使用 asyncio.Lock() 实现协程安全，适用于单进程异步环境
+    - 在多进程环境下每个进程有独立的缓存，无法共享
+    - 默认最大缓存500条，每条约100-200字节
+    """
 
+    def __init__(self, max_size: int = 500):
         self.cache = OrderedDict()  # LRU缓存
         self.max_size = max_size
         self.hit_count = 0
         self.miss_count = 0
-        self._lock = asyncio.Lock()  # 异步锁
+        self._lock = None  # 延迟初始化，避免在__init__中创建asyncio.Lock
+
+    async def _get_lock(self):
+        """获取或创建锁（惰性初始化）"""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     def _hash_history(self, history: list[dict]) -> str:
-        """生成对话历史的哈希值（防崩溃版）"""
+        """生成对话历史的哈希值（使用最近5条消息）
+
+        Args:
+            history: 对话历史列表
+
+        Returns:
+            哈希值字符串
+        """
         if not history:
             return "empty"
 
         # 使用最后5条消息
         recent = history[-5:] if len(history) > 5 else history
 
-        # 使用.get()避免KeyError，取前100字符增加区分度
-        text = "".join(
-            f"{msg.get('role', 'unknown')}:{msg.get('content', '')[:100]}" for msg in recent
-        )
+        # 检测格式异常并记录警告
+        for i, msg in enumerate(recent):
+            if "role" not in msg and "content" not in msg:
+                logger.warning(f"消息格式异常: index={i}, keys={list(msg.keys())}")
+
+        # 使用.get()避免KeyError，取前200字符增加区分度，并包含消息ID
+        parts = []
+        for msg in recent:
+            msg_id = msg.get("id", "")
+            content = msg.get("content", "")[:200]
+            role = msg.get("role", "unknown")
+            parts.append(f"{role}:{msg_id}:{content}")
+
+        text = "".join(parts)
 
         # 使用sha256避免哈希冲突
         return hashlib.sha256(text.encode()).hexdigest()[:16]
 
     async def get(self, query: str, history: list[dict]) -> str | None:
-        """获取缓存的改写（线程安全）"""
+        """获取缓存的改写结果（协程安全）
+
+        Args:
+            query: 原始查询文本
+            history: 对话历史列表
+
+        Returns:
+            缓存的改写结果，如果缓存未命中则返回 None
+        """
         history_hash = self._hash_history(history)
         key = (query.strip().lower(), history_hash)
 
-        async with self._lock:
+        lock = await self._get_lock()
+        async with lock:
             if key in self.cache:
                 # LRU：移到末尾
                 self.cache.move_to_end(key)
@@ -121,11 +158,18 @@ class RewriteCache:
                 return None
 
     async def set(self, query: str, history: list[dict], rewritten: str):
-        """缓存改写结果（线程安全LRU）"""
+        """缓存改写结果（协程安全LRU）
+
+        Args:
+            query: 原始查询文本
+            history: 对话历史列表
+            rewritten: 改写后的查询文本
+        """
         history_hash = self._hash_history(history)
         key = (query.strip().lower(), history_hash)
 
-        async with self._lock:
+        lock = await self._get_lock()
+        async with lock:
             # 如果键已存在，更新并移到末尾
             if key in self.cache:
                 self.cache.move_to_end(key)
@@ -140,14 +184,22 @@ class RewriteCache:
             logger.debug(f"改写已缓存: {query[:30]}... → {rewritten[:30]}...")
 
     def get_stats(self) -> dict:
-        """获取缓存统计"""
+        """获取缓存统计信息
+
+        Returns:
+            包含以下键的字典:
+            - size: 当前缓存条目数
+            - hit_count: 缓存命中次数
+            - miss_count: 缓存未命中次数
+            - hit_rate: 缓存命中率（浮点数，0.0-1.0）
+        """
         total = self.hit_count + self.miss_count
         hit_rate = self.hit_count / total if total > 0 else 0
         return {
             "size": len(self.cache),
             "hit_count": self.hit_count,
             "miss_count": self.miss_count,
-            "hit_rate": f"{hit_rate:.1%}",
+            "hit_rate": hit_rate,  # 返回浮点数，便于程序化使用
         }
 
 
