@@ -20,8 +20,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from telethon import TelegramClient
 
-from core.mainbot_push_handler import get_mainbot_push_handler
-from core.mainbot_request_handler import get_mainbot_request_handler
+from core.handlers.mainbot_push_handler import get_mainbot_push_handler
+from core.handlers.mainbot_request_handler import get_mainbot_request_handler
 
 
 class CommunicationInitializer:

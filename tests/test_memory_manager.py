@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.memory_manager import MemoryManager, get_memory_manager
+from core.ai.memory_manager import MemoryManager, get_memory_manager
 
 
 @pytest.mark.unit

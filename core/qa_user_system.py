@@ -17,7 +17,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from .database import get_db_manager
+from core.infrastructure.database import get_db_manager
 
 logger = logging.getLogger(__name__)
 

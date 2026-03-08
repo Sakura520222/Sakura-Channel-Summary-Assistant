@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from core.prompt_manager import load_prompt, save_prompt
+from core.infrastructure.config.prompt_manager import load_prompt, save_prompt
 
 
 @pytest.mark.unit

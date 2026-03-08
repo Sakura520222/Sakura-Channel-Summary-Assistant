@@ -9,15 +9,15 @@ import logging
 from telethon import Button, events
 from telethon.tl.types import InputMediaPoll, Poll, PollAnswer, TextWithEntities
 
-from ..ai_client import generate_poll_from_summary
-from ..config import (
+from core.ai.ai_client import generate_poll_from_summary
+from core.config import (
     ENABLE_POLL,
     ENABLE_VOTE_REGEN_REQUEST,
     POLL_REGEN_THRESHOLD,
     get_channel_poll_config,
 )
-from ..error_handler import record_error
-from ..i18n import get_text
+from core.i18n.i18n import get_text
+from core.system.error_handler import record_error
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ async def send_poll_to_channel(client, channel, summary_message_id, summary_text
             )
 
             # 保存映射关系到存储
-            from ..config import add_poll_regeneration
+            from core.config import add_poll_regeneration
 
             channel_name = channel_entity.title if hasattr(channel_entity, "title") else channel
             add_poll_regeneration(
@@ -188,7 +188,7 @@ async def send_poll_to_discussion_group(client, channel, summary_message_id, sum
         channel_name = channel_entity.title if hasattr(channel_entity, "title") else channel
 
         # 检查频道是否有绑定的讨论组(使用缓存版本)
-        from ..config import get_discussion_group_id_cached
+        from core.config import get_discussion_group_id_cached
 
         discussion_group_id = await get_discussion_group_id_cached(client, channel)
 
@@ -333,7 +333,7 @@ async def send_poll_to_discussion_group(client, channel, summary_message_id, sum
                 )
 
                 # 保存映射关系到存储
-                from ..config import add_poll_regeneration
+                from core.config import add_poll_regeneration
 
                 add_poll_regeneration(
                     channel=channel,

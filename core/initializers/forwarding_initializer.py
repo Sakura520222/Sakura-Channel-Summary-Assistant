@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 from core.config import get_forwarding_config
 from core.forwarding import ForwardingHandler, set_forwarding_handler
-from core.userbot_client import UserBotClient
+from core.handlers.userbot_client import UserBotClient
 
 
 class ForwardingInitializer:
@@ -72,7 +72,7 @@ class ForwardingInitializer:
             self.logger.info("转发功能发送使用 Bot 客户端")
 
             # 获取数据库管理器
-            from core.database import get_db_manager
+            from core.infrastructure.database.manager import get_db_manager
 
             db_manager = get_db_manager()
 

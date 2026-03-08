@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.vector_store import VectorStore, get_vector_store
+from core.ai.vector_store import VectorStore, get_vector_store
 
 
 @pytest.mark.unit

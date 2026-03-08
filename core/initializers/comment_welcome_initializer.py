@@ -22,7 +22,7 @@ from telethon.events import CallbackQuery, NewMessage
 if TYPE_CHECKING:
     from telethon import TelegramClient
 
-from core.channel_comment_welcome import (
+from core.handlers.channel_comment_welcome import (
     get_comment_welcome_handler,
     handle_summary_request_callback,
     initialize_comment_welcome,

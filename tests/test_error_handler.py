@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from core.error_handler import (
+from core.system.error_handler import (
     RetryExhaustedError,
     check_database_connection,
     get_error_stats,

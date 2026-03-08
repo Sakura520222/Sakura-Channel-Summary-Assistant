@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from telethon import TelegramClient
 
 from core.config import CHANNELS, build_cron_trigger, get_channel_schedule, set_scheduler_instance
-from core.scheduler import cleanup_old_poll_regenerations, main_job
+from core.system.scheduler import cleanup_old_poll_regenerations, main_job
 
 
 class SchedulerInitializer:
@@ -137,7 +137,7 @@ class SchedulerInitializer:
         Args:
             client: Telegram客户端实例
         """
-        from core.mainbot_request_handler import get_mainbot_request_handler
+        from core.handlers.mainbot_request_handler import get_mainbot_request_handler
 
         request_handler = get_mainbot_request_handler()
 
@@ -163,8 +163,8 @@ class SchedulerInitializer:
             client: Telegram客户端实例
         """
         from core.config import ADMIN_LIST
-        from core.i18n import get_text
-        from core.process_manager import check_qa_bot_health, restart_qa_bot
+        from core.i18n.i18n import get_text
+        from core.system.process_manager import check_qa_bot_health, restart_qa_bot
 
         async def qa_bot_health_check_job():
             """定期检查问答Bot健康状态，必要时自动重启"""

@@ -6,8 +6,7 @@
 2. 添加 forward_status, error_message, message_type 字段
 3. 添加必要的索引
 
-版本：v1.7.1
-日期：2026-03-01
+版本：v1.7.2
 """
 
 import asyncio

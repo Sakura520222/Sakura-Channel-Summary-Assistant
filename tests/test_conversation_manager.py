@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.conversation_manager import (
+from core.ai.conversation_manager import (
     ConversationManager,
     get_conversation_manager,
 )

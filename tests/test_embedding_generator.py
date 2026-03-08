@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.embedding_generator import EmbeddingGenerator, get_embedding_generator
+from core.ai.embedding_generator import EmbeddingGenerator, get_embedding_generator
 
 
 @pytest.mark.unit

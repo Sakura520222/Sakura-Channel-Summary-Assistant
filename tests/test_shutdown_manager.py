@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.shutdown_manager import ShutdownManager, get_shutdown_manager
+from core.system.shutdown_manager import ShutdownManager, get_shutdown_manager
 
 
 class TestShutdownManager:

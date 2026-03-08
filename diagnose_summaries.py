@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 from dotenv import load_dotenv
 
-from core.database import get_db_manager
+from core.infrastructure.database.manager import get_db_manager
 
 # 加载环境变量
 load_dotenv("data/.env")

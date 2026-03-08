@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.userbot_client import (
+from core.handlers.userbot_client import (
     UserBotClient,
     get_userbot_client,
     init_userbot_client,

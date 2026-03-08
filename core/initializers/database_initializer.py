@@ -17,7 +17,7 @@
 import logging
 import os
 
-from core.database import get_db_manager
+from core.infrastructure.database.manager import get_db_manager
 
 
 class DatabaseInitializer:

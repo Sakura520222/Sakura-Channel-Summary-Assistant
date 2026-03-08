@@ -6,7 +6,7 @@ Copyright 2026 Sakura-Bot
 
 import pytest
 
-from core.intent_parser import IntentParser, get_intent_parser
+from core.ai.intent_parser import IntentParser, get_intent_parser
 
 
 @pytest.mark.unit

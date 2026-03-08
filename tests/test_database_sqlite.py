@@ -9,7 +9,7 @@ import sqlite3
 
 import pytest
 
-from core.database_sqlite import SQLiteManager
+from core.infrastructure.database.sqlite import SQLiteManager
 
 
 @pytest.mark.unit

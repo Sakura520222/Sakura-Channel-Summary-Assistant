@@ -25,20 +25,20 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from core.bootstrap.app_bootstrap import AppBootstrap
 from core.config import logger, set_shutdown_event
-from core.process_manager import start_qa_bot, stop_qa_bot
 from core.settings import validate_required_settings
+from core.system.process_manager import start_qa_bot, stop_qa_bot
 
 # 版本信息
-__version__ = "1.7.1"
+__version__ = "1.7.2"
 
 
 async def graceful_shutdown_resources():
-    """优雅关闭所有资源（已废弃，请使用 core.shutdown_manager.ShutdownManager）
+    """优雅关闭所有资源（已废弃，请使用 core.system.shutdown_manager.ShutdownManager）
 
     为了向后兼容，保留此函数但重定向到新的关机管理器
     """
-    from core.shutdown_manager import get_shutdown_manager
-    from core.telegram_client import get_active_client
+    from core.system.shutdown_manager import get_shutdown_manager
+    from core.telegram.client import get_active_client
 
     shutdown_manager = get_shutdown_manager()
     client = get_active_client()
@@ -136,7 +136,7 @@ if __name__ == "__main__":
                 await graceful_shutdown_resources()
 
                 # 退出程序（使用 os._exit 确保立即退出并关闭控制台）
-                from core.shutdown_manager import get_shutdown_manager
+                from core.system.shutdown_manager import get_shutdown_manager
 
                 shutdown_manager = get_shutdown_manager()
                 shutdown_manager.perform_exit(0)

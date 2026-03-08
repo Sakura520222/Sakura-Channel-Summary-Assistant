@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 from telethon import TelegramClient
 
-from ..config import (
+from core.config import (
     ADMIN_LIST,
     API_HASH,
     API_ID,
@@ -17,15 +17,16 @@ from ..config import (
     LLM_MODEL,
     SEND_REPORT_TO_SOURCE,
 )
-from ..error_handler import record_error, retry_with_backoff
-from ..i18n import get_text
-from ..telegram_client_utils import (
+from core.handlers.userbot_client import get_userbot_client
+from core.i18n.i18n import get_text
+from core.system.error_handler import record_error, retry_with_backoff
+
+from .client_management import extract_date_range_from_summary, get_active_client
+from .client_utils import (
     sanitize_markdown,
     split_message_smart,
     validate_message_entities,
 )
-from ..userbot_client import get_userbot_client
-from .client_management import extract_date_range_from_summary, get_active_client
 from .poll_handlers import send_poll
 
 logger = logging.getLogger(__name__)
@@ -809,7 +810,7 @@ async def send_report(
                 except Exception:
                     save_channel_name = save_channel_id.split("/")[-1]
             try:
-                from ..database import get_db_manager
+                from core.infrastructure.database import get_db_manager
 
                 # 提取时间范围
                 start_time, end_time = extract_date_range_from_summary(summary_text_for_source)
@@ -835,7 +836,7 @@ async def send_report(
 
                     # ✅ v3.0.0新增：生成并保存向量
                     try:
-                        from ..vector_store import get_vector_store
+                        from core.ai.vector_store import get_vector_store
 
                         vector_store = get_vector_store()
 

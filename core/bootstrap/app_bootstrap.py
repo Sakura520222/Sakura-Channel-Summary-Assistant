@@ -24,8 +24,7 @@ from telethon import TelegramClient
 if TYPE_CHECKING:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from core.database import get_db_manager
-from core.error_handler import initialize_error_handling
+from core.infrastructure.database.manager import get_db_manager
 from core.initializers import (
     CommandRegistrar,
     CommentWelcomeInitializer,
@@ -37,13 +36,14 @@ from core.initializers import (
     UserBotInitializer,
 )
 from core.settings import get_api_hash, get_api_id, get_bot_token, validate_required_settings
-from core.telegram_client import set_active_client
+from core.system.error_handler import initialize_error_handling
+from core.telegram.client import set_active_client
 
 
 class AppBootstrap:
     """应用引导程序 - 协调所有初始化器的工作"""
 
-    def __init__(self, version: str = "1.7.1"):
+    def __init__(self, version: str = "1.7.2"):
         self.logger = logging.getLogger(__name__)
         self.version = version
         self.client: TelegramClient | None = None
@@ -170,7 +170,7 @@ class AppBootstrap:
 
     async def _initialize_comment_welcome(self) -> None:
         """初始化评论区欢迎功能"""
-        from core.database import get_db_manager
+        from core.infrastructure.database.manager import get_db_manager
 
         db_manager = get_db_manager()
         await self.comment_welcome_initializer.initialize(self.client, db_manager)

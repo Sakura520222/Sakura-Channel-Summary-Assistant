@@ -31,11 +31,11 @@ from telegram.ext import (
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from core.ai.conversation_manager import get_conversation_manager
+from core.ai.qa_engine_v3 import get_qa_engine_v3
+from core.ai.quota_manager import get_quota_manager
 from core.config import get_qa_bot_persona
-from core.conversation_manager import get_conversation_manager
-from core.qa_engine_v3 import get_qa_engine_v3
 from core.qa_user_system import get_qa_user_system
-from core.quota_manager import get_quota_manager
 
 
 # 配置日志 - 添加[QA]前缀以便区分
@@ -102,7 +102,7 @@ class QABot:
     async def initialize_database(self):
         """初始化数据库连接"""
         try:
-            from core.database import get_db_manager
+            from core.infrastructure.database.manager import get_db_manager
 
             db = get_db_manager()
 
@@ -412,7 +412,7 @@ class QABot:
             message = """📝 <b>请求生成总结</b>
 
 使用方法:
-<code>/request_summary <频道链接></code>
+<code>/request_summary &lt;频道链接&gt;</code>
 
 此命令会向管理员提交请求，请管理员为指定频道生成总结。
 
@@ -778,7 +778,7 @@ class QABot:
         async def check_notifications_job(context=None):
             """定期检查并发送待处理的通知"""
             try:
-                from core.mainbot_push_handler import get_mainbot_push_handler
+                from core.handlers.mainbot_push_handler import get_mainbot_push_handler
 
                 push_handler = get_mainbot_push_handler()
 
