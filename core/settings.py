@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
-from .constants import (
+from core.infrastructure.utils.constants import (
     BOT_STATE_RUNNING,
     DEFAULT_LLM_BASE_URL,
     DEFAULT_LLM_MODEL,

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.process_manager import (
+from core.system.process_manager import (
     check_qa_bot_health,
     format_uptime,
     get_qa_bot_process,

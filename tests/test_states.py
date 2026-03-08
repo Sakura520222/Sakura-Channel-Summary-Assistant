@@ -6,7 +6,7 @@ Copyright 2026 Sakura-Bot
 
 import pytest
 
-from core.states import UserContext, get_user_context
+from core.infrastructure.utils.states import UserContext, get_user_context
 
 
 @pytest.mark.unit

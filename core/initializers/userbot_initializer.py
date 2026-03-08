@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from telethon import TelegramClient
 
-from core.userbot_client import UserBotClient, init_userbot_client
+from core.handlers.userbot_client import UserBotClient, init_userbot_client
 
 
 class UserBotInitializer:

@@ -14,7 +14,7 @@
 
 import pytest
 
-from core.channel_comment_welcome_config import (
+from core.handlers.channel_comment_welcome_config import (
     delete_channel_comment_welcome_config,
     get_all_comment_welcome_configs,
     get_channel_comment_welcome_config,

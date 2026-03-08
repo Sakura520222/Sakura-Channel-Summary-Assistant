@@ -1,27 +1,36 @@
+# Telegram Integration Layer
 """
-Telegram客户端功能模块
+Telegram-specific functionality and client management.
 """
 
-from .client_management import (
+from .client import (
     extract_date_range_from_summary,
+    fetch_last_week_messages,
     get_active_client,
-    set_active_client,
-)
-from .messaging import fetch_last_week_messages, send_long_message, send_report
-from .poll_handlers import (
+    send_long_message,
     send_poll,
     send_poll_to_channel,
     send_poll_to_discussion_group,
+    send_report,
+    set_active_client,
+)
+from .client_utils import (
+    sanitize_markdown,
+    split_message_smart,
+    validate_message_entities,
 )
 
 __all__ = [
-    "send_long_message",
-    "send_report",
+    "extract_date_range_from_summary",
     "fetch_last_week_messages",
+    "get_active_client",
+    "sanitize_markdown",
+    "send_long_message",
     "send_poll",
     "send_poll_to_channel",
     "send_poll_to_discussion_group",
+    "send_report",
     "set_active_client",
-    "get_active_client",
-    "extract_date_range_from_summary",
+    "split_message_smart",
+    "validate_message_entities",
 ]

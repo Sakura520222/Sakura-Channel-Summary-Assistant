@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from core.poll_prompt_manager import load_poll_prompt, save_poll_prompt
+from core.infrastructure.config.poll_prompt_manager import load_poll_prompt, save_poll_prompt
 
 
 @pytest.mark.unit

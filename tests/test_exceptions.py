@@ -6,7 +6,7 @@ Copyright 2026 Sakura-Bot
 
 import pytest
 
-from core.exceptions import (
+from core.infrastructure.utils.exceptions import (
     AIServiceError,
     BotError,
     ChannelNotFoundError,

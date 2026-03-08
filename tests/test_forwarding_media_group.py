@@ -14,7 +14,7 @@ import pytest
 
 # 假设这些可以从实际的模块导入
 # from core.forwarding.forwarding_handler import ForwardingHandler
-# from core.database import DatabaseManagerBase
+# from core.infrastructure.database.manager import DatabaseManagerBase
 
 
 @pytest.fixture

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.reranker import Reranker, get_reranker
+from core.ai.reranker import Reranker, get_reranker
 
 
 @pytest.mark.unit

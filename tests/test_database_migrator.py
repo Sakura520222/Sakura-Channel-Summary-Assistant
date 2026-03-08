@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.database_migrator import DatabaseMigrator
+from core.infrastructure.database.migrator import DatabaseMigrator
 
 
 @pytest.mark.unit

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.quota_manager import QuotaManager, get_quota_manager
+from core.ai.quota_manager import QuotaManager, get_quota_manager
 
 
 @pytest.mark.unit

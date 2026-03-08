@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from core.database_mysql import MySQLManager
+from core.infrastructure.database.mysql import MySQLManager
 
 
 @pytest.fixture

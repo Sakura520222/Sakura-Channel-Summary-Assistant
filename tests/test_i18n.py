@@ -6,7 +6,7 @@ Copyright 2026 Sakura-Bot
 
 import pytest
 
-from core.i18n import (
+from core.i18n.i18n import (
     I18nManager,
     get_language,
     get_supported_languages,

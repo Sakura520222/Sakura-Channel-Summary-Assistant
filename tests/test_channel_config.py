@@ -8,7 +8,7 @@ import json
 
 import pytest
 
-from core.channel_config import (
+from core.infrastructure.config.channel_config import (
     ChannelScheduleManager,
     build_cron_trigger,
     delete_channel_schedule,
@@ -16,7 +16,7 @@ from core.channel_config import (
     get_schedule_manager,
     set_channel_schedule,
 )
-from core.exceptions import ConfigurationError, InvalidScheduleError
+from core.infrastructure.utils.exceptions import ConfigurationError, InvalidScheduleError
 
 
 @pytest.mark.unit

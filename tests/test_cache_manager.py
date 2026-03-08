@@ -10,7 +10,7 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
-from core.cache_manager import (
+from core.services.cache_manager import (
     DiscussionCache,
     cache_discussion_group_id,
     clear_discussion_group_cache,

@@ -22,46 +22,22 @@ from telethon.events import CallbackQuery, NewMessage
 if TYPE_CHECKING:
     from telethon import TelegramClient
 
-from core.command_handlers import (
-    handle_add_channel,
+from core.commands.ai_config_commands import (
     handle_ai_config_input,
-    handle_changelog,
-    handle_clear_cache,
-    handle_clear_summary_time,
-    handle_delete_channel,
-    handle_delete_channel_poll,
-    handle_delete_channel_schedule,
-    handle_help,
-    handle_language,
-    handle_manual_summary,
-    handle_pause,
-    handle_poll_prompt_input,
-    handle_prompt_input,
-    handle_restart,
-    handle_resume,
     handle_set_ai_config,
-    handle_set_channel_poll,
-    handle_set_channel_schedule,
-    handle_set_log_level,
-    handle_set_poll_prompt,
-    handle_set_prompt,
-    handle_set_send_to_source,
     handle_show_ai_config,
-    handle_show_channel_poll,
-    handle_show_channel_schedule,
-    handle_show_channels,
-    handle_show_log_level,
-    handle_show_poll_prompt,
-    handle_show_prompt,
-    handle_shutdown,
-    handle_start,
 )
-from core.command_handlers.comment_welcome_commands import (
+from core.commands.channel_commands import (
+    handle_add_channel,
+    handle_delete_channel,
+    handle_show_channels,
+)
+from core.commands.comment_welcome_commands import (
     handle_delete_comment_welcome,
     handle_set_comment_welcome,
     handle_show_comment_welcome,
 )
-from core.command_handlers.forwarding_commands import (
+from core.commands.forwarding_commands import (
     cmd_forwarding_default_footer,
     cmd_forwarding_disable,
     cmd_forwarding_enable,
@@ -69,23 +45,55 @@ from core.command_handlers.forwarding_commands import (
     cmd_forwarding_stats,
     cmd_forwarding_status,
 )
-from core.command_handlers.other_commands import handle_update
-from core.command_handlers.qa_control_commands import (
+from core.commands.other_commands import (
+    handle_changelog,
+    handle_clear_cache,
+    handle_delete_channel_poll,
+    handle_delete_channel_schedule,
+    handle_help,
+    handle_language,
+    handle_pause,
+    handle_restart,
+    handle_resume,
+    handle_set_channel_poll,
+    handle_set_channel_schedule,
+    handle_set_log_level,
+    handle_set_send_to_source,
+    handle_show_channel_poll,
+    handle_show_channel_schedule,
+    handle_show_log_level,
+    handle_shutdown,
+    handle_start,
+    handle_update,
+)
+from core.commands.prompt_commands import (
+    handle_poll_prompt_input,
+    handle_prompt_input,
+    handle_set_poll_prompt,
+    handle_set_prompt,
+    handle_show_poll_prompt,
+    handle_show_prompt,
+)
+from core.commands.qa_control_commands import (
     handle_qa_restart,
     handle_qa_start,
     handle_qa_stats,
     handle_qa_status,
     handle_qa_stop,
 )
-from core.command_handlers.userbot_commands import (
+from core.commands.summary_commands import (
+    handle_clear_summary_time,
+    handle_manual_summary,
+)
+from core.commands.userbot_commands import (
     handle_userbot_join,
     handle_userbot_leave,
     handle_userbot_list,
     handle_userbot_status,
 )
+from core.handlers.mainbot_request_handler import get_mainbot_request_handler
 from core.history_handlers import handle_export, handle_history, handle_stats
-from core.mainbot_request_handler import get_mainbot_request_handler
-from core.poll_regeneration_handlers import (
+from core.services.poll.poll_regeneration_handlers import (
     handle_poll_regeneration_callback,
     handle_vote_regen_request_callback,
 )
@@ -288,7 +296,7 @@ class CommandRegistrar:
 
     def _register_migration_commands(self, client: "TelegramClient") -> None:
         """注册数据库迁移命令"""
-        from core.command_handlers.database_migration_commands import (
+        from core.commands.database_migration_commands import (
             handle_db_clear,
             handle_db_clear_cancel,
             handle_db_clear_confirm,
@@ -326,39 +334,43 @@ class CommandRegistrar:
         """注册频道消息转发命令"""
         from core.forwarding import get_forwarding_handler
 
-        handler = get_forwarding_handler()
-
         async def handle_forwarding_status(event):
+            handler = get_forwarding_handler()
             if handler:
                 await cmd_forwarding_status(client, event.message, handler)
             else:
                 await event.message.reply("转发功能未初始化")
 
         async def handle_forwarding_enable(event):
+            handler = get_forwarding_handler()
             if handler:
                 await cmd_forwarding_enable(client, event.message, handler)
             else:
                 await event.message.reply("转发功能未初始化")
 
         async def handle_forwarding_disable(event):
+            handler = get_forwarding_handler()
             if handler:
                 await cmd_forwarding_disable(client, event.message, handler)
             else:
                 await event.message.reply("转发功能未初始化")
 
         async def handle_forwarding_stats(event):
+            handler = get_forwarding_handler()
             if handler:
                 await cmd_forwarding_stats(client, event.message, handler)
             else:
                 await event.message.reply("转发功能未初始化")
 
         async def handle_forwarding_footer(event):
+            handler = get_forwarding_handler()
             if handler:
                 await cmd_forwarding_footer(client, event.message, handler)
             else:
                 await event.message.reply("转发功能未初始化")
 
         async def handle_forwarding_default_footer(event):
+            handler = get_forwarding_handler()
             if handler:
                 await cmd_forwarding_default_footer(client, event.message, handler)
             else:
@@ -460,7 +472,7 @@ class CommandRegistrar:
         self.logger.info("请求处理回调处理器已注册")
 
         # 申请周报总结按钮回调
-        from core.channel_comment_welcome import handle_summary_request_callback
+        from core.handlers.channel_comment_welcome import handle_summary_request_callback
 
         client.add_event_handler(
             handle_summary_request_callback,

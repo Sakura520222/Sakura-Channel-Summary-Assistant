@@ -11,8 +11,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from core.telegram.client_utils import sanitize_markdown, validate_message_entities
 from core.telegram.messaging import send_long_message
-from core.telegram_client_utils import sanitize_markdown, validate_message_entities
 
 
 @pytest.mark.asyncio

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from openai import OpenAI
 
-from core.ai_client import analyze_with_ai, client_llm, generate_poll_from_summary
+from core.ai.ai_client import analyze_with_ai, client_llm, generate_poll_from_summary
 
 
 @pytest.mark.unit
@@ -85,7 +85,7 @@ class TestAnalyzeWithAI:
 
     def test_analyze_with_api_error(self):
         """测试 API 错误处理"""
-        from core.error_handler import RetryExhaustedError
+        from core.system.error_handler import RetryExhaustedError
 
         with patch.object(
             client_llm.chat.completions, "create", side_effect=ConnectionError("API 连接失败")
@@ -97,7 +97,7 @@ class TestAnalyzeWithAI:
 
     def test_analyze_with_timeout(self):
         """测试超时处理"""
-        from core.error_handler import RetryExhaustedError
+        from core.system.error_handler import RetryExhaustedError
 
         with patch.object(
             client_llm.chat.completions, "create", side_effect=TimeoutError("请求超时")
@@ -318,7 +318,7 @@ class TestAIClientErrorHandling:
 
     def test_analyze_max_retries_exceeded(self):
         """测试超过最大重试次数"""
-        from core.error_handler import RetryExhaustedError
+        from core.system.error_handler import RetryExhaustedError
 
         with patch.object(
             client_llm.chat.completions, "create", side_effect=ConnectionError("持续失败")
@@ -368,7 +368,7 @@ class TestAIClientIntegration:
 
     def test_error_recovery_workflow(self):
         """测试错误恢复工作流"""
-        from core.error_handler import RetryExhaustedError
+        from core.system.error_handler import RetryExhaustedError
 
         # 第一次调用失败，现在会抛出异常
         with patch.object(

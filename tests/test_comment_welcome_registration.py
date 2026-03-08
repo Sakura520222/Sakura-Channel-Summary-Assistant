@@ -11,8 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.channel_comment_welcome import handle_summary_request_callback
-from core.database_sqlite import SQLiteManager
+from core.handlers.channel_comment_welcome import handle_summary_request_callback
+from core.infrastructure.database.sqlite import SQLiteManager
 
 
 @pytest.fixture

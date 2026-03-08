@@ -9,14 +9,14 @@ from unittest.mock import patch
 
 import pytest
 
-from core.exceptions import ConfigurationError
-from core.poll_config import (
+from core.infrastructure.config.poll_config import (
     ChannelPollConfigManager,
     delete_channel_poll_config,
     get_channel_poll_config,
     get_poll_config_manager,
     set_channel_poll_config,
 )
+from core.infrastructure.utils.exceptions import ConfigurationError
 
 
 @pytest.mark.unit

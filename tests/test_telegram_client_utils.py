@@ -7,7 +7,7 @@
 测试 Telegram 客户端工具函数
 """
 
-from core.telegram_client_utils import (
+from core.telegram.client_utils import (
     sanitize_markdown,
     split_by_lines_smart,
     split_message_smart,
