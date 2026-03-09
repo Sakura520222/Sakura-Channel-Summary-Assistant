@@ -272,3 +272,4 @@ query
 .clinerules/
 .trae
 TG-Forwarder/
+data/config.json.last_valid
