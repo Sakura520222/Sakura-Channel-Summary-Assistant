@@ -71,7 +71,9 @@ class FileWatcher(FileSystemEventHandler):
             return
 
         # 只监控配置文件
-        if not event.src_path.endswith(("config.json", ".env", "qa_persona.txt")):
+        if not event.src_path.endswith(
+            ("config.json", ".env", "qa_persona.txt", "poll_prompt.txt", "prompt.txt")
+        ):
             return
 
         logger.debug(f"检测到文件变更: {event.src_path}")
