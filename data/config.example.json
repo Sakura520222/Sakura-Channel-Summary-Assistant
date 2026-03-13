@@ -8,6 +8,13 @@
   "poll_regen_threshold": 5,
   "enable_vote_regen_request": true,
   "log_level": "INFO",
+  "comment_chat_settings": {
+    "enabled": true,
+    "wake_keyword": "小樱",
+    "debounce_seconds": 3,
+    "session_timeout": 30,
+    "max_context_messages": 50
+  },
   "summary_schedules": {
     "https://t.me/example_channel1": {
       "frequency": "weekly",
