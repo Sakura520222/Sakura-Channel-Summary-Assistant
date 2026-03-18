@@ -1,5 +1,6 @@
 # core/config/events.py
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -11,6 +12,15 @@ class ConfigChangedEvent(BaseModel):
     version: int
     old_config: dict | None = None
     changed_fields: set[str] = Field(default_factory=set)
+    timestamp: float = Field(default_factory=lambda: datetime.now().timestamp())
+
+
+class PromptChangedEvent(BaseModel):
+    """提示词变更成功事件"""
+
+    prompt_type: Literal["summary", "poll", "qa_persona"]  # 提示词类型
+    file_path: str  # 文件路径
+    content: str | None = None  # 新内容（可选）
     timestamp: float = Field(default_factory=lambda: datetime.now().timestamp())
 
 

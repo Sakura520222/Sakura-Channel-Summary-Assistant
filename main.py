@@ -162,6 +162,24 @@ if __name__ == "__main__":
                     )
                     logger.info("✅ 配置错误通知器已订阅")
 
+                    # 订阅提示词变更事件
+                    from core.config.events import PromptChangedEvent
+
+                    async def on_prompt_changed(event):
+                        """提示词变更回调"""
+                        logger.info(
+                            f"📝 提示词已更新: 类型={event.prompt_type}, "
+                            f"文件={event.file_path}, "
+                            f"长度={len(event.content) if event.content else 0}字符"
+                        )
+
+                    await event_bus.subscribe(
+                        PromptChangedEvent,
+                        on_prompt_changed,
+                        priority=event_bus.PRIORITY_NORMAL,
+                    )
+                    logger.info("✅ 提示词变更事件订阅已配置")
+
                     file_watcher = FileWatcher(config_manager, loop)
                     file_watcher.start(str(Path("data")))
                     logger.info("✅ 文件监控已启动")
