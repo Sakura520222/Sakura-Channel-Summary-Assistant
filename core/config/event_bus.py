@@ -1,6 +1,7 @@
 # core/config/event_bus.py
 import asyncio
 import logging
+import weakref
 from collections.abc import Callable
 from typing import Any
 
@@ -28,7 +29,30 @@ class AsyncIOEventBus:
         self._subscribers: dict[type, list[tuple[int, Callable, float]]] = {}
         self._lock = asyncio.Lock()
         self._sequential_mode = sequential_mode
-        self._subscribe_tasks: set[asyncio.Task] = set()
+        self._weak_refs: dict[Callable, weakref.ref] = {}  # 存储弱引用，避免循环引用
+
+    def _make_weak_callback(self, callback: Callable) -> Callable:
+        """为回调函数创建弱引用，避免循环引用导致的内存泄漏"""
+        if callback in self._weak_refs:
+            ref = self._weak_refs[callback]
+            if ref() is not None:
+                return ref()
+
+        def weak_callback(*args, **kwargs):
+            cb = self._weak_refs.get(callback)
+            if cb is None:
+                return None
+            actual_cb = cb()
+            if actual_cb is None:
+                # 回调已被回收，清理弱引用
+                self._weak_refs.pop(callback, None)
+                return None
+            return actual_cb(*args, **kwargs)
+
+        self._weak_refs[callback] = weakref.ref(
+            callback, lambda _: self._weak_refs.pop(callback, None)
+        )
+        return callback
 
     async def subscribe(
         self,
@@ -156,16 +180,35 @@ class AsyncIOEventBus:
 
     async def shutdown(self):
         """关闭事件总线"""
-        # 取消所有未完成的订阅任务
-        for task in list(self._subscribe_tasks):
-            if not task.done():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+        # 清理所有订阅
+        await self.unsubscribe_all()
 
-        self._subscribe_tasks.clear()
+        # 清理弱引用
+        self._weak_refs.clear()
 
+        logger.info("事件总线已关闭")
+
+    async def unsubscribe_all(self, event_type: type | None = None) -> int:
+        """取消所有订阅，释放资源
+
+        Args:
+            event_type: 可选，指定要取消订阅的事件类型。如果为 None 则取消所有订阅
+
+        Returns:
+            取消的订阅数量
+        """
         async with self._lock:
-            self._subscribers.clear()
+            if event_type is None:
+                # 取消所有订阅
+                count = sum(len(subs) for subs in self._subscribers.values())
+                self._subscribers.clear()
+                logger.debug(f"已取消所有事件订阅: {count} 个")
+                return count
+            else:
+                # 取消特定事件的订阅
+                if event_type in self._subscribers:
+                    count = len(self._subscribers[event_type])
+                    del self._subscribers[event_type]
+                    logger.debug(f"已取消 {event_type.__name__} 事件的所有订阅: {count} 个")
+                    return count
+                return 0
