@@ -72,7 +72,7 @@ async def cmd_forwarding_enable(
     client: "TelegramClient", message: "Message", handler: "ForwardingHandler"
 ):
     """
-    启用转发功能
+    启用转发功能（持久化到配置文件）
 
     用法: /forwarding_enable
     """
@@ -81,9 +81,20 @@ async def cmd_forwarding_enable(
             await message.reply(t("forwarding.already_enabled"))
             return
 
+        # 更新内存状态
         handler.enabled = True
+
+        # 持久化到配置文件
+        from core.config import load_config, save_config
+
+        config = load_config()
+        if "forwarding" not in config:
+            config["forwarding"] = {}
+        config["forwarding"]["enabled"] = True
+        save_config(config)
+
         await message.reply(t("forwarding.enabled"))
-        logger.info(f"用户 {message.sender_id} 启用了转发功能")
+        logger.info(f"用户 {message.sender_id} 启用了转发功能（已保存到配置文件）")
 
     except Exception as e:
         logger.error(f"启用转发功能失败: {type(e).__name__}: {e}", exc_info=True)
@@ -94,7 +105,7 @@ async def cmd_forwarding_disable(
     client: "TelegramClient", message: "Message", handler: "ForwardingHandler"
 ):
     """
-    禁用转发功能
+    禁用转发功能（持久化到配置文件）
 
     用法: /forwarding_disable
     """
@@ -103,9 +114,20 @@ async def cmd_forwarding_disable(
             await message.reply(t("forwarding.already_disabled"))
             return
 
+        # 更新内存状态
         handler.enabled = False
+
+        # 持久化到配置文件
+        from core.config import load_config, save_config
+
+        config = load_config()
+        if "forwarding" not in config:
+            config["forwarding"] = {}
+        config["forwarding"]["enabled"] = False
+        save_config(config)
+
         await message.reply(t("forwarding.disabled"))
-        logger.info(f"用户 {message.sender_id} 禁用了转发功能")
+        logger.info(f"用户 {message.sender_id} 禁用了转发功能（已保存到配置文件）")
 
     except Exception as e:
         logger.error(f"禁用转发功能失败: {type(e).__name__}: {e}", exc_info=True)
@@ -298,3 +320,223 @@ async def cmd_forwarding_default_footer(
     except Exception as e:
         logger.error(f"设置默认底栏失败: {type(e).__name__}: {e}", exc_info=True)
         await message.reply(t("forwarding.error.query_failed", error=str(e)))
+
+
+async def cmd_forwarding_add_rule(
+    client: "TelegramClient", message: "Message", handler: "ForwardingHandler"
+):
+    """
+    添加转发规则（持久化到配置文件）
+
+    用法: /forwarding_add_rule <源频道> <目标频道>
+
+    示例: /forwarding_add_rule https://t.me/source https://t.me/target
+    """
+    try:
+        # 解析参数
+        args = message.message.split()[1:] if message.message else []
+
+        if len(args) < 2:
+            await message.reply(
+                "❌ 参数错误\n\n"
+                "用法: /forwarding_add_rule <源频道> <目标频道>\n"
+                "示例: /forwarding_add_rule https://t.me/source https://t.me/target"
+            )
+            return
+
+        source_channel = args[0]
+        target_channel = args[1]
+
+        # 加载当前配置
+        from core.config import load_config, save_config
+
+        config = load_config()
+
+        # 确保 forwarding 配置存在
+        if "forwarding" not in config:
+            config["forwarding"] = {"enabled": False, "rules": []}
+
+        if "rules" not in config["forwarding"]:
+            config["forwarding"]["rules"] = []
+
+        # 检查规则是否已存在
+        for rule in config["forwarding"]["rules"]:
+            if (
+                rule.get("source_channel", "").rstrip("/").split("/")[-1]
+                == source_channel.rstrip("/").split("/")[-1]
+                and rule.get("target_channel", "").rstrip("/").split("/")[-1]
+                == target_channel.rstrip("/").split("/")[-1]
+            ):
+                await message.reply(f"⚠️ 转发规则已存在:\n{source_channel} → {target_channel}")
+                return
+
+        # 添加新规则
+        new_rule = {
+            "source_channel": source_channel,
+            "target_channel": target_channel,
+        }
+        config["forwarding"]["rules"].append(new_rule)
+
+        # 保存配置
+        save_config(config)
+
+        # 更新 handler 的配置
+        handler.set_config(config["forwarding"])
+
+        await message.reply(
+            f"✅ 转发规则已添加:\n{source_channel} → {target_channel}\n\n"
+            f"当前共有 {len(config['forwarding']['rules'])} 条规则\n"
+            f"使用 /forwarding_enable 启用转发功能"
+        )
+        logger.info(f"用户 {message.sender_id} 添加了转发规则: {source_channel} → {target_channel}")
+
+    except Exception as e:
+        logger.error(f"添加转发规则失败: {type(e).__name__}: {e}", exc_info=True)
+        await message.reply(f"❌ 添加转发规则失败: {str(e)}")
+
+
+async def cmd_forwarding_add_and_enable(
+    client: "TelegramClient", message: "Message", handler: "ForwardingHandler"
+):
+    """
+    一键添加转发规则并启用（持久化到配置文件）
+
+    用法: /forwarding <源频道> <目标频道>
+
+    示例: /forwarding https://t.me/source https://t.me/target
+    """
+    try:
+        # 解析参数
+        args = message.message.split()[1:] if message.message else []
+
+        if len(args) < 2:
+            # 没有参数，显示状态
+            return await cmd_forwarding_status(client, message, handler)
+
+        source_channel = args[0]
+        target_channel = args[1]
+
+        # 加载当前配置
+        from core.config import load_config, save_config
+
+        config = load_config()
+
+        # 确保 forwarding 配置存在
+        if "forwarding" not in config:
+            config["forwarding"] = {"enabled": True, "rules": []}
+
+        if "rules" not in config["forwarding"]:
+            config["forwarding"]["rules"] = []
+
+        # 检查规则是否已存在
+        rule_exists = False
+        for rule in config["forwarding"]["rules"]:
+            if (
+                rule.get("source_channel", "").rstrip("/").split("/")[-1]
+                == source_channel.rstrip("/").split("/")[-1]
+                and rule.get("target_channel", "").rstrip("/").split("/")[-1]
+                == target_channel.rstrip("/").split("/")[-1]
+            ):
+                rule_exists = True
+                break
+
+        if not rule_exists:
+            # 添加新规则
+            new_rule = {
+                "source_channel": source_channel,
+                "target_channel": target_channel,
+            }
+            config["forwarding"]["rules"].append(new_rule)
+
+        # 启用转发
+        config["forwarding"]["enabled"] = True
+
+        # 保存配置
+        save_config(config)
+
+        # 更新 handler 的配置和状态
+        handler.set_config(config["forwarding"])
+        handler.enabled = True
+
+        if rule_exists:
+            response = f"✅ 转发规则已存在，已启用转发:\n{source_channel} → {target_channel}"
+        else:
+            response = f"✅ 转发规则已添加并启用:\n{source_channel} → {target_channel}"
+
+        response += f"\n\n当前共有 {len(config['forwarding']['rules'])} 条规则"
+        await message.reply(response)
+        logger.info(
+            f"用户 {message.sender_id} 添加并启用了转发规则: {source_channel} → {target_channel}"
+        )
+
+    except Exception as e:
+        logger.error(f"添加并启用转发规则失败: {type(e).__name__}: {e}", exc_info=True)
+        await message.reply(f"❌ 操作失败: {str(e)}")
+
+
+async def cmd_forwarding_remove_rule(
+    client: "TelegramClient", message: "Message", handler: "ForwardingHandler"
+):
+    """
+    删除转发规则（持久化到配置文件）
+
+    用法: /forwarding_remove_rule <源频道> <目标频道>
+
+    示例: /forwarding_remove_rule https://t.me/source https://t.me/target
+    """
+    try:
+        # 解析参数
+        args = message.message.split()[1:] if message.message else []
+
+        if len(args) < 2:
+            await message.reply(
+                "❌ 参数错误\n\n"
+                "用法: /forwarding_remove_rule <源频道> <目标频道>\n"
+                "示例: /forwarding_remove_rule https://t.me/source https://t.me/target"
+            )
+            return
+
+        source_channel = args[0]
+        target_channel = args[1]
+
+        # 加载当前配置
+        from core.config import load_config, save_config
+
+        config = load_config()
+
+        if "forwarding" not in config or "rules" not in config["forwarding"]:
+            await message.reply("⚠️ 当前没有转发规则")
+            return
+
+        # 查找并删除规则
+        original_count = len(config["forwarding"]["rules"])
+        config["forwarding"]["rules"] = [
+            rule
+            for rule in config["forwarding"]["rules"]
+            if not (
+                rule.get("source_channel", "").rstrip("/").split("/")[-1]
+                == source_channel.rstrip("/").split("/")[-1]
+                and rule.get("target_channel", "").rstrip("/").split("/")[-1]
+                == target_channel.rstrip("/").split("/")[-1]
+            )
+        ]
+
+        if len(config["forwarding"]["rules"]) == original_count:
+            await message.reply(f"⚠️ 未找到转发规则:\n{source_channel} → {target_channel}")
+            return
+
+        # 保存配置
+        save_config(config)
+
+        # 更新 handler 的配置
+        handler.set_config(config["forwarding"])
+
+        await message.reply(
+            f"✅ 转发规则已删除:\n{source_channel} → {target_channel}\n\n"
+            f"当前共有 {len(config['forwarding']['rules'])} 条规则"
+        )
+        logger.info(f"用户 {message.sender_id} 删除了转发规则: {source_channel} → {target_channel}")
+
+    except Exception as e:
+        logger.error(f"删除转发规则失败: {type(e).__name__}: {e}", exc_info=True)
+        await message.reply(f"❌ 删除转发规则失败: {str(e)}")

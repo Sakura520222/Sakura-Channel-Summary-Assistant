@@ -45,6 +45,9 @@ class ForwardingInitializer:
     ) -> None:
         """初始化转发功能
 
+        始终创建转发处理器，支持通过命令动态启用/禁用。
+        监听器会根据配置中的规则注册，但只有 enabled=true 时才会处理消息。
+
         Args:
             bot_client: Bot客户端（用于发送消息）
             userbot_client: UserBot客户端（用于监听消息，可选）
@@ -55,10 +58,6 @@ class ForwardingInitializer:
         try:
             # 获取转发配置
             forwarding_config = get_forwarding_config()
-
-            if not forwarding_config.get("enabled", False):
-                self.logger.info("转发功能未启用（在config.json中设置enabled=true启用）")
-                return
 
             # 确定监听客户端
             if userbot_client:
@@ -77,26 +76,33 @@ class ForwardingInitializer:
 
             db_manager = get_db_manager()
 
-            # 创建转发处理器
+            # 始终创建转发处理器（支持通过命令动态启用）
             self.forwarding_handler = ForwardingHandler(
                 db_manager, monitoring_client, sending_client, event_bus=self._event_bus
             )
             set_forwarding_handler(self.forwarding_handler)
 
-            # 配置转发规则
-            self.forwarding_handler.enabled = True
+            # 配置转发规则（enabled 状态根据配置决定）
+            enabled_from_config = forwarding_config.get("enabled", False)
+            self.forwarding_handler.enabled = enabled_from_config
             self.forwarding_handler.set_config(forwarding_config)
-            self.logger.info(f"转发功能已启用，共 {len(forwarding_config.get('rules', []))} 条规则")
+
+            rule_count = len(forwarding_config.get("rules", []))
+            if enabled_from_config:
+                self.logger.info(f"转发功能已启用（配置），共 {rule_count} 条规则")
+            else:
+                self.logger.info(f"转发功能已初始化，当前处于禁用状态，共 {rule_count} 条规则")
+                self.logger.info("提示：使用 /forwarding_enable 命令启用转发功能")
 
             # UserBot 自动加入源频道
-            if userbot:
+            if userbot and rule_count > 0:
                 await self._auto_join_channels(userbot, forwarding_config)
 
             # 提取源频道ID
             source_channel_ids = self._extract_source_channels(forwarding_config)
             self.logger.info(f"转发功能监听的源频道: {source_channel_ids}")
 
-            # 注册消息监听器
+            # 注册消息监听器（即使禁用也注册，由 enabled 标志控制是否处理）
             await self._register_message_listener(
                 monitoring_client, source_channel_ids, userbot_client is not None
             )
