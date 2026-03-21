@@ -51,6 +51,7 @@ from core.commands.forwarding_commands import (
 from core.commands.other_commands import (
     handle_changelog,
     handle_clear_cache,
+    handle_clear_database,
     handle_delete_channel_poll,
     handle_delete_channel_schedule,
     handle_help,
@@ -266,6 +267,7 @@ class CommandRegistrar:
         client.add_event_handler(
             handle_clear_cache, NewMessage(pattern="/clearcache|/clear_cache|/清除缓存")
         )
+        client.add_event_handler(handle_clear_database, NewMessage(pattern="/db_clear|/dbclear"))
         client.add_event_handler(handle_changelog, NewMessage(pattern="/changelog|/更新日志"))
         client.add_event_handler(handle_update, NewMessage(pattern="/update|/更新"))
 

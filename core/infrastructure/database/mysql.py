@@ -1829,6 +1829,59 @@ class MySQLManager(DatabaseManagerBase):
             logger.error(f"清理旧通知失败: {type(e).__name__}: {e}", exc_info=True)
             return 0
 
+    # ============ 数据库清空方法 ============
+
+    async def clear_all_data(self) -> dict[str, int]:
+        """清空所有数据表（保留表结构和 db_version）"""
+        # 按外键依赖顺序清空表
+        tables = [
+            "poll_voters",  # 依赖 poll_regenerations
+            "poll_regenerations",
+            "forwarded_messages",
+            "forwarding_stats",
+            "notification_queue",
+            "request_queue",
+            "subscriptions",
+            "conversation_history",
+            "users",
+            "channel_profiles",
+            "usage_quota",
+            "summaries",
+        ]
+
+        results = {}
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    # 禁用外键检查（避免因外键约束导致删除失败）
+                    await cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+
+                    for table in tables:
+                        try:
+                            await cursor.execute(f"DELETE FROM {table}")
+                            count = cursor.rowcount
+                            results[table] = count
+                            logger.info(f"已清空表 {table}，删除 {count} 行")
+                        except Exception as e:
+                            logger.error(f"清空表 {table} 失败: {e}")
+                            results[table] = -1
+
+                    # 恢复外键检查
+                    await cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+                    await conn.commit()
+
+        except Exception as e:
+            logger.error(f"清空数据库时出错: {type(e).__name__}: {e}", exc_info=True)
+            # 确保外键检查被恢复
+            try:
+                async with self.pool.acquire() as conn:
+                    async with conn.cursor() as cursor:
+                        await cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+            except Exception:
+                pass
+
+        return results
+
     # ============ 通用查询方法 ============
 
     async def get_user_info(self, user_id: int) -> dict[str, Any] | None:

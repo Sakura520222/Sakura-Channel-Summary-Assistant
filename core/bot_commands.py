@@ -108,6 +108,7 @@ BOT_COMMANDS = [
             ("showloglevel", "查看当前日志级别"),
             ("setloglevel", "设置日志级别"),
             ("clearcache", "清除讨论组ID缓存"),
+            ("db_clear", "清空数据库（危险操作）"),
             # 更新维护
             ("changelog", "查看更新日志"),
             ("update", "一键更新机器人"),
