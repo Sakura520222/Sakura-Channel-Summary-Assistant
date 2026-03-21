@@ -11,13 +11,14 @@
 """
 数据库初始化器
 
-负责数据库连接初始化和迁移执行。
+负责 MySQL 数据库连接初始化和迁移执行。
 """
 
 import logging
-import os
 
 from core.infrastructure.database.manager import get_db_manager
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseInitializer:
@@ -27,40 +28,24 @@ class DatabaseInitializer:
         self.logger = logging.getLogger(__name__)
 
     async def initialize(self) -> None:
-        """初始化数据库连接并执行迁移"""
-        self.logger.info("初始化数据库连接...")
+        """初始化 MySQL 数据库连接并执行迁移"""
+        self.logger.info("初始化 MySQL 数据库连接...")
 
         db_manager = get_db_manager()
 
         # 检查是否需要初始化
-        if (
-            hasattr(db_manager, "init_database")
-            and hasattr(db_manager, "pool")
-            and db_manager.pool is None
-        ):
+        if hasattr(db_manager, "pool") and db_manager.pool is None:
             try:
-                # 尝试初始化数据库（MySQL）
+                # 初始化数据库（MySQL）
                 await db_manager.init_database()
-                self.logger.info("数据库连接池初始化完成")
+                self.logger.info("MySQL 数据库连接池初始化完成")
             except Exception as e:
-                # MySQL初始化失败，回退到SQLite
-                self.logger.warning(f"MySQL初始化失败: {e}")
-                self.logger.info("回退到 SQLite...")
-
-                # 强制重新创建
-                import core.database as db_module
-
-                db_module.db_manager = None
-
-                # 更新配置
-                os.environ["DATABASE_TYPE"] = "sqlite"
-
-                db_manager = get_db_manager()
-                if hasattr(db_manager, "init_database"):
-                    await db_manager.init_database()
-                self.logger.info("SQLite数据库初始化完成")
+                # MySQL 初始化失败
+                self.logger.error(f"MySQL 初始化失败: {e}")
+                self.logger.error("请检查 MySQL 配置和服务状态")
+                raise
         else:
-            self.logger.info("数据库连接已存在或不需要初始化")
+            self.logger.info("数据库连接已存在")
 
         # 执行数据库迁移
         await self._run_migrations(db_manager)

@@ -149,9 +149,6 @@ class CommandRegistrar:
         # 11. 评论区欢迎配置命令
         self._register_comment_welcome_commands(client)
 
-        # 12. 数据库迁移命令
-        self._register_migration_commands(client)
-
         # 13. 问答Bot控制命令
         self._register_qabot_commands(client)
 
@@ -295,34 +292,6 @@ class CommandRegistrar:
         client.add_event_handler(
             handle_delete_comment_welcome,
             NewMessage(pattern="/deletecommentwelcome|/delete_comment_welcome|/删除评论区欢迎"),
-        )
-
-    def _register_migration_commands(self, client: "TelegramClient") -> None:
-        """注册数据库迁移命令"""
-        from core.commands.database_migration_commands import (
-            handle_db_clear,
-            handle_db_clear_cancel,
-            handle_db_clear_confirm,
-            handle_migrate_check,
-            handle_migrate_start,
-            handle_migrate_status,
-        )
-
-        client.add_event_handler(
-            handle_migrate_check, NewMessage(pattern="/migrate_check|/迁移检查")
-        )
-        client.add_event_handler(
-            handle_migrate_start, NewMessage(pattern="/migrate_start|/开始迁移")
-        )
-        client.add_event_handler(
-            handle_migrate_status, NewMessage(pattern="/migrate_status|/迁移状态")
-        )
-        client.add_event_handler(handle_db_clear, NewMessage(pattern="/db_clear|/清空数据库"))
-        client.add_event_handler(
-            handle_db_clear_confirm, NewMessage(pattern="/db_clear_confirm|/确认清空数据库")
-        )
-        client.add_event_handler(
-            handle_db_clear_cancel, NewMessage(pattern="/db_clear_cancel|/取消清空数据库")
         )
 
     def _register_qabot_commands(self, client: "TelegramClient") -> None:

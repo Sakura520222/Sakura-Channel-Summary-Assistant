@@ -146,14 +146,14 @@ class PollSettings(BaseSettings):
 
 
 class DatabaseSettings(BaseSettings):
-    """数据库相关配置"""
+    """数据库相关配置（仅支持MySQL）"""
 
-    database_type: str = Field(default="sqlite", alias="DATABASE_TYPE")
+    database_type: str = Field(default="mysql", alias="DATABASE_TYPE")
 
     # MySQL 配置
     mysql_host: str = Field(default="localhost", alias="MYSQL_HOST")
     mysql_port: int = Field(default=3306, alias="MYSQL_PORT")
-    mysql_user: str = Field(default="root", alias="MYSQL_USER")
+    mysql_user: str = Field(default="sakura_bot", alias="MYSQL_USER")
     mysql_password: str = Field(default="", alias="MYSQL_PASSWORD")
     mysql_database: str = Field(default="sakura_bot_db", alias="MYSQL_DATABASE")
     mysql_charset: str = Field(default="utf8mb4", alias="MYSQL_CHARSET")
@@ -166,12 +166,10 @@ class DatabaseSettings(BaseSettings):
     @field_validator("database_type")
     @classmethod
     def validate_database_type(cls, v: str) -> str:
-        valid_types = ["sqlite", "mysql"]
         v_lower = v.lower()
-        if v_lower not in valid_types:
-            logger.warning(f"无效的数据库类型: {v}，使用默认值 sqlite")
-            return "sqlite"
-        return v_lower
+        if v_lower != "mysql":
+            raise ValueError("仅支持MySQL数据库")
+        return "mysql"
 
     model_config = {"extra": "ignore"}
 

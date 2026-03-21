@@ -119,17 +119,6 @@ BOT_COMMANDS = [
             ("qa_stats", "查看问答Bot详细统计"),
         ],
     },
-    # ========== 8. 数据库管理（高危） ==========
-    {
-        "category": "数据库管理",
-        "i18n_key": "database",
-        "commands": [
-            ("migrate_check", "检查数据库迁移准备状态"),
-            ("migrate_start", "开始数据库迁移"),
-            ("migrate_status", "查看数据库迁移进度"),
-            ("db_clear", "清空MySQL数据库（危险操作）"),
-        ],
-    },
     # ========== 9. 偏好设置 ==========
     {
         "category": "偏好设置",
