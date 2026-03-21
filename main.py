@@ -195,6 +195,21 @@ if __name__ == "__main__":
                     )
                     logger.info("✅ 提示词变更事件订阅已配置")
 
+                    # 订阅配置变更成功事件
+                    from core.config.events import ConfigChangedEvent
+
+                    await event_bus.subscribe(
+                        ConfigChangedEvent,
+                        config_error_notifier.on_config_changed,
+                        priority=event_bus.PRIORITY_HIGH,
+                    )
+                    logger.info("✅ 配置变更事件订阅已配置")
+
+                    # 设置全局配置变量热重载
+                    from core.config import setup_config_reload
+
+                    await setup_config_reload(event_bus)
+
                     file_watcher = FileWatcher(config_manager, loop)
                     file_watcher.start(str(Path("data")))
                     logger.info("✅ 文件监控已启动")

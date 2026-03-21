@@ -1533,3 +1533,111 @@ def get_qa_bot_persona():
     except Exception as e:
         logger.error(f"读取人格文件失败: {e}，使用默认人格")
         return DEFAULT_QA_PERSONA
+
+
+# ==================== 配置热重载支持 ====================
+
+_config_reload_subscribed = False
+
+
+async def setup_config_reload(event_bus):
+    """设置配置热重载，订阅 ConfigChangedEvent
+
+    Args:
+        event_bus: AsyncIOEventBus 实例
+    """
+    global _config_reload_subscribed
+
+    if _config_reload_subscribed:
+        logger.debug("配置热重载已设置，跳过重复订阅")
+        return
+
+    from core.config.events import ConfigChangedEvent
+
+    async def on_config_changed(event: ConfigChangedEvent):
+        """配置变更处理"""
+        try:
+            config = event.config
+            global \
+                CHANNELS, \
+                SEND_REPORT_TO_SOURCE, \
+                ENABLE_POLL, \
+                POLL_REGEN_THRESHOLD, \
+                ENABLE_VOTE_REGEN_REQUEST, \
+                SUMMARY_SCHEDULES, \
+                CHANNEL_POLL_SETTINGS
+
+            changes = []
+
+            # 更新频道列表
+            if "channels" in event.changed_fields or not event.changed_fields:
+                config_channels = config.get("channels")
+                if config_channels and isinstance(config_channels, list):
+                    old_channels = CHANNELS.copy()
+                    CHANNELS = config_channels
+                    changes.append(f"channels: {len(old_channels)} → {len(CHANNELS)} 个频道")
+
+            # 更新是否将报告发送回源频道的配置
+            if "send_report_to_source" in event.changed_fields or not event.changed_fields:
+                if "send_report_to_source" in config:
+                    old_value = SEND_REPORT_TO_SOURCE
+                    SEND_REPORT_TO_SOURCE = config["send_report_to_source"]
+                    changes.append(f"send_report_to_source: {old_value} → {SEND_REPORT_TO_SOURCE}")
+
+            # 更新是否启用投票功能的配置
+            if "enable_poll" in event.changed_fields or not event.changed_fields:
+                if "enable_poll" in config:
+                    old_value = ENABLE_POLL
+                    ENABLE_POLL = config["enable_poll"]
+                    changes.append(f"enable_poll: {old_value} → {ENABLE_POLL}")
+
+            # 更新频道级时间配置
+            if "summary_schedules" in str(event.changed_fields) or not event.changed_fields:
+                summary_schedules_config = config.get("summary_schedules", {})
+                if isinstance(summary_schedules_config, dict):
+                    old_count = len(SUMMARY_SCHEDULES)
+                    SUMMARY_SCHEDULES = summary_schedules_config
+                    changes.append(
+                        f"summary_schedules: {old_count} → {len(SUMMARY_SCHEDULES)} 个频道"
+                    )
+
+            # 更新频道级投票配置
+            if "channel_poll_settings" in str(event.changed_fields) or not event.changed_fields:
+                channel_poll_config = config.get("channel_poll_settings", {})
+                if isinstance(channel_poll_config, dict):
+                    old_count = len(CHANNEL_POLL_SETTINGS)
+                    CHANNEL_POLL_SETTINGS = channel_poll_config
+                    changes.append(
+                        f"channel_poll_settings: {old_count} → {len(CHANNEL_POLL_SETTINGS)} 个频道"
+                    )
+
+            # 更新投票重新生成请求配置
+            if "poll_regen_threshold" in event.changed_fields or not event.changed_fields:
+                if "poll_regen_threshold" in config:
+                    old_value = POLL_REGEN_THRESHOLD
+                    POLL_REGEN_THRESHOLD = config["poll_regen_threshold"]
+                    changes.append(f"poll_regen_threshold: {old_value} → {POLL_REGEN_THRESHOLD}")
+
+            if "enable_vote_regen_request" in event.changed_fields or not event.changed_fields:
+                if "enable_vote_regen_request" in config:
+                    old_value = ENABLE_VOTE_REGEN_REQUEST
+                    ENABLE_VOTE_REGEN_REQUEST = config["enable_vote_regen_request"]
+                    changes.append(
+                        f"enable_vote_regen_request: {old_value} → {ENABLE_VOTE_REGEN_REQUEST}"
+                    )
+
+            if changes:
+                logger.info(f"✅ 全局配置变量已热重载: 版本={event.version}, {', '.join(changes)}")
+            else:
+                logger.debug("全局配置变量已检查，无相关变更")
+
+        except Exception as e:
+            logger.error(f"❌ 处理全局配置变量更新失败: {type(e).__name__}: {e}", exc_info=True)
+
+    await event_bus.subscribe(
+        ConfigChangedEvent,
+        on_config_changed,
+        priority=event_bus.PRIORITY_HIGH,
+    )
+    _config_reload_subscribed = True
+    logger.info("✅ 全局配置变量热重载已订阅")

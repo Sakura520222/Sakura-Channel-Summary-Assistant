@@ -187,9 +187,16 @@ class ConfigManager:
 
             # 5. 发布成功事件
             if self._event_bus:
+                # 计算变更字段
+                changed_fields = ConfigChangedEvent.calculate_changed_fields(
+                    old_config, config_dict
+                )
                 await self._event_bus.publish(
                     ConfigChangedEvent(
-                        config=config_dict, version=self._config_version, old_config=old_config
+                        config=config_dict,
+                        version=self._config_version,
+                        old_config=old_config,
+                        changed_fields=changed_fields,
                     )
                 )
 

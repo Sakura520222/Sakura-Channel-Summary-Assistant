@@ -162,15 +162,29 @@ class SystemConfigManager:
             # 保持现有配置不变
 
     def _apply_log_level(self):
-        """应用日志级别配置"""
+        """应用日志级别配置 - 更新所有已存在的 logger"""
         try:
             import logging
 
             level = getattr(logging, self._log_level.upper(), logging.INFO)
-            logging.getLogger().setLevel(level)
-            logger.info(f"日志级别已设置为: {self._log_level}")
+
+            # 更新根 logger
+            root_logger = logging.getLogger()
+            root_logger.setLevel(level)
+
+            # 更新所有已存在的 logger
+            logger_dict = logging.Logger.manager.loggerDict
+            updated_count = 0
+
+            for _, logger_obj in logger_dict.items():
+                if isinstance(logger_obj, logging.Logger):
+                    # 只更新有效的 logger (不是 PlaceHolder)
+                    logger_obj.setLevel(level)
+                    updated_count += 1
+
+            logger.info(f"日志级别已设置为: {self._log_level} (已更新 {updated_count} 个 logger)")
         except Exception as e:
-            logger.error(f"设置日志级别失败: {e}")
+            logger.error(f"设置日志级别失败: {e}", exc_info=True)
 
     @property
     def channels(self) -> list:
