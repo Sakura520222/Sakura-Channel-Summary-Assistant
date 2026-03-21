@@ -40,11 +40,19 @@ from core.commands.comment_welcome_commands import (
 from core.commands.forwarding_commands import (
     cmd_forwarding_add_and_enable,
     cmd_forwarding_add_rule,
+    cmd_forwarding_blacklist,
+    cmd_forwarding_blacklist_patterns,
+    cmd_forwarding_copy_mode,
     cmd_forwarding_default_footer,
     cmd_forwarding_disable,
     cmd_forwarding_enable,
     cmd_forwarding_footer,
+    cmd_forwarding_help,
+    cmd_forwarding_keywords,
+    cmd_forwarding_original_only,
+    cmd_forwarding_patterns,
     cmd_forwarding_remove_rule,
+    cmd_forwarding_rule_info,
     cmd_forwarding_stats,
     cmd_forwarding_status,
 )
@@ -372,6 +380,62 @@ class CommandRegistrar:
             else:
                 await event.message.reply("转发功能未初始化")
 
+        async def handle_forwarding_keywords(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_keywords(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_blacklist(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_blacklist(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_patterns(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_patterns(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_blacklist_patterns(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_blacklist_patterns(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_copy_mode(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_copy_mode(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_original_only(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_original_only(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_rule_info(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_rule_info(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_help(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_help(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
         client.add_event_handler(handle_forwarding_quick, NewMessage(pattern=r"/forwarding\s+.*"))
         client.add_event_handler(handle_forwarding_status, NewMessage(pattern="/forwarding$"))
         client.add_event_handler(handle_forwarding_status, NewMessage(pattern="/转发状态"))
@@ -397,6 +461,38 @@ class CommandRegistrar:
         client.add_event_handler(
             handle_forwarding_remove_rule,
             NewMessage(pattern="/forwarding_remove_rule|/删除转发规则"),
+        )
+        client.add_event_handler(
+            handle_forwarding_keywords,
+            NewMessage(pattern="/forwarding_keywords|/关键词白名单"),
+        )
+        client.add_event_handler(
+            handle_forwarding_blacklist,
+            NewMessage(pattern="/forwarding_blacklist|/关键词黑名单"),
+        )
+        client.add_event_handler(
+            handle_forwarding_patterns,
+            NewMessage(pattern="/forwarding_patterns|/正则白名单"),
+        )
+        client.add_event_handler(
+            handle_forwarding_blacklist_patterns,
+            NewMessage(pattern="/forwarding_blacklist_patterns|/正则黑名单"),
+        )
+        client.add_event_handler(
+            handle_forwarding_copy_mode,
+            NewMessage(pattern="/forwarding_copy_mode|/复制模式"),
+        )
+        client.add_event_handler(
+            handle_forwarding_original_only,
+            NewMessage(pattern="/forwarding_original_only|/只转发原创"),
+        )
+        client.add_event_handler(
+            handle_forwarding_rule_info,
+            NewMessage(pattern="/forwarding_rule_info|/规则详情"),
+        )
+        client.add_event_handler(
+            handle_forwarding_help,
+            NewMessage(pattern="/forwarding_help|/转发帮助"),
         )
 
     def _register_userbot_commands(self, client: "TelegramClient") -> None:
