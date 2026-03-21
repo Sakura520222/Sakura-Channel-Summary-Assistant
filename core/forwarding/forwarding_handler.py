@@ -122,30 +122,42 @@ class ForwardingHandler:
     async def on_config_updated(self, event: ConfigChangedEvent):
         """配置更新处理
 
-        当config.json发生变化时，自动更新转发配置
+        当config.json发生变化时，自动更新转发配置和启用状态
 
         Args:
             event: 配置变更事件，包含完整的配置字典
         """
         try:
             # 从完整配置中提取转发配置
-            forwarding_config = event.config.get("forwarding", {})
+            # 如果没有 forwarding 键，使用空字典作为默认值
+            forwarding_config = event.config.get("forwarding") or {}
 
-            if not forwarding_config:
-                logger.warning("⚠️ 配置更新事件中未找到forwarding配置，保持现有配置")
-                return
+            # 确保配置结构完整
+            if "enabled" not in forwarding_config:
+                forwarding_config["enabled"] = False
+            if "rules" not in forwarding_config:
+                forwarding_config["rules"] = []
 
             # 记录配置更新详情
+            old_enabled = self._enabled
             old_rules_count = len(self._config.get("rules", [])) if self._config else 0
             new_rules_count = len(forwarding_config.get("rules", []))
 
-            # 使用现有的配置更新机制
+            # 更新配置和启用状态
             self._config = forwarding_config
+            self._enabled = forwarding_config.get("enabled", False)
+
+            # 记录状态变化
+            enabled_changed = old_enabled != self._enabled
+            if enabled_changed:
+                status = "✅ 已启用" if self._enabled else "⏸️ 已禁用"
+                logger.info(f"🔄 转发功能状态已更新: {status}")
 
             logger.info(
                 f"✅ 转发配置已热重载: "
                 f"版本={event.version}, "
                 f"规则数量: {old_rules_count} → {new_rules_count}, "
+                f"启用状态: {self._enabled}, "
                 f"变更字段: {event.changed_fields if event.changed_fields else '全部'}"
             )
 

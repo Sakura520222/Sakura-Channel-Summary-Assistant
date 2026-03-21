@@ -35,6 +35,7 @@ from core.ai.conversation_manager import get_conversation_manager
 from core.ai.qa_engine_v3 import get_qa_engine_v3
 from core.ai.quota_manager import get_quota_manager
 from core.config import get_qa_bot_persona
+from core.infrastructure.exceptions import DatabaseError
 from core.qa_user_system import get_qa_user_system
 
 
@@ -100,43 +101,60 @@ class QABot:
         logger.info("问答Bot初始化完成（v3.0.0向量搜索版本 + 多轮对话支持 + 用户系统）")
 
     async def initialize_database(self):
-        """初始化数据库连接"""
-        try:
-            from core.infrastructure.database.manager import get_db_manager
+        """初始化数据库连接
 
-            db = get_db_manager()
+        支持MySQL回退到SQLite的自动切换机制。
+        """
+        from core.infrastructure.database.manager import get_db_manager
 
-            # 如果是MySQL数据库，需要初始化连接池
-            if hasattr(db, "init_database") and hasattr(db, "pool") and db.pool is None:
-                logger.info("正在初始化MySQL数据库连接池...")
-                try:
-                    await db.init_database()
+        db = get_db_manager()
 
-                    # 检查连接池是否成功创建
-                    if db.pool is None:
-                        raise RuntimeError("MySQL连接池创建失败")
+        # 检查是否需要初始化MySQL
+        if self._should_init_mysql(db):
+            try:
+                await self._init_mysql_pool(db)
+                logger.info("MySQL数据库连接池初始化完成")
+                return
+            except Exception as e:
+                logger.warning(f"MySQL初始化失败: {e}，回退到SQLite")
+                await self._fallback_to_sqlite()
+                return
 
-                    logger.info("MySQL数据库连接池初始化完成")
-                except Exception as e:
-                    # MySQL初始化失败，回退到SQLite
-                    logger.warning(f"MySQL初始化失败: {e}")
-                    logger.info("回退到 SQLite...")
+        # SQLite 或已初始化的MySQL
+        if hasattr(db, "init_database"):
+            await db.init_database()
 
-                    # 强制重新创建
-                    import core.database as db_module
+    def _should_init_mysql(self, db) -> bool:
+        """检查是否需要初始化MySQL数据库"""
+        return hasattr(db, "init_database") and hasattr(db, "pool") and db.pool is None
 
-                    db_module.db_manager = None
+    async def _init_mysql_pool(self, db) -> None:
+        """初始化MySQL连接池
 
-                    # 更新配置
-                    os.environ["DATABASE_TYPE"] = "sqlite"
+        Raises:
+            DatabaseError: MySQL初始化失败
+        """
+        logger.info("正在初始化MySQL数据库连接池...")
+        await db.init_database()
 
-                    db = get_db_manager()
-                    if hasattr(db, "init_database"):
-                        await db.init_database()
-                    logger.info("SQLite数据库初始化完成")
-        except Exception as e:
-            logger.error(f"初始化数据库失败: {type(e).__name__}: {e}", exc_info=True)
-            raise
+        if db.pool is None:
+            raise DatabaseError("MySQL连接池创建失败", db_type="mysql", operation="connect")
+
+    async def _fallback_to_sqlite(self) -> None:
+        """回退到SQLite数据库"""
+        # 强制重新创建数据库管理器
+        import core.database as db_module
+
+        db_module.db_manager = None
+        os.environ["DATABASE_TYPE"] = "sqlite"
+
+        from core.infrastructure.database.manager import get_db_manager
+
+        db = get_db_manager()
+        if hasattr(db, "init_database"):
+            await db.init_database()
+
+        logger.info("SQLite数据库初始化完成")
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """处理/start命令"""

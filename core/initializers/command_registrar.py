@@ -38,10 +38,13 @@ from core.commands.comment_welcome_commands import (
     handle_show_comment_welcome,
 )
 from core.commands.forwarding_commands import (
+    cmd_forwarding_add_and_enable,
+    cmd_forwarding_add_rule,
     cmd_forwarding_default_footer,
     cmd_forwarding_disable,
     cmd_forwarding_enable,
     cmd_forwarding_footer,
+    cmd_forwarding_remove_rule,
     cmd_forwarding_stats,
     cmd_forwarding_status,
 )
@@ -341,6 +344,14 @@ class CommandRegistrar:
             else:
                 await event.message.reply("转发功能未初始化")
 
+        async def handle_forwarding_quick(event):
+            """/forwarding 的智能处理：有参数=添加并启用，无参数=查看状态"""
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_add_and_enable(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
         async def handle_forwarding_enable(event):
             handler = get_forwarding_handler()
             if handler:
@@ -376,9 +387,23 @@ class CommandRegistrar:
             else:
                 await event.message.reply("转发功能未初始化")
 
-        client.add_event_handler(
-            handle_forwarding_status, NewMessage(pattern="/forwarding|/转发状态")
-        )
+        async def handle_forwarding_add_rule(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_add_rule(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_remove_rule(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_remove_rule(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        client.add_event_handler(handle_forwarding_quick, NewMessage(pattern=r"/forwarding\s+.*"))
+        client.add_event_handler(handle_forwarding_status, NewMessage(pattern="/forwarding$"))
+        client.add_event_handler(handle_forwarding_status, NewMessage(pattern="/转发状态"))
         client.add_event_handler(
             handle_forwarding_enable, NewMessage(pattern="/forwarding_enable|/启用转发")
         )
@@ -394,6 +419,13 @@ class CommandRegistrar:
         client.add_event_handler(
             handle_forwarding_default_footer,
             NewMessage(pattern="/forwarding_default_footer|/默认底栏"),
+        )
+        client.add_event_handler(
+            handle_forwarding_add_rule, NewMessage(pattern="/forwarding_add_rule|/添加转发规则")
+        )
+        client.add_event_handler(
+            handle_forwarding_remove_rule,
+            NewMessage(pattern="/forwarding_remove_rule|/删除转发规则"),
         )
 
     def _register_userbot_commands(self, client: "TelegramClient") -> None:
