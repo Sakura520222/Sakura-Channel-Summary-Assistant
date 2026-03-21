@@ -309,6 +309,17 @@ class DatabaseManagerBase(ABC):
         """清理旧通知记录"""
         pass
 
+    # ============ 数据库清空方法 ============
+
+    @abstractmethod
+    def clear_all_data(self) -> dict[str, int]:
+        """清空所有数据表（保留表结构）
+
+        Returns:
+            {table_name: deleted_count} 字典
+        """
+        pass
+
     # ============ 通用查询方法 ============
 
     @abstractmethod

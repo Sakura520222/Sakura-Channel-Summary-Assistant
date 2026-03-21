@@ -47,6 +47,7 @@ from core.config import (
     validate_schedule,
 )
 from core.i18n.i18n import get_language, get_supported_languages, get_text, set_language
+from core.infrastructure.database.manager import get_db_manager
 from core.infrastructure.utils.message_utils import format_schedule_info
 from core.infrastructure.utils.version_utils import (
     compare_versions,
@@ -852,6 +853,72 @@ async def handle_clear_cache(event):
     except Exception as e:
         logger.error(f"清除缓存时出错: {type(e).__name__}: {e}", exc_info=True)
         await event.reply(get_text("cache.clear_error", error=e))
+
+
+async def handle_clear_database(event):
+    """处理/db_clear命令，清空数据库（危险操作）"""
+    sender_id = event.sender_id
+    command = event.text
+
+    # 权限检查
+    if sender_id not in ADMIN_LIST and ADMIN_LIST != ["me"]:
+        logger.warning(f"用户 {sender_id} 尝试使用 /db_clear 命令，但没有管理员权限")
+        await event.reply(get_text("error.permission_denied"))
+        return
+
+    logger.info(f"收到 /db_clear 命令，发送者: {sender_id}")
+
+    # 显示警告和确认指令
+    args = command.split()
+    if len(args) == 1:
+        await event.reply(
+            "⚠️ 危险操作警告\n\n"
+            "此命令将清空所有数据库表，此操作不可撤销！\n\n"
+            "如确认执行，请使用:\n"
+            "/db_clear confirm\n\n"
+            "受影响的表：\n"
+            "• summaries, usage_quota, channel_profiles\n"
+            "• conversation_history, users, subscriptions\n"
+            "• request_queue, notification_queue\n"
+            "• forwarded_messages, forwarding_stats\n"
+            "• poll_regenerations, poll_voters"
+        )
+        return
+
+    # 二次确认
+    if args[1] != "confirm":
+        await event.reply("已取消操作。如需执行，请使用 /db_clear confirm")
+        return
+
+    # 执行清空
+    try:
+        await event.reply("正在清空数据库，请稍候...")
+
+        db = get_db_manager()
+        results = await db.clear_all_data()
+
+        # 统计结果
+        total_deleted = sum(v for v in results.values() if v > 0)
+        failed_tables = [t for t, v in results.items() if v < 0]
+
+        # 构建结果消息
+        msg = "✅ 数据库清空完成\n\n"
+        msg += f"总删除行数: {total_deleted}\n"
+
+        if failed_tables:
+            msg += f"\n失败的表: {', '.join(failed_tables)}"
+
+        msg += "\n\n各表详情:\n"
+        for table, count in results.items():
+            status = "✓" if count >= 0 else "✗"
+            msg += f"{status} {table}: {count if count >= 0 else '失败'}\n"
+
+        await event.reply(msg)
+        logger.info(f"数据库清空完成，总删除 {total_deleted} 行")
+
+    except Exception as e:
+        logger.error(f"清空数据库时出错: {type(e).__name__}: {e}", exc_info=True)
+        await event.reply(f"清空数据库时出错: {e}")
 
 
 # ==================== UI命令 ====================
