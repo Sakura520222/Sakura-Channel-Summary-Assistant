@@ -105,7 +105,25 @@ class AdminSettings(BaseSettings):
 class LogSettings(BaseSettings):
     """日志相关配置"""
 
+    # 基础配置
     log_level: str = Field(default=DEFAULT_LOG_LEVEL, alias="LOG_LEVEL")
+
+    # 文件日志配置
+    log_to_file: bool = Field(default=True, alias="LOG_TO_FILE")
+    log_file_path: str = Field(default="logs/sakura-bot.log", alias="LOG_FILE_PATH")
+    log_file_max_size: int = Field(default=10485760, alias="LOG_FILE_MAX_SIZE")  # 10MB
+    log_file_backup_count: int = Field(default=5, alias="LOG_FILE_BACKUP_COUNT")
+
+    # 控制台日志配置
+    log_to_console: bool = Field(default=True, alias="LOG_TO_CONSOLE")
+    log_colorize: bool = Field(default=True, alias="LOG_COLORIZE")
+
+    # 日志格式配置
+    log_format: str = Field(
+        default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        alias="LOG_FORMAT",
+    )
+    log_date_format: str = Field(default="%Y-%m-%d %H:%M:%S", alias="LOG_DATE_FORMAT")
 
     @field_validator("log_level")
     @classmethod
@@ -116,6 +134,20 @@ class LogSettings(BaseSettings):
             logger.warning(f"无效的日志级别: {v}，使用默认值 {DEFAULT_LOG_LEVEL}")
             return DEFAULT_LOG_LEVEL
         return v_upper
+
+    @field_validator("log_file_max_size")
+    @classmethod
+    def validate_log_file_max_size(cls, v: int) -> int:
+        if v < 1024:  # 最小1KB
+            raise ValueError("日志文件最大大小不能小于1KB")
+        return v
+
+    @field_validator("log_file_backup_count")
+    @classmethod
+    def validate_log_file_backup_count(cls, v: int) -> int:
+        if v < 0 or v > 20:
+            raise ValueError("日志备份文件数量必须在0-20之间")
+        return v
 
     @property
     def logging_level(self) -> int:
@@ -146,14 +178,14 @@ class PollSettings(BaseSettings):
 
 
 class DatabaseSettings(BaseSettings):
-    """数据库相关配置"""
+    """数据库相关配置（仅支持MySQL）"""
 
-    database_type: str = Field(default="sqlite", alias="DATABASE_TYPE")
+    database_type: str = Field(default="mysql", alias="DATABASE_TYPE")
 
     # MySQL 配置
     mysql_host: str = Field(default="localhost", alias="MYSQL_HOST")
     mysql_port: int = Field(default=3306, alias="MYSQL_PORT")
-    mysql_user: str = Field(default="root", alias="MYSQL_USER")
+    mysql_user: str = Field(default="sakura_bot", alias="MYSQL_USER")
     mysql_password: str = Field(default="", alias="MYSQL_PASSWORD")
     mysql_database: str = Field(default="sakura_bot_db", alias="MYSQL_DATABASE")
     mysql_charset: str = Field(default="utf8mb4", alias="MYSQL_CHARSET")
@@ -166,12 +198,10 @@ class DatabaseSettings(BaseSettings):
     @field_validator("database_type")
     @classmethod
     def validate_database_type(cls, v: str) -> str:
-        valid_types = ["sqlite", "mysql"]
         v_lower = v.lower()
-        if v_lower not in valid_types:
-            logger.warning(f"无效的数据库类型: {v}，使用默认值 sqlite")
-            return "sqlite"
-        return v_lower
+        if v_lower != "mysql":
+            raise ValueError("仅支持MySQL数据库")
+        return "mysql"
 
     model_config = {"extra": "ignore"}
 

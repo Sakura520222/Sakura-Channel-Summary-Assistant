@@ -14,6 +14,79 @@ class ConfigChangedEvent(BaseModel):
     changed_fields: set[str] = Field(default_factory=set)
     timestamp: float = Field(default_factory=lambda: datetime.now().timestamp())
 
+    @staticmethod
+    def calculate_changed_fields(old_config: dict | None, new_config: dict) -> set[str]:
+        """计算新旧配置的差异字段
+
+        Args:
+            old_config: 旧配置字典
+            new_config: 新配置字典
+
+        Returns:
+            发生变化的字段名集合
+        """
+        if not old_config:
+            return set()
+
+        changed_fields = set()
+        all_keys = set(old_config.keys()) | set(new_config.keys())
+
+        for key in all_keys:
+            old_val = old_config.get(key)
+            new_val = new_config.get(key)
+
+            # 类型不同
+            if type(old_val) is not type(new_val):
+                changed_fields.add(key)
+            # 嵌套字典比较
+            elif isinstance(old_val, dict) and isinstance(new_val, dict):
+                nested_changes = ConfigChangedEvent._compare_nested_dicts(
+                    f"{key}.", old_val, new_val
+                )
+                changed_fields.update(nested_changes)
+            # 列表比较
+            elif isinstance(old_val, list) and isinstance(new_val, list):
+                if old_val != new_val:
+                    changed_fields.add(key)
+            # 值比较
+            elif old_val != new_val:
+                changed_fields.add(key)
+
+        return changed_fields
+
+    @staticmethod
+    def _compare_nested_dicts(prefix: str, old_dict: dict, new_dict: dict) -> set[str]:
+        """比较嵌套字典的差异
+
+        Args:
+            prefix: 字段前缀（用于嵌套字段）
+            old_dict: 旧字典
+            new_dict: 新字典
+
+        Returns:
+            发生变化的嵌套字段名集合
+        """
+        changed = set()
+        all_keys = set(old_dict.keys()) | set(new_dict.keys())
+
+        for key in all_keys:
+            old_val = old_dict.get(key)
+            new_val = new_dict.get(key)
+
+            if type(old_val) is not type(new_val):
+                changed.add(f"{prefix}{key}")
+            elif isinstance(old_val, dict) and isinstance(new_val, dict):
+                changed.update(
+                    ConfigChangedEvent._compare_nested_dicts(f"{prefix}{key}.", old_val, new_val)
+                )
+            elif isinstance(old_val, list) and isinstance(new_val, list):
+                if old_val != new_val:
+                    changed.add(f"{prefix}{key}")
+            elif old_val != new_val:
+                changed.add(f"{prefix}{key}")
+
+        return changed
+
 
 class PromptChangedEvent(BaseModel):
     """提示词变更成功事件"""

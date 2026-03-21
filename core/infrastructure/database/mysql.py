@@ -308,6 +308,43 @@ class MySQLManager(DatabaseManagerBase):
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """)
 
+                # 12. 创建投票重新生成表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS poll_regenerations (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    channel VARCHAR(512) NOT NULL,
+                    summary_msg_id BIGINT NOT NULL,
+                    poll_msg_id BIGINT,
+                    button_msg_id BIGINT,
+                    summary_text TEXT,
+                    channel_name VARCHAR(255),
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    send_to_channel BOOLEAN DEFAULT FALSE,
+                    vote_count INT DEFAULT 0,
+                    discussion_forward_msg_id BIGINT,
+                    UNIQUE KEY unique_poll (channel, summary_msg_id),
+                    INDEX idx_poll_lookup (channel, summary_msg_id),
+                    INDEX idx_poll_timestamp (timestamp)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
+
+                # 13. 创建投票者表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS poll_voters (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    channel VARCHAR(512) NOT NULL,
+                    summary_msg_id BIGINT NOT NULL,
+                    user_id BIGINT NOT NULL,
+                    voted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY unique_voter (channel, summary_msg_id, user_id),
+                    INDEX idx_voter_lookup (channel, summary_msg_id),
+                    INDEX idx_voter_user (user_id),
+                    FOREIGN KEY (channel, summary_msg_id)
+                        REFERENCES poll_regenerations(channel, summary_msg_id)
+                            ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
+
                 # 插入或更新版本号
                 await cursor.execute("""
                     INSERT INTO db_version (version, upgraded_at)
@@ -1792,6 +1829,59 @@ class MySQLManager(DatabaseManagerBase):
             logger.error(f"清理旧通知失败: {type(e).__name__}: {e}", exc_info=True)
             return 0
 
+    # ============ 数据库清空方法 ============
+
+    async def clear_all_data(self) -> dict[str, int]:
+        """清空所有数据表（保留表结构和 db_version）"""
+        # 按外键依赖顺序清空表
+        tables = [
+            "poll_voters",  # 依赖 poll_regenerations
+            "poll_regenerations",
+            "forwarded_messages",
+            "forwarding_stats",
+            "notification_queue",
+            "request_queue",
+            "subscriptions",
+            "conversation_history",
+            "users",
+            "channel_profiles",
+            "usage_quota",
+            "summaries",
+        ]
+
+        results = {}
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    # 禁用外键检查（避免因外键约束导致删除失败）
+                    await cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+
+                    for table in tables:
+                        try:
+                            await cursor.execute(f"DELETE FROM {table}")
+                            count = cursor.rowcount
+                            results[table] = count
+                            logger.info(f"已清空表 {table}，删除 {count} 行")
+                        except Exception as e:
+                            logger.error(f"清空表 {table} 失败: {e}")
+                            results[table] = -1
+
+                    # 恢复外键检查
+                    await cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+                    await conn.commit()
+
+        except Exception as e:
+            logger.error(f"清空数据库时出错: {type(e).__name__}: {e}", exc_info=True)
+            # 确保外键检查被恢复
+            try:
+                async with self.pool.acquire() as conn:
+                    async with conn.cursor() as cursor:
+                        await cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+            except Exception:
+                pass
+
+        return results
+
     # ============ 通用查询方法 ============
 
     async def get_user_info(self, user_id: int) -> dict[str, Any] | None:
@@ -2292,4 +2382,303 @@ class MySQLManager(DatabaseManagerBase):
 
         except Exception as e:
             logger.error(f"清理旧转发消息记录失败: {type(e).__name__}: {e}", exc_info=True)
+            return 0
+
+    # ============ 投票重新生成管理方法 ============
+
+    async def add_poll_regeneration(
+        self,
+        channel: str,
+        summary_msg_id: int,
+        poll_msg_id: int,
+        button_msg_id: int,
+        summary_text: str,
+        channel_name: str,
+        send_to_channel: bool,
+        discussion_forward_msg_id: int | None = None,
+    ) -> bool:
+        """添加投票重新生成记录"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        """
+                        INSERT INTO poll_regenerations
+                        (channel, summary_msg_id, poll_msg_id, button_msg_id,
+                         summary_text, channel_name, send_to_channel, discussion_forward_msg_id, vote_count)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0)
+                        ON DUPLICATE KEY UPDATE
+                            poll_msg_id = VALUES(poll_msg_id),
+                            button_msg_id = VALUES(button_msg_id),
+                            summary_text = VALUES(summary_text),
+                            channel_name = VALUES(channel_name),
+                            send_to_channel = VALUES(send_to_channel),
+                            discussion_forward_msg_id = VALUES(discussion_forward_msg_id)
+                    """,
+                        (
+                            channel,
+                            summary_msg_id,
+                            poll_msg_id,
+                            button_msg_id,
+                            summary_text,
+                            channel_name,
+                            send_to_channel,
+                            discussion_forward_msg_id,
+                        ),
+                    )
+                    await conn.commit()
+                    logger.info(
+                        f"已添加投票重新生成记录: channel={channel}, summary_id={summary_msg_id}"
+                    )
+                    return True
+
+        except Exception as e:
+            logger.error(f"添加投票重新生成记录失败: {type(e).__name__}: {e}", exc_info=True)
+            return False
+
+    async def get_poll_regeneration(
+        self, channel: str, summary_msg_id: int
+    ) -> dict[str, Any] | None:
+        """获取投票重新生成记录"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(
+                        """
+                        SELECT * FROM poll_regenerations
+                        WHERE channel = %s AND summary_msg_id = %s
+                    """,
+                        (channel, summary_msg_id),
+                    )
+                    row = await cursor.fetchone()
+
+                    if row:
+                        # 获取投票者列表
+                        await cursor.execute(
+                            """
+                            SELECT user_id FROM poll_voters
+                            WHERE channel = %s AND summary_msg_id = %s
+                        """,
+                            (channel, summary_msg_id),
+                        )
+                        voter_rows = await cursor.fetchall()
+                        row["voters"] = [v["user_id"] for v in voter_rows]
+                        return row
+                    return None
+
+        except Exception as e:
+            logger.error(f"获取投票重新生成记录失败: {type(e).__name__}: {e}", exc_info=True)
+            return None
+
+    async def update_poll_message_ids(
+        self, channel: str, summary_msg_id: int, poll_msg_id: int, button_msg_id: int
+    ) -> bool:
+        """更新投票消息ID"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        """
+                        UPDATE poll_regenerations
+                        SET poll_msg_id = %s, button_msg_id = %s
+                        WHERE channel = %s AND summary_msg_id = %s
+                    """,
+                        (poll_msg_id, button_msg_id, channel, summary_msg_id),
+                    )
+                    await conn.commit()
+                    logger.info(f"已更新投票消息ID: channel={channel}, summary_id={summary_msg_id}")
+                    return True
+
+        except Exception as e:
+            logger.error(f"更新投票消息ID失败: {type(e).__name__}: {e}", exc_info=True)
+            return False
+
+    async def delete_poll_regeneration(self, channel: str, summary_msg_id: int) -> bool:
+        """删除投票重新生成记录"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        """
+                        DELETE FROM poll_regenerations
+                        WHERE channel = %s AND summary_msg_id = %s
+                    """,
+                        (channel, summary_msg_id),
+                    )
+                    await conn.commit()
+                    logger.info(
+                        f"已删除投票重新生成记录: channel={channel}, summary_id={summary_msg_id}"
+                    )
+                    return True
+
+        except Exception as e:
+            logger.error(f"删除投票重新生成记录失败: {type(e).__name__}: {e}", exc_info=True)
+            return False
+
+    async def increment_vote_count(
+        self, channel: str, summary_msg_id: int, user_id: int
+    ) -> tuple[bool, int, bool]:
+        """增加投票计数"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    # 检查记录是否存在
+                    await cursor.execute(
+                        """
+                        SELECT vote_count FROM poll_regenerations
+                        WHERE channel = %s AND summary_msg_id = %s
+                    """,
+                        (channel, summary_msg_id),
+                    )
+                    row = await cursor.fetchone()
+                    if not row:
+                        logger.warning(
+                            f"投票重新生成记录不存在: channel={channel}, summary_id={summary_msg_id}"
+                        )
+                        return False, 0, False
+
+                    current_count = row[0]
+
+                    # 检查用户是否已投票
+                    await cursor.execute(
+                        """
+                        SELECT 1 FROM poll_voters
+                        WHERE channel = %s AND summary_msg_id = %s AND user_id = %s
+                    """,
+                        (channel, summary_msg_id, user_id),
+                    )
+                    if await cursor.fetchone():
+                        logger.info(f"用户 {user_id} 已经投票过了")
+                        return False, current_count, True
+
+                    # 增加投票计数
+                    await cursor.execute(
+                        """
+                        UPDATE poll_regenerations
+                        SET vote_count = vote_count + 1
+                        WHERE channel = %s AND summary_msg_id = %s
+                    """,
+                        (channel, summary_msg_id),
+                    )
+
+                    # 记录投票者
+                    await cursor.execute(
+                        """
+                        INSERT INTO poll_voters (channel, summary_msg_id, user_id)
+                        VALUES (%s, %s, %s)
+                    """,
+                        (channel, summary_msg_id, user_id),
+                    )
+
+                    await conn.commit()
+
+                    # 获取更新后的计数
+                    await cursor.execute(
+                        """
+                        SELECT vote_count FROM poll_regenerations
+                        WHERE channel = %s AND summary_msg_id = %s
+                    """,
+                        (channel, summary_msg_id),
+                    )
+                    new_count = (await cursor.fetchone())[0]
+
+                    logger.info(
+                        f"投票计数已更新: channel={channel}, summary_id={summary_msg_id}, "
+                        f"count={new_count}, user_id={user_id}"
+                    )
+                    return True, new_count, False
+
+        except Exception as e:
+            logger.error(f"增加投票计数失败: {type(e).__name__}: {e}", exc_info=True)
+            return False, 0, False
+
+    async def reset_vote_count(self, channel: str, summary_msg_id: int) -> bool:
+        """重置投票计数"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    # 检查记录是否存在
+                    await cursor.execute(
+                        """
+                        SELECT 1 FROM poll_regenerations
+                        WHERE channel = %s AND summary_msg_id = %s
+                    """,
+                        (channel, summary_msg_id),
+                    )
+                    if not await cursor.fetchone():
+                        logger.warning(
+                            f"投票重新生成记录不存在: channel={channel}, summary_id={summary_msg_id}"
+                        )
+                        return False
+
+                    # 重置计数
+                    await cursor.execute(
+                        """
+                        UPDATE poll_regenerations
+                        SET vote_count = 0
+                        WHERE channel = %s AND summary_msg_id = %s
+                    """,
+                        (channel, summary_msg_id),
+                    )
+
+                    # 删除投票者记录
+                    await cursor.execute(
+                        """
+                        DELETE FROM poll_voters
+                        WHERE channel = %s AND summary_msg_id = %s
+                    """,
+                        (channel, summary_msg_id),
+                    )
+
+                    await conn.commit()
+                    logger.info(f"投票计数已重置: channel={channel}, summary_id={summary_msg_id}")
+                    return True
+
+        except Exception as e:
+            logger.error(f"重置投票计数失败: {type(e).__name__}: {e}", exc_info=True)
+            return False
+
+    async def get_vote_count(self, channel: str, summary_msg_id: int) -> int:
+        """获取投票计数"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        """
+                        SELECT vote_count FROM poll_regenerations
+                        WHERE channel = %s AND summary_msg_id = %s
+                    """,
+                        (channel, summary_msg_id),
+                    )
+                    row = await cursor.fetchone()
+                    return row[0] if row else 0
+
+        except Exception as e:
+            logger.error(f"获取投票计数失败: {type(e).__name__}: {e}", exc_info=True)
+            return 0
+
+    async def cleanup_old_poll_regenerations(self, days: int = 30) -> int:
+        """清理旧的投票重新生成记录"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    cutoff_time = datetime.now(UTC) - timedelta(days=days)
+
+                    await cursor.execute(
+                        """
+                        DELETE FROM poll_regenerations
+                        WHERE timestamp < %s
+                    """,
+                        (cutoff_time,),
+                    )
+
+                    deleted_count = cursor.rowcount
+                    await conn.commit()
+
+                    if deleted_count > 0:
+                        logger.info(f"已清理 {deleted_count} 条超过 {days} 天的投票重新生成记录")
+                    return deleted_count
+
+        except Exception as e:
+            logger.error(f"清理旧投票重新生成记录失败: {type(e).__name__}: {e}", exc_info=True)
             return 0

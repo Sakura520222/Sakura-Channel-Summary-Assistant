@@ -37,7 +37,7 @@ from core.settings import get_admin_list, get_bot_token, validate_required_setti
 from core.system.process_manager import start_qa_bot, stop_qa_bot
 
 # 版本信息
-__version__ = "1.7.4"
+__version__ = "1.7.5"
 
 
 async def graceful_shutdown_resources():
@@ -71,6 +71,21 @@ async def main(config_manager: ConfigManager = None):
 
 
 if __name__ == "__main__":
+    # 初始化日志系统（必须在其他使用日志的代码之前）
+    from core.infrastructure.logging import setup_logging
+    from core.settings import get_settings
+
+    settings = get_settings()
+    setup_logging(
+        log_level=settings.log.logging_level,
+        log_to_file=settings.log.log_to_file,
+        log_file_path=settings.log.log_file_path,
+        log_file_max_size=settings.log.log_file_max_size,
+        log_file_backup_count=settings.log.log_file_backup_count,
+        log_to_console=settings.log.log_to_console,
+        log_colorize=settings.log.log_colorize,
+    )
+
     logger.info(f"===== Sakura-Bot v{__version__} 启动 ======")
 
     # 验证必要配置
@@ -179,6 +194,21 @@ if __name__ == "__main__":
                         priority=event_bus.PRIORITY_NORMAL,
                     )
                     logger.info("✅ 提示词变更事件订阅已配置")
+
+                    # 订阅配置变更成功事件
+                    from core.config.events import ConfigChangedEvent
+
+                    await event_bus.subscribe(
+                        ConfigChangedEvent,
+                        config_error_notifier.on_config_changed,
+                        priority=event_bus.PRIORITY_HIGH,
+                    )
+                    logger.info("✅ 配置变更事件订阅已配置")
+
+                    # 设置全局配置变量热重载
+                    from core.config import setup_config_reload
+
+                    await setup_config_reload(event_bus)
 
                     file_watcher = FileWatcher(config_manager, loop)
                     file_watcher.start(str(Path("data")))

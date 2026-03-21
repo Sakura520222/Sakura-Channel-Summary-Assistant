@@ -48,7 +48,14 @@ def setup_test_environment():
 
     # 设置其他配置
     os.environ.setdefault("ENABLE_POLL", "true")
-    os.environ.setdefault("DATABASE_TYPE", "sqlite")
+    os.environ.setdefault("DATABASE_TYPE", "mysql")
+
+    # 设置MySQL测试配置
+    os.environ.setdefault("MYSQL_HOST", "localhost")
+    os.environ.setdefault("MYSQL_PORT", "3306")
+    os.environ.setdefault("MYSQL_USER", "test_user")
+    os.environ.setdefault("MYSQL_PASSWORD", "test_password")
+    os.environ.setdefault("MYSQL_DATABASE", "sakura_bot_test")
 
     # 设置用户名（避免 aiomysql 在导入时失败）
     os.environ.setdefault("USERNAME", "testuser")
@@ -207,43 +214,6 @@ def mock_openai_response():
 
 
 # ==================== 数据库 Fixtures ====================
-
-
-@pytest.fixture
-async def temp_sqlite_db():
-    """创建临时 SQLite 内存数据库
-
-    使用 :memory: 模式，测试结束后自动清理
-    """
-    import aiosqlite
-
-    # 创建内存数据库连接
-    async with aiosqlite.connect(":memory:") as db:
-        # 创建测试表结构
-        await db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS test_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                channel_id TEXT NOT NULL,
-                message_id INTEGER NOT NULL,
-                content TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """
-        )
-        await db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS test_summaries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                channel_id TEXT NOT NULL,
-                summary_text TEXT NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """
-        )
-        await db.commit()
-        yield db
-        # 数据库会在退出上下文时自动清理
 
 
 @pytest.fixture

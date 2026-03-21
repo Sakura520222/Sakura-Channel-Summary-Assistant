@@ -108,6 +108,7 @@ BOT_COMMANDS = [
             ("showloglevel", "查看当前日志级别"),
             ("setloglevel", "设置日志级别"),
             ("clearcache", "清除讨论组ID缓存"),
+            ("db_clear", "清空数据库（危险操作）"),
             # 更新维护
             ("changelog", "查看更新日志"),
             ("update", "一键更新机器人"),
@@ -117,17 +118,6 @@ BOT_COMMANDS = [
             ("qa_stop", "停止问答Bot"),
             ("qa_restart", "重启问答Bot"),
             ("qa_stats", "查看问答Bot详细统计"),
-        ],
-    },
-    # ========== 8. 数据库管理（高危） ==========
-    {
-        "category": "数据库管理",
-        "i18n_key": "database",
-        "commands": [
-            ("migrate_check", "检查数据库迁移准备状态"),
-            ("migrate_start", "开始数据库迁移"),
-            ("migrate_status", "查看数据库迁移进度"),
-            ("db_clear", "清空MySQL数据库（危险操作）"),
         ],
     },
     # ========== 9. 偏好设置 ==========
@@ -143,12 +133,22 @@ BOT_COMMANDS = [
         "category": "频道转发",
         "i18n_key": "forwarding",
         "commands": [
-            ("forwarding", "查看转发功能状态"),
+            ("forwarding", "查看转发状态或快速添加规则"),
             ("forwarding_enable", "启用转发功能"),
             ("forwarding_disable", "禁用转发功能"),
             ("forwarding_stats", "查看转发统计"),
+            ("forwarding_add_rule", "添加转发规则"),
+            ("forwarding_remove_rule", "删除转发规则"),
+            ("forwarding_keywords", "设置关键词白名单"),
+            ("forwarding_blacklist", "设置关键词黑名单"),
+            ("forwarding_patterns", "设置正则白名单"),
+            ("forwarding_blacklist_patterns", "设置正则黑名单"),
+            ("forwarding_copy_mode", "设置复制模式"),
+            ("forwarding_original_only", "设置只转发原创"),
+            ("forwarding_rule_info", "查看规则详情"),
             ("forwarding_footer", "设置转发底栏"),
             ("forwarding_default_footer", "启用/禁用默认底栏"),
+            ("forwarding_help", "查看转发命令帮助"),
         ],
     },
     # ========== 11. UserBot 管理 ==========

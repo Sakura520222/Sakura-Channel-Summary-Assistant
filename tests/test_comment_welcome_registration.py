@@ -12,13 +12,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from core.handlers.channel_comment_welcome import handle_summary_request_callback
-from core.infrastructure.database.sqlite import SQLiteManager
+from core.infrastructure.database.base import DatabaseManagerBase
 
 
 @pytest.fixture
 def mock_db():
     """创建模拟数据库"""
-    db = MagicMock(spec=SQLiteManager)
+    db = MagicMock(spec=DatabaseManagerBase)
     return db
 
 

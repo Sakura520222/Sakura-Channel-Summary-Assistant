@@ -40,17 +40,26 @@ from core.commands.comment_welcome_commands import (
 from core.commands.forwarding_commands import (
     cmd_forwarding_add_and_enable,
     cmd_forwarding_add_rule,
+    cmd_forwarding_blacklist,
+    cmd_forwarding_blacklist_patterns,
+    cmd_forwarding_copy_mode,
     cmd_forwarding_default_footer,
     cmd_forwarding_disable,
     cmd_forwarding_enable,
     cmd_forwarding_footer,
+    cmd_forwarding_help,
+    cmd_forwarding_keywords,
+    cmd_forwarding_original_only,
+    cmd_forwarding_patterns,
     cmd_forwarding_remove_rule,
+    cmd_forwarding_rule_info,
     cmd_forwarding_stats,
     cmd_forwarding_status,
 )
 from core.commands.other_commands import (
     handle_changelog,
     handle_clear_cache,
+    handle_clear_database,
     handle_delete_channel_poll,
     handle_delete_channel_schedule,
     handle_help,
@@ -148,9 +157,6 @@ class CommandRegistrar:
 
         # 11. 评论区欢迎配置命令
         self._register_comment_welcome_commands(client)
-
-        # 12. 数据库迁移命令
-        self._register_migration_commands(client)
 
         # 13. 问答Bot控制命令
         self._register_qabot_commands(client)
@@ -269,6 +275,7 @@ class CommandRegistrar:
         client.add_event_handler(
             handle_clear_cache, NewMessage(pattern="/clearcache|/clear_cache|/清除缓存")
         )
+        client.add_event_handler(handle_clear_database, NewMessage(pattern="/db_clear|/dbclear"))
         client.add_event_handler(handle_changelog, NewMessage(pattern="/changelog|/更新日志"))
         client.add_event_handler(handle_update, NewMessage(pattern="/update|/更新"))
 
@@ -295,34 +302,6 @@ class CommandRegistrar:
         client.add_event_handler(
             handle_delete_comment_welcome,
             NewMessage(pattern="/deletecommentwelcome|/delete_comment_welcome|/删除评论区欢迎"),
-        )
-
-    def _register_migration_commands(self, client: "TelegramClient") -> None:
-        """注册数据库迁移命令"""
-        from core.commands.database_migration_commands import (
-            handle_db_clear,
-            handle_db_clear_cancel,
-            handle_db_clear_confirm,
-            handle_migrate_check,
-            handle_migrate_start,
-            handle_migrate_status,
-        )
-
-        client.add_event_handler(
-            handle_migrate_check, NewMessage(pattern="/migrate_check|/迁移检查")
-        )
-        client.add_event_handler(
-            handle_migrate_start, NewMessage(pattern="/migrate_start|/开始迁移")
-        )
-        client.add_event_handler(
-            handle_migrate_status, NewMessage(pattern="/migrate_status|/迁移状态")
-        )
-        client.add_event_handler(handle_db_clear, NewMessage(pattern="/db_clear|/清空数据库"))
-        client.add_event_handler(
-            handle_db_clear_confirm, NewMessage(pattern="/db_clear_confirm|/确认清空数据库")
-        )
-        client.add_event_handler(
-            handle_db_clear_cancel, NewMessage(pattern="/db_clear_cancel|/取消清空数据库")
         )
 
     def _register_qabot_commands(self, client: "TelegramClient") -> None:
@@ -401,6 +380,62 @@ class CommandRegistrar:
             else:
                 await event.message.reply("转发功能未初始化")
 
+        async def handle_forwarding_keywords(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_keywords(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_blacklist(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_blacklist(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_patterns(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_patterns(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_blacklist_patterns(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_blacklist_patterns(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_copy_mode(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_copy_mode(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_original_only(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_original_only(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_rule_info(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_rule_info(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
+        async def handle_forwarding_help(event):
+            handler = get_forwarding_handler()
+            if handler:
+                await cmd_forwarding_help(client, event.message, handler)
+            else:
+                await event.message.reply("转发功能未初始化")
+
         client.add_event_handler(handle_forwarding_quick, NewMessage(pattern=r"/forwarding\s+.*"))
         client.add_event_handler(handle_forwarding_status, NewMessage(pattern="/forwarding$"))
         client.add_event_handler(handle_forwarding_status, NewMessage(pattern="/转发状态"))
@@ -426,6 +461,38 @@ class CommandRegistrar:
         client.add_event_handler(
             handle_forwarding_remove_rule,
             NewMessage(pattern="/forwarding_remove_rule|/删除转发规则"),
+        )
+        client.add_event_handler(
+            handle_forwarding_keywords,
+            NewMessage(pattern="/forwarding_keywords|/关键词白名单"),
+        )
+        client.add_event_handler(
+            handle_forwarding_blacklist,
+            NewMessage(pattern="/forwarding_blacklist|/关键词黑名单"),
+        )
+        client.add_event_handler(
+            handle_forwarding_patterns,
+            NewMessage(pattern="/forwarding_patterns|/正则白名单"),
+        )
+        client.add_event_handler(
+            handle_forwarding_blacklist_patterns,
+            NewMessage(pattern="/forwarding_blacklist_patterns|/正则黑名单"),
+        )
+        client.add_event_handler(
+            handle_forwarding_copy_mode,
+            NewMessage(pattern="/forwarding_copy_mode|/复制模式"),
+        )
+        client.add_event_handler(
+            handle_forwarding_original_only,
+            NewMessage(pattern="/forwarding_original_only|/只转发原创"),
+        )
+        client.add_event_handler(
+            handle_forwarding_rule_info,
+            NewMessage(pattern="/forwarding_rule_info|/规则详情"),
+        )
+        client.add_event_handler(
+            handle_forwarding_help,
+            NewMessage(pattern="/forwarding_help|/转发帮助"),
         )
 
     def _register_userbot_commands(self, client: "TelegramClient") -> None:
