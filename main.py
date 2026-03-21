@@ -71,6 +71,21 @@ async def main(config_manager: ConfigManager = None):
 
 
 if __name__ == "__main__":
+    # 初始化日志系统（必须在其他使用日志的代码之前）
+    from core.infrastructure.logging import setup_logging
+    from core.settings import get_settings
+
+    settings = get_settings()
+    setup_logging(
+        log_level=settings.log.logging_level,
+        log_to_file=settings.log.log_to_file,
+        log_file_path=settings.log.log_file_path,
+        log_file_max_size=settings.log.log_file_max_size,
+        log_file_backup_count=settings.log.log_file_backup_count,
+        log_to_console=settings.log.log_to_console,
+        log_colorize=settings.log.log_colorize,
+    )
+
     logger.info(f"===== Sakura-Bot v{__version__} 启动 ======")
 
     # 验证必要配置

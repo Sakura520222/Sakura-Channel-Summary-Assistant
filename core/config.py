@@ -38,12 +38,7 @@ def get_log_level(level_str):
     return LOG_LEVEL_MAP.get(level_str.upper(), DEFAULT_LOG_LEVEL)
 
 
-# 初始配置日志
-logging.basicConfig(
-    level=DEFAULT_LOG_LEVEL,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+# 日志初始化移至 main.py，由 setup_logging() 统一管理
 logger = logging.getLogger(__name__)
 
 # 配置文件路径

@@ -105,7 +105,25 @@ class AdminSettings(BaseSettings):
 class LogSettings(BaseSettings):
     """日志相关配置"""
 
+    # 基础配置
     log_level: str = Field(default=DEFAULT_LOG_LEVEL, alias="LOG_LEVEL")
+
+    # 文件日志配置
+    log_to_file: bool = Field(default=True, alias="LOG_TO_FILE")
+    log_file_path: str = Field(default="logs/sakura-bot.log", alias="LOG_FILE_PATH")
+    log_file_max_size: int = Field(default=10485760, alias="LOG_FILE_MAX_SIZE")  # 10MB
+    log_file_backup_count: int = Field(default=5, alias="LOG_FILE_BACKUP_COUNT")
+
+    # 控制台日志配置
+    log_to_console: bool = Field(default=True, alias="LOG_TO_CONSOLE")
+    log_colorize: bool = Field(default=True, alias="LOG_COLORIZE")
+
+    # 日志格式配置
+    log_format: str = Field(
+        default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        alias="LOG_FORMAT",
+    )
+    log_date_format: str = Field(default="%Y-%m-%d %H:%M:%S", alias="LOG_DATE_FORMAT")
 
     @field_validator("log_level")
     @classmethod
@@ -116,6 +134,20 @@ class LogSettings(BaseSettings):
             logger.warning(f"无效的日志级别: {v}，使用默认值 {DEFAULT_LOG_LEVEL}")
             return DEFAULT_LOG_LEVEL
         return v_upper
+
+    @field_validator("log_file_max_size")
+    @classmethod
+    def validate_log_file_max_size(cls, v: int) -> int:
+        if v < 1024:  # 最小1KB
+            raise ValueError("日志文件最大大小不能小于1KB")
+        return v
+
+    @field_validator("log_file_backup_count")
+    @classmethod
+    def validate_log_file_backup_count(cls, v: int) -> int:
+        if v < 0 or v > 20:
+            raise ValueError("日志备份文件数量必须在0-20之间")
+        return v
 
     @property
     def logging_level(self) -> int:
