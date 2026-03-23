@@ -128,6 +128,7 @@ python main.py
 | **📱 Command Menu** | QA Bot automatically registers command menu for direct access to all available commands | ✅ |
 | **🗄️ MySQL Database Support** | New MySQL database support for improved performance and concurrency | ✅ |
 | **🔄 Database Migration** | One-click migration from SQLite to MySQL with automatic backup and validation | ✅ |
+| **📤 Channel Message Forwarding** | Intelligently forward channel messages to target channels with keyword and regex filtering | ✅ |
 | **⚡ Startup Check** | Automatically detects old databases and notifies admins with migration suggestions | ✅ |
 
 ---
@@ -183,6 +184,21 @@ python main.py
 | `/channelpoll` | `/查看频道投票配置` | View channel poll settings | `/channelpoll` |
 | `/setchannelpoll` | `/设置频道投票配置` | Configure channel poll settings | `/setchannelpoll` |
 | `/deletechannelpoll` | `/删除频道投票配置` | Remove channel poll configuration | `/deletechannelpoll` |
+
+#### Comment Welcome Configuration
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/showcommentwelcome` | `/查看评论区欢迎` | View channel comment welcome settings | `/showcommentwelcome` |
+| `/setcommentwelcome` | `/设置评论区欢迎` | Configure channel comment welcome message | `/setcommentwelcome` |
+| `/deletecommentwelcome` | `/删除评论区欢迎` | Remove channel comment welcome configuration | `/deletecommentwelcome` |
+
+**Feature Description**:
+- Configure welcome messages for each channel's comment section independently
+- Support custom welcome message content and button text
+- Can disable welcome message feature for specific channels
+- Default message: "🌸 评论区已开放，快来抢占沙发吧～"
+- Default button: "申请周报总结"
 
 #### System Control
 
@@ -261,6 +277,86 @@ MYSQL_POOL_TIMEOUT=30
 2. Configure MySQL connection in `.env`
 3. Use `/migrate_check` to check readiness
 4. Use `/migrate_start` to begin migration
+
+#### Channel Message Forwarding
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/forwarding` | `/转发状态` | View forwarding status and rules list | `/forwarding` |
+| `/forwarding_enable` | `/启用转发` | Enable forwarding feature | `/forwarding_enable` |
+| `/forwarding_disable` | `/禁用转发` | Disable forwarding feature | `/forwarding_disable` |
+| `/forwarding_stats [channel]` | `/转发统计` | View forwarding statistics | `/forwarding_stats` / `/forwarding_stats channel1` |
+
+**Feature Description**:
+- Intelligently forward channel messages to target channels
+- Support keyword whitelist and blacklist filtering
+- Support regex pattern matching
+- Support forward mode (show source) and copy mode (no source)
+- Automatically record forwarded messages to avoid duplicates
+- Provide detailed forwarding statistics
+
+**Configuration**:
+Configure forwarding rules in `data/config.json`:
+
+```json
+{
+  "forwarding": {
+    "enabled": true,
+    "rules": [
+      {
+        "source_channel": "https://t.me/source_channel",
+        "target_channel": "https://t.me/my_channel",
+        "keywords": ["重要", "新闻", "更新"],
+        "blacklist": ["广告", "垃圾"],
+        "patterns": [],
+        "blacklist_patterns": [],
+        "copy_mode": false,
+        "forward_original_only": false
+      }
+    ]
+  }
+}
+```
+
+**Configuration Options**:
+- `enabled`: Enable forwarding feature (true/false)
+- `source_channel`: Source channel URL
+- `target_channel`: Target channel URL
+- `keywords`: Whitelist keyword list (forward if any keyword matches)
+- `blacklist`: Blacklist keyword list (skip if any keyword matches)
+- `patterns`: Regex whitelist (forward if any pattern matches)
+- `blacklist_patterns`: Regex blacklist (skip if any pattern matches)
+- `copy_mode`: Copy mode (true=no source shown, false=show source)
+- `forward_original_only`: Only forward original messages (true=only channel original messages, no forwarded messages; false=all messages, default false)
+
+#### UserBot Management
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/userbot_status` | `/userbot_状态` | View UserBot status and user info | `/userbot_status` |
+| `/userbot_join <channel_link>` | `/userbot_加入` | Manually join a channel (supports public and private channels) | `/userbot_join https://t.me/channel` |
+| `/userbot_leave <channel_link>` | `/userbot_离开` | Manually leave a channel | `/userbot_leave https://t.me/channel` |
+| `/userbot_list` | `/userbot_列表` | List all channels UserBot has joined | `/userbot_list` |
+
+**Feature Description**:
+- **UserBot Auto-Join**: When forwarding is enabled, UserBot automatically joins all source channels in forwarding rules
+- **Supported Channel Link Formats**:
+  - Public channels: `https://t.me/channelname` or `@channelname`
+  - Private channels: `https://t.me/+invitecode` (invite link)
+- **Smart Error Handling**:
+  - Prompts manual invitation when private channels cannot be auto-joined
+  - Shows detailed error info when channel doesn't exist or no permission
+  - Prompts correct usage for invalid link formats
+- **Automated Notifications**:
+  - Notifies admin when auto-join starts
+  - Sends result summary after auto-join completes
+  - Failed channels list with detailed failure reasons
+
+**Notes**:
+- Private channels cannot be auto-joined; UserBot must be manually added as a member
+- UserBot must have permission to join channels
+- Auto-join only triggers when forwarding feature is enabled
+- Can manually manage UserBot's joined channels via commands
 
 ### QA Bot Commands
 
