@@ -300,6 +300,49 @@ python main.py
 - `copy_mode`: 复制模式（true=不显示来源，false=显示来源）
 - `forward_original_only`: 只转发原创消息（true=只转发频道原创消息，不转发转发消息；false=转发所有消息，默认false）
 
+**底栏自定义**：
+- 支持自定义转发消息的底部信息
+- 可用模板变量：`{source_title}`, `{target_title}`, `{source_channel}`, `{target_channel}`, `{message_id}`
+- 示例：`/forwarding_footer https://t.me/source https://t.me/target "📢 来源: {source_title}"`
+- 支持默认底栏的启用/禁用
+
+#### 转发规则管理
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
+| `/forwarding_add_rule` | `/添加转发规则` | 添加转发规则（持久化） | `/forwarding_add_rule 源频道 目标频道` |
+| `/forwarding_remove_rule` | `/删除转发规则` | 删除转发规则 | `/forwarding_remove_rule 源频道 目标频道` |
+| `/forwarding_rule_info` | `/规则详情` | 查看规则详情 | `/forwarding_rule_info` |
+
+#### 关键词和正则过滤
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
+| `/forwarding_keywords` | `/关键词白名单` | 设置关键词白名单 | `/forwarding_keywords add/remove/clear` |
+| `/forwarding_blacklist` | `/关键词黑名单` | 设置关键词黑名单 | `/forwarding_blacklist add/remove/clear` |
+| `/forwarding_patterns` | `/正则白名单` | 设置正则白名单 | `/forwarding_patterns add/remove/clear` |
+| `/forwarding_blacklist_patterns` | `/正则黑名单` | 设置正则黑名单 | `/forwarding_blacklist_patterns add/remove/clear` |
+
+#### 转发模式设置
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
+| `/forwarding_copy_mode` | `/复制模式` | 设置复制模式（不显示来源） | `/forwarding_copy_mode on/off` |
+| `/forwarding_original_only` | `/只转发原创` | 设置只转发原创消息 | `/forwarding_original_only on/off` |
+
+#### 底栏配置
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
+| `/forwarding_footer` | `/转发底栏` | 设置自定义底栏 | `/forwarding_footer 源频道 目标频道 "底栏文本"` |
+| `/forwarding_default_footer` | `/默认底栏` | 启用/禁用默认底栏 | `/forwarding_default_footer on/off` |
+
+#### 帮助命令
+
+| 命令 | 别名 | 功能 | 示例 |
+|------|------|------|------|
+| `/forwarding_help` | `/转发帮助` | 转发命令帮助 | `/forwarding_help` |
+
 **迁移说明**：
 - 支持从SQLite一键迁移到MySQL数据库
 - 迁移前自动备份，安全可靠
@@ -413,6 +456,20 @@ REPORT_ADMIN_IDS=your_admin_id_here,another_admin_id_here
 # ===== 日志级别 =====
 LOG_LEVEL=INFO
 
+# ===== 日志详细配置 =====
+# 是否启用文件日志（true/false）
+LOG_TO_FILE=true
+# 日志文件路径
+LOG_FILE_PATH=logs/sakura-bot.log
+# 单个日志文件最大大小（字节，默认10485760 = 10MB）
+LOG_FILE_MAX_SIZE=10485760
+# 保留的日志备份文件数量（0-20）
+LOG_FILE_BACKUP_COUNT=5
+# 是否启用控制台日志（true/false）
+LOG_TO_CONSOLE=true
+# 是否启用彩色日志输出（仅控制台，true/false）
+LOG_COLORIZE=true
+
 # ===== 投票功能 =====
 ENABLE_POLL=True
 
@@ -428,6 +485,24 @@ QA_BOT_DAILY_LIMIT=200               # 每日总限额（默认200次）
 # 方式2：指向自定义人格文件
 # QA_BOT_PERSONA=data/custom_persona.txt
 # 方式3：不填则自动读取 data/qa_persona.txt（默认）
+
+# ===== UserBot 配置 =====
+# UserBot 使用您的真实 Telegram 账号，具有更高的权限
+# 可以访问私有频道，抓取消息更稳定
+
+# 是否启用 UserBot（true/false）
+USERBOT_ENABLED=true
+
+# UserBot 手机号（国际格式，例如：+8613800138000）
+# 首次启用时需要输入验证码进行登录
+USERBOT_PHONE_NUMBER=+8613800138000
+
+# UserBot Session 文件路径（自动保存，下次启动自动登录）
+USERBOT_SESSION_PATH=data/sessions/user_session
+
+# UserBot 降级策略（true/false）
+# 如果 UserBot 不可用，是否降级到临时会话方式
+USERBOT_FALLBACK_TO_BOT=false
 
 # ===== RAG智能问答系统配置（可选） =====
 # Embedding模型配置（必需，用于向量搜索）

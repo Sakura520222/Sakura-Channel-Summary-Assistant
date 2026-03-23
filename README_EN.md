@@ -128,6 +128,7 @@ python main.py
 | **📱 Command Menu** | QA Bot automatically registers command menu for direct access to all available commands | ✅ |
 | **🗄️ MySQL Database Support** | New MySQL database support for improved performance and concurrency | ✅ |
 | **🔄 Database Migration** | One-click migration from SQLite to MySQL with automatic backup and validation | ✅ |
+| **📤 Channel Message Forwarding** | Intelligently forward channel messages to target channels with keyword and regex filtering | ✅ |
 | **⚡ Startup Check** | Automatically detects old databases and notifies admins with migration suggestions | ✅ |
 
 ---
@@ -183,6 +184,21 @@ python main.py
 | `/channelpoll` | `/查看频道投票配置` | View channel poll settings | `/channelpoll` |
 | `/setchannelpoll` | `/设置频道投票配置` | Configure channel poll settings | `/setchannelpoll` |
 | `/deletechannelpoll` | `/删除频道投票配置` | Remove channel poll configuration | `/deletechannelpoll` |
+
+#### Comment Welcome Configuration
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/showcommentwelcome` | `/查看评论区欢迎` | View channel comment welcome settings | `/showcommentwelcome` |
+| `/setcommentwelcome` | `/设置评论区欢迎` | Configure channel comment welcome message | `/setcommentwelcome` |
+| `/deletecommentwelcome` | `/删除评论区欢迎` | Remove channel comment welcome configuration | `/deletecommentwelcome` |
+
+**Feature Description**:
+- Configure welcome messages for each channel's comment section independently
+- Support custom welcome message content and button text
+- Can disable welcome message feature for specific channels
+- Default message: "🌸 评论区已开放，快来抢占沙发吧～"
+- Default button: "申请周报总结"
 
 #### System Control
 
@@ -262,6 +278,129 @@ MYSQL_POOL_TIMEOUT=30
 3. Use `/migrate_check` to check readiness
 4. Use `/migrate_start` to begin migration
 
+#### Channel Message Forwarding
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/forwarding` | `/转发状态` | View forwarding status and rules list | `/forwarding` |
+| `/forwarding_enable` | `/启用转发` | Enable forwarding feature | `/forwarding_enable` |
+| `/forwarding_disable` | `/禁用转发` | Disable forwarding feature | `/forwarding_disable` |
+| `/forwarding_stats [channel]` | `/转发统计` | View forwarding statistics | `/forwarding_stats` / `/forwarding_stats channel1` |
+
+**Feature Description**:
+- Intelligently forward channel messages to target channels
+- Support keyword whitelist and blacklist filtering
+- Support regex pattern matching
+- Support forward mode (show source) and copy mode (no source)
+- Automatically record forwarded messages to avoid duplicates
+- Provide detailed forwarding statistics
+
+**Configuration**:
+Configure forwarding rules in `data/config.json`:
+
+```json
+{
+  "forwarding": {
+    "enabled": true,
+    "rules": [
+      {
+        "source_channel": "https://t.me/source_channel",
+        "target_channel": "https://t.me/my_channel",
+        "keywords": ["重要", "新闻", "更新"],
+        "blacklist": ["广告", "垃圾"],
+        "patterns": [],
+        "blacklist_patterns": [],
+        "copy_mode": false,
+        "forward_original_only": false
+      }
+    ]
+  }
+}
+```
+
+**Configuration Options**:
+- `enabled`: Enable forwarding feature (true/false)
+- `source_channel`: Source channel URL
+- `target_channel`: Target channel URL
+- `keywords`: Whitelist keyword list (forward if any keyword matches)
+- `blacklist`: Blacklist keyword list (skip if any keyword matches)
+- `patterns`: Regex whitelist (forward if any pattern matches)
+- `blacklist_patterns`: Regex blacklist (skip if any pattern matches)
+- `copy_mode`: Copy mode (true=no source shown, false=show source)
+- `forward_original_only`: Only forward original messages (true=only channel original messages, no forwarded messages; false=all messages, default false)
+
+**Footer Customization**:
+- Support custom footer text for forwarded messages
+- Available template variables: `{source_title}`, `{target_title}`, `{source_channel}`, `{target_channel}`, `{message_id}`
+- Example: `/forwarding_footer https://t.me/source https://t.me/target "📢 Source: {source_title}"`
+- Support default footer enable/disable
+
+#### Forwarding Rule Management
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/forwarding_add_rule` | `/添加转发规则` | Add forwarding rule (persistent) | `/forwarding_add_rule source target` |
+| `/forwarding_remove_rule` | `/删除转发规则` | Remove forwarding rule | `/forwarding_remove_rule source target` |
+| `/forwarding_rule_info` | `/规则详情` | View rule details | `/forwarding_rule_info` |
+
+#### Keyword and Regex Filtering
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/forwarding_keywords` | `/关键词白名单` | Set keyword whitelist | `/forwarding_keywords add/remove/clear` |
+| `/forwarding_blacklist` | `/关键词黑名单` | Set keyword blacklist | `/forwarding_blacklist add/remove/clear` |
+| `/forwarding_patterns` | `/正则白名单` | Set regex whitelist | `/forwarding_patterns add/remove/clear` |
+| `/forwarding_blacklist_patterns` | `/正则黑名单` | Set regex blacklist | `/forwarding_blacklist_patterns add/remove/clear` |
+
+#### Forwarding Mode Settings
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/forwarding_copy_mode` | `/复制模式` | Set copy mode (no source shown) | `/forwarding_copy_mode on/off` |
+| `/forwarding_original_only` | `/只转发原创` | Set forward original messages only | `/forwarding_original_only on/off` |
+
+#### Footer Configuration
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/forwarding_footer` | `/转发底栏` | Set custom footer text | `/forwarding_footer source target "footer text"` |
+| `/forwarding_default_footer` | `/默认底栏` | Enable/disable default footer | `/forwarding_default_footer on/off` |
+
+#### Help Command
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/forwarding_help` | `/转发帮助` | Forwarding command help | `/forwarding_help` |
+
+#### UserBot Management
+
+| Command | Aliases | Description | Example |
+|---------|---------|-------------|---------|
+| `/userbot_status` | `/userbot_状态` | View UserBot status and user info | `/userbot_status` |
+| `/userbot_join <channel_link>` | `/userbot_加入` | Manually join a channel (supports public and private channels) | `/userbot_join https://t.me/channel` |
+| `/userbot_leave <channel_link>` | `/userbot_离开` | Manually leave a channel | `/userbot_leave https://t.me/channel` |
+| `/userbot_list` | `/userbot_列表` | List all channels UserBot has joined | `/userbot_list` |
+
+**Feature Description**:
+- **UserBot Auto-Join**: When forwarding is enabled, UserBot automatically joins all source channels in forwarding rules
+- **Supported Channel Link Formats**:
+  - Public channels: `https://t.me/channelname` or `@channelname`
+  - Private channels: `https://t.me/+invitecode` (invite link)
+- **Smart Error Handling**:
+  - Prompts manual invitation when private channels cannot be auto-joined
+  - Shows detailed error info when channel doesn't exist or no permission
+  - Prompts correct usage for invalid link formats
+- **Automated Notifications**:
+  - Notifies admin when auto-join starts
+  - Sends result summary after auto-join completes
+  - Failed channels list with detailed failure reasons
+
+**Notes**:
+- Private channels cannot be auto-joined; UserBot must be manually added as a member
+- UserBot must have permission to join channels
+- Auto-join only triggers when forwarding feature is enabled
+- Can manually manage UserBot's joined channels via commands
+
 ### QA Bot Commands
 
 The QA Bot is a standalone Q&A bot (requires a separate `QA_BOT_TOKEN`) and supports the following commands:
@@ -318,6 +457,20 @@ REPORT_ADMIN_IDS=your_admin_id_here,another_admin_id_here
 # ===== Log Level =====
 LOG_LEVEL=INFO
 
+# ===== Detailed Log Configuration =====
+# Enable file logging (true/false)
+LOG_TO_FILE=true
+# Log file path
+LOG_FILE_PATH=logs/sakura-bot.log
+# Maximum size of single log file in bytes (default 10485760 = 10MB)
+LOG_FILE_MAX_SIZE=10485760
+# Number of backup files to keep (0-20)
+LOG_FILE_BACKUP_COUNT=5
+# Enable console logging (true/false)
+LOG_TO_CONSOLE=true
+# Enable colored log output (console only, true/false)
+LOG_COLORIZE=true
+
 # ===== Poll Feature =====
 ENABLE_POLL=True
 
@@ -333,6 +486,24 @@ QA_BOT_DAILY_LIMIT=200               # Global daily quota (default: 200)
 # Option 2: Path to a custom persona file
 # QA_BOT_PERSONA=data/custom_persona.txt
 # Option 3: Leave unset to use data/qa_persona.txt (default)
+
+# ===== UserBot Configuration =====
+# UserBot uses your real Telegram account with higher privileges
+# Can access private channels and fetch messages more reliably
+
+# Enable UserBot (true/false)
+USERBOT_ENABLED=true
+
+# UserBot phone number (international format, e.g., +8613800138000)
+# Verification code required on first login
+USERBOT_PHONE_NUMBER=+8613800138000
+
+# UserBot session file path (auto-saved, auto-login on next start)
+USERBOT_SESSION_PATH=data/sessions/user_session
+
+# UserBot fallback strategy (true/false)
+# If UserBot is unavailable, whether to fall back to temporary session
+USERBOT_FALLBACK_TO_BOT=false
 
 # ===== RAG Intelligent Q&A System Configuration (Optional) =====
 # Embedding Model Configuration (Required for vector search)
