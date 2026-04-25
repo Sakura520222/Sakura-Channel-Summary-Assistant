@@ -19,7 +19,9 @@ from telethon import Button
 from core.config import (
     ADMIN_LIST,
     ENABLE_VOTE_REGEN_REQUEST,
+    POLL_PUBLIC_VOTERS,
     POLL_REGEN_THRESHOLD,
+    get_channel_poll_config,
     get_poll_regeneration,
     increment_vote_count,
     load_poll_regenerations,
@@ -351,6 +353,7 @@ async def send_new_poll_to_channel(client, channel, summary_msg_id, poll_data):
                 PollAnswer(text=TextWithEntities(text=opt_clean, entities=[]), option=bytes([i]))
             )
 
+        # 频道广播模式下不支持公开投票，必须匿名
         poll_obj = Poll(
             id=0,
             question=TextWithEntities(text=question_text, entities=[]),
@@ -404,7 +407,7 @@ async def send_new_poll_to_channel(client, channel, summary_msg_id, poll_data):
         )
 
         # 4. 更新 .last_summary_time.json 中的投票ID
-        from .summary_time_manager import load_last_summary_time, save_last_summary_time
+        from core.summary_time_manager import load_last_summary_time, save_last_summary_time
 
         channel_data = load_last_summary_time(channel, include_report_ids=True)
         if channel_data:
@@ -487,12 +490,18 @@ async def send_new_poll_to_discussion_group(client, channel, summary_msg_id, pol
                 PollAnswer(text=TextWithEntities(text=opt_clean, entities=[]), option=bytes([i]))
             )
 
+        # 获取频道级投票公开配置，未设置则使用全局配置
+        _channel_poll_cfg = get_channel_poll_config(channel)
+        _is_public = _channel_poll_cfg.get("public_voters", POLL_PUBLIC_VOTERS)
+        if _is_public is None:
+            _is_public = POLL_PUBLIC_VOTERS
+
         poll_obj = Poll(
             id=0,
             question=TextWithEntities(text=question_text, entities=[]),
             answers=poll_answers,
             closed=False,
-            public_voters=False,
+            public_voters=_is_public,
             multiple_choice=False,
             quiz=False,
         )
@@ -540,7 +549,7 @@ async def send_new_poll_to_discussion_group(client, channel, summary_msg_id, pol
         )
 
         # 6. 更新 .last_summary_time.json 中的投票ID
-        from .summary_time_manager import load_last_summary_time, save_last_summary_time
+        from core.summary_time_manager import load_last_summary_time, save_last_summary_time
 
         channel_data = load_last_summary_time(channel, include_report_ids=True)
         if channel_data:

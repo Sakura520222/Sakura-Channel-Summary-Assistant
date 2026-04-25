@@ -172,6 +172,9 @@ POLL_REGEN_THRESHOLD = 5
 # 是否启用投票重新生成请求功能，默认为True
 ENABLE_VOTE_REGEN_REQUEST = True
 
+# 投票是否公开投票者，默认为True（公开）
+POLL_PUBLIC_VOTERS = True
+
 # 投票重新生成数据文件锁，用于并发控制
 _poll_regenerations_lock = asyncio.Lock()
 
@@ -252,7 +255,8 @@ def update_module_variables(config):
         SUMMARY_SCHEDULES, \
         CHANNEL_POLL_SETTINGS, \
         POLL_REGEN_THRESHOLD, \
-        ENABLE_VOTE_REGEN_REQUEST
+        ENABLE_VOTE_REGEN_REQUEST, \
+        POLL_PUBLIC_VOTERS
 
     # 更新AI配置
     LLM_API_KEY = config.get("api_key", LLM_API_KEY)
@@ -295,6 +299,10 @@ def update_module_variables(config):
     if "enable_vote_regen_request" in config:
         ENABLE_VOTE_REGEN_REQUEST = config["enable_vote_regen_request"]
         logger.info(f"已更新内存中的投票重新生成请求功能配置: {ENABLE_VOTE_REGEN_REQUEST}")
+
+    if "public_voters" in config:
+        POLL_PUBLIC_VOTERS = config["public_voters"]
+        logger.info(f"已更新内存中的投票公开配置: {POLL_PUBLIC_VOTERS}")
 
 
 # 加载配置文件，覆盖环境变量默认值
@@ -359,6 +367,9 @@ if config:
 
     ENABLE_VOTE_REGEN_REQUEST = config.get("enable_vote_regen_request", ENABLE_VOTE_REGEN_REQUEST)
     logger.info(f"已从配置文件加载投票重新生成请求功能配置: {ENABLE_VOTE_REGEN_REQUEST}")
+
+    POLL_PUBLIC_VOTERS = config.get("public_voters", POLL_PUBLIC_VOTERS)
+    logger.info(f"已从配置文件加载投票公开配置: {POLL_PUBLIC_VOTERS}")
 
     # 从配置文件读取日志级别
     LOG_LEVEL_FROM_CONFIG = config.get("log_level")
@@ -770,16 +781,18 @@ def get_channel_poll_config(channel):
         return {
             "enabled": config.get("enabled", None),  # None 表示使用全局配置
             "send_to_channel": config.get("send_to_channel", False),  # 默认讨论组模式
+            "public_voters": config.get("public_voters", None),  # None 表示使用全局配置
         }
     else:
         # 没有独立配置，返回默认配置
         return {
             "enabled": None,  # 使用全局 ENABLE_POLL
             "send_to_channel": False,  # 默认讨论组模式
+            "public_voters": None,  # 使用全局配置
         }
 
 
-def set_channel_poll_config(channel, enabled=None, send_to_channel=None):
+def set_channel_poll_config(channel, enabled=None, send_to_channel=None, public_voters=None):
     """设置指定频道的投票配置
 
     Args:
@@ -788,6 +801,9 @@ def set_channel_poll_config(channel, enabled=None, send_to_channel=None):
         send_to_channel: 投票发送位置（None 表示不修改）
             True - 频道模式（直接发送到频道）
             False - 讨论组模式（发送到讨论组）
+        public_voters: 投票是否公开投票者（None 表示不修改）
+            True - 公开投票
+            False - 匿名投票
 
     Returns:
         bool: 是否成功保存配置
@@ -816,6 +832,11 @@ def set_channel_poll_config(channel, enabled=None, send_to_channel=None):
             logger.info(
                 f"设置频道 {channel} 的投票发送位置: {'频道' if send_to_channel else '讨论组'}"
             )
+
+        if public_voters is not None:
+            channel_config["public_voters"] = public_voters
+            mode = "公开" if public_voters else "匿名"
+            logger.info(f"设置频道 {channel} 的投票模式: {mode}")
 
         # 保存配置
         save_config(current_config)

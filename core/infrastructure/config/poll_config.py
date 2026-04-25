@@ -33,7 +33,7 @@ PollSendLocation = Literal["channel", "discussion"]
 
 # 投票配置类型定义
 ChannelPollConfig = dict[
-    str,  # 'enabled', 'send_to_channel'
+    str,  # 'enabled', 'send_to_channel', 'public_voters'
     bool | None,
 ]
 
@@ -162,16 +162,22 @@ class ChannelPollConfigManager:
             return {
                 "enabled": config.get("enabled", None),
                 "send_to_channel": config.get("send_to_channel", False),
+                "public_voters": config.get("public_voters", None),
             }
 
         # 没有独立配置，返回默认配置
         return {
             "enabled": None,  # 使用全局配置
             "send_to_channel": False,  # 默认讨论组模式
+            "public_voters": None,  # 使用全局配置
         }
 
     def set_config(
-        self, channel: str, enabled: bool | None = None, send_to_channel: bool | None = None
+        self,
+        channel: str,
+        enabled: bool | None = None,
+        send_to_channel: bool | None = None,
+        public_voters: bool | None = None,
     ) -> None:
         """设置指定频道的投票配置
 
@@ -181,6 +187,9 @@ class ChannelPollConfigManager:
             send_to_channel: 投票发送位置（None 表示不修改）
                 True - 频道模式（直接发送到频道）
                 False - 讨论组模式（发送到讨论组）
+            public_voters: 投票是否公开投票者（None 表示不修改）
+                True - 公开投票
+                False - 匿名投票
 
         Raises:
             ConfigurationError: 保存配置失败时
@@ -200,6 +209,11 @@ class ChannelPollConfigManager:
             channel_config["send_to_channel"] = send_to_channel
             location = "频道" if send_to_channel else "讨论组"
             logger.info(f"设置频道 {channel} 的投票发送位置: {location}")
+
+        if public_voters is not None:
+            channel_config["public_voters"] = public_voters
+            mode = "公开" if public_voters else "匿名"
+            logger.info(f"设置频道 {channel} 的投票模式: {mode}")
 
         # 保存配置
         self._save_settings()
@@ -261,7 +275,16 @@ class ChannelPollConfigManager:
             "poll.location_channel" if send_to_channel else "poll.location_discussion"
         )
 
-        return f"{enabled_text} | {location_text}"
+        # 确定投票公开模式
+        public_voters = config.get("public_voters")
+        if public_voters is None:
+            voters_text = get_text("poll.status_global")
+        else:
+            voters_text = get_text(
+                "poll.public_voters" if public_voters else "poll.anonymous_voters"
+            )
+
+        return f"{enabled_text} | {location_text} | {voters_text}"
 
 
 # 全局配置管理器实例

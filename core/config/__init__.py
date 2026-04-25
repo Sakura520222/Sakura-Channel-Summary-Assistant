@@ -51,6 +51,7 @@ LOG_LEVEL_FROM_ENV = _old_config.LOG_LEVEL_FROM_ENV
 LOG_LEVEL_MAP = _old_config.LOG_LEVEL_MAP
 POLL_PROMPT_FILE = _old_config.POLL_PROMPT_FILE
 POLL_REGEN_THRESHOLD = _old_config.POLL_REGEN_THRESHOLD
+POLL_PUBLIC_VOTERS = _old_config.POLL_PUBLIC_VOTERS
 PROMPT_FILE = _old_config.PROMPT_FILE
 QA_BOT_USERNAME = _old_config.QA_BOT_USERNAME
 QA_PERSONA_FILE = _old_config.QA_PERSONA_FILE
@@ -96,6 +97,7 @@ set_channel_schedule = _old_config.set_channel_schedule
 set_channel_schedule_v2 = _old_config.set_channel_schedule_v2
 set_scheduler_instance = _old_config.set_scheduler_instance
 set_shutdown_event = _old_config.set_shutdown_event
+setup_config_reload = _old_config.setup_config_reload
 toggle_forwarding_rule = _old_config.toggle_forwarding_rule
 trigger_shutdown = _old_config.trigger_shutdown
 update_forwarding_rule = _old_config.update_forwarding_rule
@@ -147,6 +149,7 @@ __all__ = [
     "LOG_LEVEL_MAP",
     "POLL_PROMPT_FILE",
     "POLL_REGEN_THRESHOLD",
+    "POLL_PUBLIC_VOTERS",
     "PROMPT_FILE",
     "QA_BOT_USERNAME",
     "QA_PERSONA_FILE",
@@ -194,6 +197,7 @@ __all__ = [
     "set_channel_schedule_v2",
     "set_scheduler_instance",
     "set_shutdown_event",
+    "setup_config_reload",
     "toggle_forwarding_rule",
     "trigger_shutdown",
     "update_forwarding_rule",

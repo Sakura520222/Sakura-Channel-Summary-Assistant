@@ -24,7 +24,8 @@
   "channel_poll_settings": {
     "https://t.me/example_channel1": {
       "enabled": true,
-      "send_to_channel": true
+      "send_to_channel": true,
+      "public_voters": true
     },
     "https://t.me/example_channel2": {
       "enabled": true,
