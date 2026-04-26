@@ -314,10 +314,13 @@ def get_channel_poll_config(channel: str) -> ChannelPollConfig:
 
 
 def set_channel_poll_config(
-    channel: str, enabled: bool | None = None, send_to_channel: bool | None = None
+    channel: str,
+    enabled: bool | None = None,
+    send_to_channel: bool | None = None,
+    public_voters: bool | None = None,
 ) -> None:
     """设置指定频道的投票配置"""
-    get_poll_config_manager().set_config(channel, enabled, send_to_channel)
+    get_poll_config_manager().set_config(channel, enabled, send_to_channel, public_voters)
 
 
 def delete_channel_poll_config(channel: str) -> bool:

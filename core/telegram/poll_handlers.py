@@ -222,9 +222,11 @@ async def send_poll_to_discussion_group(client, channel, summary_message_id, sum
         from asyncio import Future
 
         forward_message_future = Future()
+        _handler_registered = True
 
         @client.on(events.NewMessage(chats=discussion_group_id))
         async def on_discussion_message(event):
+            nonlocal _handler_registered
             msg = event.message
             if (
                 hasattr(msg, "fwd_from")
@@ -239,115 +241,121 @@ async def send_poll_to_discussion_group(client, channel, summary_message_id, sum
                 if not forward_message_future.done():
                     forward_message_future.set_result(msg)
                 client.remove_event_handler(on_discussion_message)
+                _handler_registered = False
 
-        # 生成投票内容（期间转发消息会到达并被监听器捕获）
-        logger.info("开始生成投票内容（同时监听转发消息）")
-        poll_data = await generate_poll_from_summary(summary_text)
+        try:
+            # 生成投票内容（期间转发消息会到达并被监听器捕获）
+            logger.info("开始生成投票内容（同时监听转发消息）")
+            poll_data = await generate_poll_from_summary(summary_text)
 
-        if not poll_data or "question" not in poll_data or "options" not in poll_data:
-            logger.error("生成投票内容失败，使用默认投票")
-            poll_data = {
-                "question": get_text("poll.default_question"),
-                "options": [
-                    get_text("poll.default_options.0"),
-                    get_text("poll.default_options.1"),
-                    get_text("poll.default_options.2"),
-                    get_text("poll.default_options.3"),
-                ],
-            }
+            if not poll_data or "question" not in poll_data or "options" not in poll_data:
+                logger.error("生成投票内容失败，使用默认投票")
+                poll_data = {
+                    "question": get_text("poll.default_question"),
+                    "options": [
+                        get_text("poll.default_options.0"),
+                        get_text("poll.default_options.1"),
+                        get_text("poll.default_options.2"),
+                        get_text("poll.default_options.3"),
+                    ],
+                }
 
-        # 等待转发消息到达（最多15秒，投票生成期间已经开始等待）
-        forward_message = None
-        if forward_message_future.done():
-            forward_message = forward_message_future.result()
-            logger.info(f"投票生成期间已收到转发消息，ID: {forward_message.id}")
-        else:
-            logger.info("投票内容已生成，等待转发消息...")
-            try:
-                forward_message = await asyncio.wait_for(forward_message_future, timeout=15)
-                logger.info(f"收到转发消息，ID: {forward_message.id}")
-            except TimeoutError:
-                logger.warning("等待转发消息超时（15秒）")
+            # 等待转发消息到达（最多15秒，投票生成期间已经开始等待）
+            forward_message = None
+            if forward_message_future.done():
+                forward_message = forward_message_future.result()
+                logger.info(f"投票生成期间已收到转发消息，ID: {forward_message.id}")
+            else:
+                logger.info("投票内容已生成，等待转发消息...")
+                try:
+                    forward_message = await asyncio.wait_for(forward_message_future, timeout=15)
+                    logger.info(f"收到转发消息，ID: {forward_message.id}")
+                except TimeoutError:
+                    logger.warning("等待转发消息超时（15秒）")
+
+            if forward_message:
+                # 发送投票作为回复
+                logger.info(f"发送投票到讨论组（回复转发消息）: {poll_data['question']}")
+
+                try:
+                    poll_obj, button_markup, question_text = _build_poll_and_buttons(
+                        poll_data, channel, summary_message_id
+                    )
+
+                    poll_msg = await client.send_message(
+                        discussion_group_id,
+                        file=InputMediaPoll(poll=poll_obj),
+                        buttons=button_markup,
+                        reply_to=forward_message.id,
+                    )
+
+                    logger.info(
+                        f"✅ 投票发送成功（回复模式）: {question_text}, 消息ID: {poll_msg.id}"
+                    )
+
+                    from core.config import add_poll_regeneration
+
+                    add_poll_regeneration(
+                        channel=channel,
+                        summary_msg_id=summary_message_id,
+                        poll_msg_id=poll_msg.id,
+                        button_msg_id=None,
+                        summary_text=summary_text,
+                        channel_name=channel_name,
+                        send_to_channel=False,
+                        discussion_forward_msg_id=forward_message.id,
+                    )
+
+                    return {
+                        "poll_msg_id": poll_msg.id,
+                        "button_msg_id": None,
+                    }
+
+                except Exception as e:
+                    logger.error(f"❌ 发送投票失败: {e}")
+                    import traceback
+
+                    logger.error(traceback.format_exc())
+                    return None
+
+            else:
+                # 未找到转发消息，发送独立投票
+                logger.warning("未找到转发消息，发送独立投票")
+                try:
+                    poll_obj, button_markup, question_text = _build_poll_and_buttons(
+                        poll_data, channel, summary_message_id
+                    )
+
+                    poll_msg = await client.send_message(
+                        discussion_group_id,
+                        file=InputMediaPoll(poll=poll_obj),
+                        buttons=button_markup,
+                    )
+
+                    logger.info(f"✅ 独立投票发送成功: {question_text}, 消息ID: {poll_msg.id}")
+
+                    from core.config import add_poll_regeneration
+
+                    add_poll_regeneration(
+                        channel=channel,
+                        summary_msg_id=summary_message_id,
+                        poll_msg_id=poll_msg.id,
+                        button_msg_id=None,
+                        summary_text=summary_text,
+                        channel_name=channel_name,
+                        send_to_channel=False,
+                    )
+
+                    return {
+                        "poll_msg_id": poll_msg.id,
+                        "button_msg_id": None,
+                    }
+                except Exception as e:
+                    logger.error(f"发送独立投票消息失败: {e}")
+                    return None
+        finally:
+            if _handler_registered:
                 client.remove_event_handler(on_discussion_message)
-
-        if forward_message:
-            # 发送投票作为回复
-            logger.info(f"发送投票到讨论组（回复转发消息）: {poll_data['question']}")
-
-            try:
-                poll_obj, button_markup, question_text = _build_poll_and_buttons(
-                    poll_data, channel, summary_message_id
-                )
-
-                poll_msg = await client.send_message(
-                    discussion_group_id,
-                    file=InputMediaPoll(poll=poll_obj),
-                    buttons=button_markup,
-                    reply_to=forward_message.id,
-                )
-
-                logger.info(f"✅ 投票发送成功（回复模式）: {question_text}, 消息ID: {poll_msg.id}")
-
-                from core.config import add_poll_regeneration
-
-                add_poll_regeneration(
-                    channel=channel,
-                    summary_msg_id=summary_message_id,
-                    poll_msg_id=poll_msg.id,
-                    button_msg_id=None,
-                    summary_text=summary_text,
-                    channel_name=channel_name,
-                    send_to_channel=False,
-                    discussion_forward_msg_id=forward_message.id,
-                )
-
-                return {
-                    "poll_msg_id": poll_msg.id,
-                    "button_msg_id": None,
-                }
-
-            except Exception as e:
-                logger.error(f"❌ 发送投票失败: {e}")
-                import traceback
-
-                logger.error(traceback.format_exc())
-                return None
-
-        else:
-            # 未找到转发消息，发送独立投票
-            logger.warning("未找到转发消息，发送独立投票")
-            try:
-                poll_obj, button_markup, question_text = _build_poll_and_buttons(
-                    poll_data, channel, summary_message_id
-                )
-
-                poll_msg = await client.send_message(
-                    discussion_group_id,
-                    file=InputMediaPoll(poll=poll_obj),
-                    buttons=button_markup,
-                )
-
-                logger.info(f"✅ 独立投票发送成功: {question_text}, 消息ID: {poll_msg.id}")
-
-                from core.config import add_poll_regeneration
-
-                add_poll_regeneration(
-                    channel=channel,
-                    summary_msg_id=summary_message_id,
-                    poll_msg_id=poll_msg.id,
-                    button_msg_id=None,
-                    summary_text=summary_text,
-                    channel_name=channel_name,
-                    send_to_channel=False,
-                )
-
-                return {
-                    "poll_msg_id": poll_msg.id,
-                    "button_msg_id": None,
-                }
-            except Exception as e:
-                logger.error(f"发送独立投票消息失败: {e}")
-                return None
 
     except Exception as e:
         record_error(e, "send_poll_to_discussion_group")

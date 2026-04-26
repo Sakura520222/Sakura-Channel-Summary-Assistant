@@ -19,9 +19,7 @@ from telethon import Button
 from core.config import (
     ADMIN_LIST,
     ENABLE_VOTE_REGEN_REQUEST,
-    POLL_PUBLIC_VOTERS,
     POLL_REGEN_THRESHOLD,
-    get_channel_poll_config,
     get_poll_regeneration,
     increment_vote_count,
     load_poll_regenerations,
@@ -337,58 +335,17 @@ async def send_new_poll_to_channel(client, channel, summary_msg_id, poll_data):
         bool: 是否成功
     """
     try:
-        from telethon.tl.types import InputMediaPoll, Poll, PollAnswer, TextWithEntities
+        from telethon.tl.types import InputMediaPoll
 
-        from core.config import ENABLE_VOTE_REGEN_REQUEST, POLL_REGEN_THRESHOLD
+        from core.telegram.poll_handlers import _build_poll_and_buttons
 
-        # 1. 构造投票对象
-        question_text = str(
-            poll_data.get("question", get_text("poll_regen.default_question"))
-        ).strip()[:250]
-
-        poll_answers = []
-        for i, opt in enumerate(poll_data.get("options", [])[:10]):
-            opt_clean = str(opt).strip()[:100]
-            poll_answers.append(
-                PollAnswer(text=TextWithEntities(text=opt_clean, entities=[]), option=bytes([i]))
-            )
-
-        # 频道广播模式下不支持公开投票，必须匿名
-        poll_obj = Poll(
-            id=0,
-            question=TextWithEntities(text=question_text, entities=[]),
-            answers=poll_answers,
-            closed=False,
-            public_voters=False,
-            multiple_choice=False,
-            quiz=False,
+        # 1. 构造投票对象（频道广播强制匿名）
+        poll_obj, button_markup, question_text = _build_poll_and_buttons(
+            poll_data, channel, summary_msg_id
         )
+        poll_obj.public_voters = False
 
-        # 2. 构造内联按钮
-        button_markup = []
-        # 如果启用投票重新生成请求功能，添加请求按钮
-        if ENABLE_VOTE_REGEN_REQUEST:
-            button_markup.append(
-                [
-                    Button.inline(
-                        get_text(
-                            "poll_regen.request_button", count=0, threshold=POLL_REGEN_THRESHOLD
-                        ),
-                        data=f"request_regen_{summary_msg_id}".encode(),
-                    )
-                ]
-            )
-        # 添加管理员重新生成按钮
-        button_markup.append(
-            [
-                Button.inline(
-                    get_text("poll_regen.admin_button"),
-                    data=f"regen_poll_{summary_msg_id}".encode(),
-                )
-            ]
-        )
-
-        # 3. 使用 send_message 发送投票并附加按钮
+        # 2. 使用 send_message 发送投票并附加按钮
         poll_msg = await client.send_message(
             channel,
             file=InputMediaPoll(poll=poll_obj),
@@ -449,9 +406,7 @@ async def send_new_poll_to_discussion_group(client, channel, summary_msg_id, pol
         bool: 是否成功
     """
     try:
-        from telethon.tl.types import InputMediaPoll, Poll, PollAnswer, TextWithEntities
-
-        from core.config import ENABLE_VOTE_REGEN_REQUEST, POLL_REGEN_THRESHOLD
+        from telethon.tl.types import InputMediaPoll
 
         logger.info("开始处理投票发送到讨论组(重新生成模式)")
 
@@ -479,58 +434,13 @@ async def send_new_poll_to_discussion_group(client, channel, summary_msg_id, pol
         # 3. 直接使用存储的转发消息ID发送投票,无需等待
         logger.info(f"直接使用存储的转发消息ID {forward_msg_id} 发送投票")
 
-        # 构造投票对象
-        question_text = str(
-            poll_data.get("question", get_text("poll_regen.default_question"))
-        ).strip()[:250]
-        poll_answers = []
-        for i, opt in enumerate(poll_data.get("options", [])[:10]):
-            opt_clean = str(opt).strip()[:100]
-            poll_answers.append(
-                PollAnswer(text=TextWithEntities(text=opt_clean, entities=[]), option=bytes([i]))
-            )
+        from core.telegram.poll_handlers import _build_poll_and_buttons
 
-        # 获取频道级投票公开配置，未设置则使用全局配置
-        _channel_poll_cfg = get_channel_poll_config(channel)
-        _is_public = _channel_poll_cfg.get("public_voters", POLL_PUBLIC_VOTERS)
-        if _is_public is None:
-            _is_public = POLL_PUBLIC_VOTERS
-
-        poll_obj = Poll(
-            id=0,
-            question=TextWithEntities(text=question_text, entities=[]),
-            answers=poll_answers,
-            closed=False,
-            public_voters=_is_public,
-            multiple_choice=False,
-            quiz=False,
+        poll_obj, button_markup, question_text = _build_poll_and_buttons(
+            poll_data, channel, summary_msg_id
         )
 
-        # 4. 构造内联按钮
-        button_markup = []
-        # 如果启用投票重新生成请求功能，添加请求按钮
-        if ENABLE_VOTE_REGEN_REQUEST:
-            button_markup.append(
-                [
-                    Button.inline(
-                        get_text(
-                            "poll_regen.request_button", count=0, threshold=POLL_REGEN_THRESHOLD
-                        ),
-                        data=f"request_regen_{summary_msg_id}".encode(),
-                    )
-                ]
-            )
-        # 添加管理员重新生成按钮
-        button_markup.append(
-            [
-                Button.inline(
-                    get_text("poll_regen.admin_button"),
-                    data=f"regen_poll_{summary_msg_id}".encode(),
-                )
-            ]
-        )
-
-        # 5. 使用 send_message 发送投票并附加按钮
+        # 4. 使用 send_message 发送投票并附加按钮
         poll_msg = await client.send_message(
             discussion_group_id,
             file=InputMediaPoll(poll=poll_obj),

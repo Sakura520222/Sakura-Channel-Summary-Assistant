@@ -173,7 +173,7 @@ POLL_REGEN_THRESHOLD = 5
 ENABLE_VOTE_REGEN_REQUEST = True
 
 # 投票是否公开投票者，默认为True（公开）
-POLL_PUBLIC_VOTERS = True
+POLL_PUBLIC_VOTERS = os.getenv("POLL_PUBLIC_VOTERS", "true").lower() in ("true", "1", "yes")
 
 # 投票重新生成数据文件锁，用于并发控制
 _poll_regenerations_lock = asyncio.Lock()
@@ -301,7 +301,8 @@ def update_module_variables(config):
         logger.info(f"已更新内存中的投票重新生成请求功能配置: {ENABLE_VOTE_REGEN_REQUEST}")
 
     if "public_voters" in config:
-        POLL_PUBLIC_VOTERS = config["public_voters"]
+        _val = config["public_voters"]
+        POLL_PUBLIC_VOTERS = bool(_val) if isinstance(_val, (bool, int)) else _val
         logger.info(f"已更新内存中的投票公开配置: {POLL_PUBLIC_VOTERS}")
 
 
@@ -368,7 +369,8 @@ if config:
     ENABLE_VOTE_REGEN_REQUEST = config.get("enable_vote_regen_request", ENABLE_VOTE_REGEN_REQUEST)
     logger.info(f"已从配置文件加载投票重新生成请求功能配置: {ENABLE_VOTE_REGEN_REQUEST}")
 
-    POLL_PUBLIC_VOTERS = config.get("public_voters", POLL_PUBLIC_VOTERS)
+    _pv = config.get("public_voters", POLL_PUBLIC_VOTERS)
+    POLL_PUBLIC_VOTERS = bool(_pv) if isinstance(_pv, (bool, int)) else _pv
     logger.info(f"已从配置文件加载投票公开配置: {POLL_PUBLIC_VOTERS}")
 
     # 从配置文件读取日志级别
