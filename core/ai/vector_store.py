@@ -207,12 +207,24 @@ class VectorStore:
 
             # 后置日期过滤（ChromaDB $gte/$lte 不支持字符串）
             if need_date_filter:
+                from datetime import datetime
+
+                def _parse_dt(s: str) -> datetime | None:
+                    try:
+                        return datetime.fromisoformat(s)
+                    except (ValueError, TypeError):
+                        return None
+
+                after_dt = _parse_dt(date_after) if date_after else None
+                before_dt = _parse_dt(date_before) if date_before else None
+
                 filtered = []
                 for s in summaries:
-                    created = s["metadata"].get("created_at", "")
-                    if date_after and created < date_after:
+                    created_str = s["metadata"].get("created_at", "")
+                    created_dt = _parse_dt(created_str)
+                    if after_dt and (created_dt is None or created_dt < after_dt):
                         continue
-                    if date_before and created > date_before:
+                    if before_dt and (created_dt is None or created_dt > before_dt):
                         continue
                     filtered.append(s)
                 summaries = filtered[:top_k]

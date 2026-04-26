@@ -13,6 +13,7 @@ Agentic RAG 工具定义与执行器
 将检索能力封装为 LLM 可调用的 Function Calling 工具
 """
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -155,9 +156,6 @@ TOOL_SCHEMAS = [
     },
 ]
 
-# 工具名 -> Schema 的快速查找表
-_TOOL_NAME_MAP = {t["function"]["name"]: t for t in TOOL_SCHEMAS}
-
 # 在 tool message 中截断 summary_text 的最大字符数
 _SUMMARY_TRUNCATE_LEN = 500
 
@@ -276,10 +274,14 @@ class ToolExecutor:
                 {"error": "未找到有效的结果ID", "results": [], "count": 0}, ensure_ascii=False
             )
 
-        reranked = self.reranker.rerank(
-            query=args["query"],
-            candidates=candidates,
-            top_k=args.get("top_k", 5),
+        loop = asyncio.get_running_loop()
+        reranked = await loop.run_in_executor(
+            None,
+            lambda: self.reranker.rerank(
+                query=args["query"],
+                candidates=candidates,
+                top_k=args.get("top_k", 5),
+            ),
         )
 
         # 更新 result_store 中的结果（含 rerank_score）

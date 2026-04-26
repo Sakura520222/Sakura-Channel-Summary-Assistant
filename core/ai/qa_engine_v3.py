@@ -684,7 +684,7 @@ class QAEngineV3:
     ):
         """Agentic RAG 流式生成器。Tool-calling 循环（非流式）+ 最终回答（流式）。"""
         self.tool_executor.reset()
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # 构建系统提示词：原有提示词 + 工具说明
         channel_context = await self.memory_manager.get_channel_context()
@@ -733,6 +733,10 @@ class QAEngineV3:
                     temperature=0.7,
                 ),
             )
+
+            if not response or not response.choices:
+                logger.warning("[agent] LLM 返回无效响应")
+                return
 
             message = response.choices[0].message
             messages.append(self._message_to_dict(message))
