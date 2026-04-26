@@ -252,7 +252,8 @@ Thumbs.db
 *.swo
 
 # 其他
-.claude
+.claude/CLAUDE.local.md
+.claude/settings.local.json
 tmpclaude-*-cwd
 data/vectors/
 CI日志/
