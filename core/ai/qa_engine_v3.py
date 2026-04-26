@@ -9,18 +9,16 @@
 # 许可证全文：参见 LICENSE 文件
 
 """
-问答引擎 v3.2.0 - 集成向量搜索和重排序
-实现语义检索 + RAG架构 + 多轮对话查询改写
+问答引擎 v3.2.0 - Agentic RAG + 向量搜索 + 多轮对话
 """
 
 import asyncio
-import hashlib
+import json
 import logging
-import re
-from collections import OrderedDict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from core.ai.agent_tools import TOOL_SCHEMAS, ToolExecutor
 from core.ai.ai_client import client_llm
 from core.ai.memory_manager import get_memory_manager
 from core.ai.reranker import get_reranker
@@ -33,22 +31,6 @@ from .conversation_manager import get_conversation_manager
 from .intent_parser import get_intent_parser
 
 logger = logging.getLogger(__name__)
-
-# 判断查询是否含有代词/指代词，需要进行查询改写
-PRONOUN_PATTERNS = re.compile(
-    r"它|他|她|这个|那个|这些|那些|此|彼|前者|后者|上面|上述|刚才|之前|继续|还有|那么|那|这"
-)
-
-
-# 改写策略枚举
-class RewriteStrategy:
-    """查询改写策略"""
-
-    PRONOUN_RESOLUTION = "pronoun"  # 代词解析
-    QUERY_EXPANSION = "expansion"  # 查询扩展
-    QUERY_SIMPLIFICATION = "simplify"  # 查询简化
-    HYBRID_ENHANCEMENT = "hybrid"  # 混合增强
-
 
 # 系统提示词模板（使用占位符，人格描述会动态注入）
 BASE_SYSTEM_TEMPLATE = """{persona_description}
@@ -76,190 +58,29 @@ BASE_SYSTEM_TEMPLATE = """{persona_description}
 {channel_context}{conversation_context}
 """
 
+# Agentic RAG 最大工具调用迭代次数
+AGENT_MAX_ITERATIONS = 10
 
-# 查询改写缓存类
-class RewriteCache:
-    """查询改写缓存（协程安全LRU实现）
+# 追加到原系统提示词的工具使用说明
+AGENT_TOOL_INSTRUCTIONS = """
 
-    注意：
-    - 此缓存使用 asyncio.Lock() 实现协程安全，适用于单进程异步环境
-    - 在多进程环境下每个进程有独立的缓存，无法共享
-    - 默认最大缓存500条，每条约100-200字节
-    """
+## 搜索工具
+你可以调用以下工具搜索频道历史总结来辅助回答：
+- **semantic_search**: 语义搜索，适合模糊/概念性查询
+- **keyword_search**: 关键词搜索，适合精确匹配特定术语
+- **rerank_results**: 对搜索结果重排序（结果>5条时考虑使用）
+- **get_channel_info**: 获取频道信息
 
-    def __init__(self, max_size: int = 500):
-        self.cache = OrderedDict()  # LRU缓存
-        self.max_size = max_size
-        self.hit_count = 0
-        self.miss_count = 0
-        self._lock = None  # 延迟初始化，避免在__init__中创建asyncio.Lock
-
-    async def _get_lock(self):
-        """获取或创建锁（惰性初始化）"""
-        if self._lock is None:
-            self._lock = asyncio.Lock()
-        return self._lock
-
-    def _hash_history(self, history: list[dict]) -> str:
-        """生成对话历史的哈希值（使用最近5条消息）
-
-        Args:
-            history: 对话历史列表
-
-        Returns:
-            哈希值字符串
-        """
-        if not history:
-            return "empty"
-
-        # 使用最后5条消息
-        recent = history[-5:] if len(history) > 5 else history
-
-        # 检测格式异常并记录警告
-        for i, msg in enumerate(recent):
-            if "role" not in msg and "content" not in msg:
-                logger.warning(f"消息格式异常: index={i}, keys={list(msg.keys())}")
-
-        # 使用.get()避免KeyError，取前200字符增加区分度，并包含消息ID
-        parts = []
-        for msg in recent:
-            msg_id = msg.get("id", "")
-            content = msg.get("content", "")[:200]
-            role = msg.get("role", "unknown")
-            parts.append(f"{role}:{msg_id}:{content}")
-
-        text = "".join(parts)
-
-        # 使用sha256避免哈希冲突
-        return hashlib.sha256(text.encode()).hexdigest()[:16]
-
-    async def get(self, query: str, history: list[dict]) -> str | None:
-        """获取缓存的改写结果（协程安全）
-
-        Args:
-            query: 原始查询文本
-            history: 对话历史列表
-
-        Returns:
-            缓存的改写结果，如果缓存未命中则返回 None
-        """
-        history_hash = self._hash_history(history)
-        key = (query.strip().lower(), history_hash)
-
-        lock = await self._get_lock()
-        async with lock:
-            if key in self.cache:
-                # LRU：移到末尾
-                self.cache.move_to_end(key)
-                self.hit_count += 1
-                logger.debug(f"改写缓存命中: {query[:30]}...")
-                return self.cache[key]
-            else:
-                self.miss_count += 1
-                return None
-
-    async def set(self, query: str, history: list[dict], rewritten: str):
-        """缓存改写结果（协程安全LRU）
-
-        Args:
-            query: 原始查询文本
-            history: 对话历史列表
-            rewritten: 改写后的查询文本
-        """
-        history_hash = self._hash_history(history)
-        key = (query.strip().lower(), history_hash)
-
-        lock = await self._get_lock()
-        async with lock:
-            # 如果键已存在，更新并移到末尾
-            if key in self.cache:
-                self.cache.move_to_end(key)
-
-            self.cache[key] = rewritten
-
-            # LRU淘汰：超过最大容量时移除最旧的
-            if len(self.cache) > self.max_size:
-                self.cache.popitem(last=False)  # 移除最旧的（第一个）
-                logger.info(f"LRU淘汰: 当前缓存大小 {len(self.cache)}")
-
-            logger.debug(f"改写已缓存: {query[:30]}... → {rewritten[:30]}...")
-
-    def get_stats(self) -> dict:
-        """获取缓存统计信息
-
-        Returns:
-            包含以下键的字典:
-            - size: 当前缓存条目数
-            - hit_count: 缓存命中次数
-            - miss_count: 缓存未命中次数
-            - hit_rate: 缓存命中率（浮点数，0.0-1.0）
-        """
-        total = self.hit_count + self.miss_count
-        hit_rate = self.hit_count / total if total > 0 else 0
-        return {
-            "size": len(self.cache),
-            "hit_count": self.hit_count,
-            "miss_count": self.miss_count,
-            "hit_rate": hit_rate,  # 返回浮点数，便于程序化使用
-        }
-
-
-# 查询改写专用系统提示（增强版 - 使用Few-Shot Learning）
-ENHANCED_REWRITE_SYSTEM_PROMPT = """你是一个查询改写专家。给定对话历史和用户问题，将其改写为独立、完整的检索查询。
-
-## 改写原则
-1. **解析代词**：将"它/他/她/这个/那个"等替换为明确的实体名称
-2. **补充上下文**：根据对话历史补充缺失的关键信息
-3. **保留意图**：保持原始查询的核心意图不变
-4. **简洁明确**：去除冗余词汇（"我想知道"、"能否告诉我"等）
-5. **同义词扩展**（可选）：对关键词添加同义词，提高召回率
-
-## 改写示例
-
-示例1 - 代词解析：
-对话历史：
-用户: Vue 3.4有什么新特性？
-助手: Vue 3.4发布了新的响应式系统，提升了性能...
-用户: 它解决了什么问题？
-改写后: Vue 3.4的新响应式系统解决了什么问题？
-
-示例2 - 上下文补充：
-对话历史：
-用户: 最近有什么技术讨论？
-助手: 讨论了React Server Components和Next.js 14...
-用户: 具体讲了什么？
-改写后: React Server Components和Next.js 14的讨论内容具体讲了什么？
-
-示例3 - 查询简化：
-对话历史：
-用户: 你能不能帮我查一下最近有没有关于Python异步编程的讨论
-改写后: Python异步编程 讨论 最新
-
-示例4 - 无需改写：
-对话历史：
-用户: 最近AI领域有什么进展？
-改写后: 最近AI领域有什么进展？
-
-## 当前任务
-对话历史：
-{conversation_history}
-
-用户最新问题：{query}
-
-请直接输出改写后的查询，不要解释。如果原查询已经足够清晰，直接原样返回。"""
-
-# 原始简单提示词（作为备用）
-REWRITE_SYSTEM_PROMPT = """你是一个查询改写助手。
-给定多轮对话历史和用户的最新问题，将用户的最新问题改写为一个**独立、完整、不依赖上下文的搜索查询**。
-要求：
-- 解析所有代词（"它"、"那个"、"这个"等），替换为明确的实体名称
-- 保留原始意图和关键信息
-- 仅输出改写后的查询文本，不要任何解释或前缀
-- 如果最新问题已经足够独立清晰，直接原样返回"""
+### 使用策略
+1. 分析用户问题，确定需要的搜索方式和参数
+2. 可以同时调用多个搜索工具（如语义+关键词并行检索）
+3. 评估搜索结果：结果充足则回答，不足则调整参数再次搜索
+4. 最多进行{max_iterations}轮工具调用
+"""
 
 
 class QAEngineV3:
-    """问答引擎 v3.1.0 - 向量搜索 + 多轮对话支持 + 查询改写"""
+    """问答引擎 v3.2.0 - Agentic RAG + 向量搜索 + 多轮对话"""
 
     def __init__(self):
         """初始化问答引擎"""
@@ -269,8 +90,8 @@ class QAEngineV3:
         self.vector_store = get_vector_store()
         self.reranker = get_reranker()
         self.conversation_mgr = get_conversation_manager()
-        self.rewrite_cache = RewriteCache()
-        logger.info("问答引擎v3.1.0初始化完成（支持多轮对话 + 增强查询改写）")
+        self.tool_executor = ToolExecutor(self.vector_store, self.memory_manager, self.reranker)
+        logger.info("问答引擎v3.2.0初始化完成（Agentic RAG + 多轮对话）")
 
     async def process_query(self, query: str, user_id: int) -> str:
         """
@@ -381,28 +202,6 @@ class QAEngineV3:
             )
             logger.debug(f"用户 {user_id} 的对话历史: {len(conversation_history)} 条")
 
-            # ── 步骤0: 智能查询改写 ───────────────────────────────────────
-            search_query = query  # 用于检索的查询（可能被改写）
-            query_rewritten = False
-            rewrite_strategy = None
-
-            # 检查是否需要改写及使用何种策略
-            should_rewrite, strategy = self._should_rewrite(
-                query, conversation_history, is_new_session, keywords
-            )
-
-            if should_rewrite:
-                try:
-                    search_query, rewrite_strategy = await self._rewrite_query_enhanced(
-                        query, conversation_history, strategy
-                    )
-                    if search_query != query:
-                        query_rewritten = True
-                        logger.info(f"查询改写 [{rewrite_strategy}]: '{query}' → '{search_query}'")
-                except Exception as e:
-                    logger.warning(f"查询改写失败，使用原始查询: {e}")
-                    search_query = query
-
             # ── 步骤1: 计算时间过滤范围 ─────────────────────────────────────────
             date_after: str | None = None
             if time_range is not None:
@@ -415,7 +214,7 @@ class QAEngineV3:
             if self.vector_store.is_available():
                 try:
                     semantic_results = self.vector_store.search_similar(
-                        query=search_query, top_k=20, date_after=date_after
+                        query=query, top_k=20, date_after=date_after
                     )
                     logger.info(f"语义检索: 找到 {len(semantic_results)} 条结果")
                 except Exception as e:
@@ -464,7 +263,7 @@ class QAEngineV3:
             # ── 步骤5: 重排序（Top-20 → Top-5） ─────────────────────────────────
             if self.reranker.is_available() and len(final_candidates) > 5:
                 try:
-                    final_candidates = self.reranker.rerank(search_query, final_candidates, top_k=5)
+                    final_candidates = self.reranker.rerank(query, final_candidates, top_k=5)
                     logger.info(f"重排序完成: 保留 {len(final_candidates)} 条结果")
                 except Exception as e:
                     logger.error(f"重排序失败: {e}")
@@ -474,12 +273,10 @@ class QAEngineV3:
 
             # ── 步骤6: AI生成回答（RAG + 对话历史） ──────────────────────────────
             answer = await self._generate_answer_with_rag(
-                query=query,  # 原始查询（用于AI理解用户意图）
-                search_query=search_query,  # 改写后查询（用于说明检索依据）
+                query=query,
                 summaries=final_candidates,
                 keywords=keywords,
                 conversation_history=conversation_history,
-                query_rewritten=query_rewritten,
             )
 
             # 新会话时加上引导语
@@ -491,222 +288,6 @@ class QAEngineV3:
         except Exception as e:
             logger.error(f"处理内容查询失败: {type(e).__name__}: {e}", exc_info=True)
             return "❌ 查询失败，请稍后重试。"
-
-    def _should_rewrite(
-        self,
-        query: str,
-        conversation_history: list[dict],
-        is_new_session: bool,
-        keywords: list[str] = None,
-    ) -> tuple[bool, str]:
-        """
-        判断是否需要改写及使用何种策略
-
-        Args:
-            query: 用户查询
-            conversation_history: 对话历史
-            is_new_session: 是否新会话
-            keywords: 关键词列表
-
-        Returns:
-            (是否改写, 策略名称)
-        """
-        # 条件1: 含代词 → 代词解析
-        if PRONOUN_PATTERNS.search(query):
-            return True, RewriteStrategy.PRONOUN_RESOLUTION
-
-        # 条件2: 非新会话，有历史 → 混合增强
-        if not is_new_session and len(conversation_history) >= 1:
-            return True, RewriteStrategy.HYBRID_ENHANCEMENT
-
-        # 条件3: 关键词稀缺（<2个实质词）→ 查询扩展
-        if keywords and len(keywords) < 2:
-            return True, RewriteStrategy.QUERY_EXPANSION
-
-        # 条件4: 查询过长（>20字）或冗余 → 查询简化
-        if len(query) > 20 or self._has_redundancy(query):
-            return True, RewriteStrategy.QUERY_SIMPLIFICATION
-
-        return False, None
-
-    def _has_redundancy(self, query: str) -> bool:
-        """检查查询是否包含冗余词汇"""
-        redundancy_patterns = [
-            r"你能不能帮我",
-            r"能否告诉我",
-            r"我想知道",
-            r"帮我查一下",
-            r"我想了解",
-            r"帮我找找",
-        ]
-        return any(re.search(pattern, query) for pattern in redundancy_patterns)
-
-    async def _rewrite_query_enhanced(
-        self, query: str, conversation_history: list[dict], strategy: str
-    ) -> tuple[str, str]:
-        """
-        增强的查询改写（支持多策略和缓存）
-
-        Args:
-            query: 原始查询
-            conversation_history: 对话历史
-            strategy: 改写策略
-
-        Returns:
-            (改写后查询, 实际使用的策略)
-        """
-        # 检查缓存
-        cached = await self.rewrite_cache.get(query, conversation_history)
-        if cached:
-            logger.debug(f"使用缓存的改写: {cached}")
-            return cached, strategy
-
-        # 根据策略选择提示词
-        system_prompt = ENHANCED_REWRITE_SYSTEM_PROMPT
-
-        # 只取最近4条历史（避免token浪费）
-        recent_history = (
-            conversation_history[-4:] if len(conversation_history) > 4 else conversation_history
-        )
-        # 排除最后一条（就是当前的用户查询）
-        context_history = recent_history[:-1] if len(recent_history) > 1 else []
-
-        if not context_history and strategy == RewriteStrategy.PRONOUN_RESOLUTION:
-            # 代词解析但无历史，无法改写
-            return query, strategy
-
-        # 构建对话历史文本
-        history_text = ""
-        if context_history:
-            history_text = self.conversation_mgr.format_conversation_context(context_history)
-        else:
-            history_text = "（无对话历史）"
-
-        try:
-            response = client_llm.chat.completions.create(
-                model=get_llm_model(),
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {
-                        "role": "user",
-                        "content": f"对话历史：\n{history_text}\n\n用户最新问题：{query}\n\n改写后的独立查询：",
-                    },
-                ],
-                temperature=0.1,
-                max_tokens=200,
-            )
-
-            rewritten = response.choices[0].message.content.strip()
-
-            # 质量验证
-            validation = await self._validate_rewrite(query, rewritten)
-
-            if validation["valid"]:
-                # 缓存成功的改写
-                await self.rewrite_cache.set(query, conversation_history, rewritten)
-                logger.debug(f"改写验证通过: {validation.get('notes', '')}")
-                return rewritten, strategy
-            else:
-                logger.warning(f"改写验证失败: {validation.get('issues', [])}")
-                return query, strategy
-
-        except Exception as e:
-            logger.error(f"查询改写出错: {e}")
-            return query, strategy
-
-    async def _validate_rewrite(self, original: str, rewritten: str) -> dict:
-        """
-        验证改写质量
-
-        Args:
-            original: 原始查询
-            rewritten: 改写后查询
-
-        Returns:
-            {
-                "valid": bool,
-                "notes": str,
-                "issues": list[str]
-            }
-        """
-        issues = []
-
-        # 基本检查
-        if not rewritten or not rewritten.strip():
-            issues.append("改写结果为空")
-            return {"valid": False, "notes": "基本验证失败", "issues": issues}
-
-        # 长度检查
-        if len(rewritten) > 300:
-            issues.append("改写结果过长")
-
-        # 如果改写和原文相同，说明无需改写
-        if rewritten.strip().lower() == original.strip().lower():
-            return {"valid": True, "notes": "无需改写", "issues": []}
-
-        # 简单的意图保留检查（关键词重叠度）
-        original_words = set(re.findall(r"[\w]+", original.lower()))
-        rewritten_words = set(re.findall(r"[\w]+", rewritten.lower()))
-
-        if original_words:
-            overlap = len(original_words & rewritten_words) / len(original_words)
-            if overlap < 0.2:  # 关键词重叠度低于20%
-                issues.append(f"意图保留度过低 ({overlap:.0%})")
-
-        # 检查是否丢失了核心信息
-        if PRONOUN_PATTERNS.search(original) and not PRONOUN_PATTERNS.search(rewritten):
-            # 原文有代词但改写后没有，这是好的
-            pass
-        elif PRONOUN_PATTERNS.search(rewritten):
-            issues.append("改写后仍包含代词")
-
-        is_valid = len(issues) == 0
-        notes = "验证通过" if is_valid else f"发现问题: {', '.join(issues)}"
-
-        return {"valid": is_valid, "notes": notes, "issues": issues}
-
-    async def _rewrite_query(self, query: str, conversation_history: list[dict]) -> str:
-        """
-        利用LLM将含代词的查询改写为独立完整的检索查询（旧版本，保留兼容）
-
-        Args:
-            query: 原始用户查询（可能含代词）
-            conversation_history: 当前会话历史
-
-        Returns:
-            改写后的查询字符串
-        """
-        # 只取最近4条历史（避免token浪费）
-        recent_history = (
-            conversation_history[-4:] if len(conversation_history) > 4 else conversation_history
-        )
-        # 排除最后一条（就是当前的用户查询）
-        context_history = recent_history[:-1] if len(recent_history) > 1 else []
-
-        if not context_history:
-            return query
-
-        # 构建对话历史文本
-        history_text = self.conversation_mgr.format_conversation_context(context_history)
-
-        response = client_llm.chat.completions.create(
-            model=get_llm_model(),
-            messages=[
-                {"role": "system", "content": REWRITE_SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"对话历史：\n{history_text}\n\n用户最新问题：{query}\n\n改写后的独立查询：",
-                },
-            ],
-            temperature=0.1,
-            max_tokens=200,
-        )
-
-        rewritten = response.choices[0].message.content.strip()
-        # 安全检查：若改写结果过长或为空，回退到原始查询
-        if not rewritten or len(rewritten) > 200:
-            return query
-        return rewritten
 
     def _rrf_fusion(
         self, semantic_results: list[dict], keyword_results: list[dict], k: int = 60
@@ -763,15 +344,8 @@ class QAEngineV3:
         summaries: list[dict[str, Any]],
         keywords: list[str] = None,
         conversation_history: list[dict] = None,
-        search_query: str = None,
-        query_rewritten: bool = False,
     ) -> tuple:
-        """
-        构建 RAG 所需的 system_prompt 和 user_prompt（供流式与非流式共用）
-
-        Returns:
-            (system_prompt, user_prompt)
-        """
+        """构建 RAG 所需的 system_prompt 和 user_prompt（降级路径使用）"""
         context = self._prepare_rag_context(summaries)
 
         channel_ids = list(
@@ -804,12 +378,8 @@ class QAEngineV3:
             conversation_context=conversation_context,
         )
 
-        rewrite_note = ""
-        if query_rewritten and search_query and search_query != query:
-            rewrite_note = f"\n（已根据对话上下文将查询理解为：「{search_query}」）"
-
         user_prompt = (
-            f"用户当前查询：{query}{rewrite_note}\n\n"
+            f"用户当前查询：{query}\n\n"
             f"相关历史总结（共{len(summaries)}条，已通过语义搜索和重排序精选）：\n"
             f"{context}\n\n"
             f"请根据上述总结回答用户的问题。"
@@ -823,37 +393,19 @@ class QAEngineV3:
         summaries: list[dict[str, Any]],
         keywords: list[str] = None,
         conversation_history: list[dict] = None,
-        search_query: str = None,
-        query_rewritten: bool = False,
     ) -> str:
-        """
-        使用RAG生成回答（支持多轮对话）
-
-        Args:
-            query: 用户原始查询
-            summaries: 相关总结列表
-            keywords: 关键词
-            conversation_history: 对话历史列表
-            search_query: 改写后的检索查询（可选）
-            query_rewritten: 是否经过查询改写
-
-        Returns:
-            生成的回答
-        """
+        """使用RAG生成回答（降级路径使用）"""
         try:
             system_prompt, user_prompt = await self._build_rag_prompts(
                 query=query,
                 summaries=summaries,
                 keywords=keywords,
                 conversation_history=conversation_history,
-                search_query=search_query,
-                query_rewritten=query_rewritten,
             )
 
             logger.info(
                 f"调用AI生成回答（RAG+对话历史），总结数: {len(summaries)}, "
-                f"历史消息: {len(conversation_history) if conversation_history else 0}, "
-                f"查询改写: {query_rewritten}"
+                f"历史消息: {len(conversation_history) if conversation_history else 0}"
             )
 
             response = client_llm.chat.completions.create(
@@ -900,23 +452,8 @@ class QAEngineV3:
         summaries: list[dict[str, Any]],
         keywords: list[str] = None,
         conversation_history: list[dict] = None,
-        search_query: str = None,
-        query_rewritten: bool = False,
     ):
-        """
-        使用RAG流式生成回答（异步生成器）
-
-        Args:
-            query: 用户原始查询
-            summaries: 相关总结列表
-            keywords: 关键词列表
-            conversation_history: 对话历史
-            search_query: 改写后的检索查询
-            query_rewritten: 是否经过查询改写
-
-        Yields:
-            str: 逐步生成的文本片段
-        """
+        """使用RAG流式生成回答（异步生成器，降级路径使用）"""
         import asyncio
 
         system_prompt, user_prompt = await self._build_rag_prompts(
@@ -924,14 +461,11 @@ class QAEngineV3:
             summaries=summaries,
             keywords=keywords,
             conversation_history=conversation_history,
-            search_query=search_query,
-            query_rewritten=query_rewritten,
         )
 
         logger.info(
             f"调用AI流式生成回答（RAG），总结数: {len(summaries)}, "
-            f"历史消息: {len(conversation_history) if conversation_history else 0}, "
-            f"查询改写: {query_rewritten}"
+            f"历史消息: {len(conversation_history) if conversation_history else 0}"
         )
 
         loop = asyncio.get_event_loop()
@@ -1022,120 +556,51 @@ class QAEngineV3:
                 user_id, session_id
             )
 
-            # 查询改写（使用增强版）
-            search_query = original_query
-            query_rewritten = False
-            rewrite_strategy = None
-
-            # 检查是否需要改写及使用何种策略
-            should_rewrite, strategy = self._should_rewrite(
-                original_query, conversation_history, is_new_session, keywords
-            )
-
-            if should_rewrite:
-                try:
-                    search_query, rewrite_strategy = await self._rewrite_query_enhanced(
-                        original_query, conversation_history, strategy
-                    )
-                    if search_query != original_query:
-                        query_rewritten = True
-                        logger.info(
-                            f"[stream] 查询改写 [{rewrite_strategy}]: '{original_query}' → '{search_query}'"
-                        )
-                except Exception as e:
-                    logger.warning(f"[stream] 查询改写失败: {e}")
-                    search_query = original_query
-
             # 时间过滤
             date_after: str | None = None
             if time_range is not None:
-                from datetime import datetime, timedelta
-
                 cutoff = datetime.now(UTC) - timedelta(days=time_range)
                 date_after = cutoff.isoformat()
 
-            # 语义检索
-            semantic_results = []
-            if self.vector_store.is_available():
-                try:
-                    semantic_results = self.vector_store.search_similar(
-                        query=search_query, top_k=20, date_after=date_after
-                    )
-                except Exception as e:
-                    logger.error(f"[stream] 语义检索失败: {e}")
-
-            # 关键词检索
-            keyword_results = []
-            if keywords or len(semantic_results) < 5:
-                try:
-                    search_days = time_range if time_range is not None else 90
-                    keyword_results = await self.memory_manager.search_summaries(
-                        keywords=keywords, time_range_days=search_days, limit=10
-                    )
-                except Exception as e:
-                    logger.error(f"[stream] 关键词检索失败: {e}")
-
-            # 融合
-            if semantic_results and keyword_results:
-                final_candidates = self._rrf_fusion(semantic_results, keyword_results)
-            elif semantic_results:
-                final_candidates = semantic_results
-            elif keyword_results:
-                final_candidates = [
-                    {
-                        "summary_id": r["id"],
-                        "summary_text": r["summary_text"],
-                        "metadata": {
-                            "channel_id": r.get("channel_id"),
-                            "channel_name": r.get("channel_name"),
-                            "created_at": r.get("created_at"),
-                        },
-                    }
-                    for r in keyword_results
-                ]
-            else:
-                if time_range is not None and time_range <= 7:
-                    no_result = (
-                        f"🔍 在最近 {time_range} 天内未找到相关总结。\n\n"
-                        f"💡 提示：可以尝试扩大时间范围，例如'最近30天关于...'。"
-                    )
-                else:
-                    no_result = "🔍 未找到相关总结。\n\n💡 提示：尝试调整关键词或时间范围。"
-                yield no_result
-                await self.conversation_mgr.save_message(
-                    user_id=user_id, session_id=session_id, role="assistant", content=no_result
-                )
-                yield "__DONE__"
-                return
-
-            # 重排序
-            if self.reranker.is_available() and len(final_candidates) > 5:
-                try:
-                    final_candidates = self.reranker.rerank(search_query, final_candidates, top_k=5)
-                except Exception as e:
-                    logger.error(f"[stream] 重排序失败: {e}")
-                    final_candidates = final_candidates[:5]
-            else:
-                final_candidates = final_candidates[:5]
-
-            # 流式生成回答
+            # Agentic RAG：LLM 自主决定是否检索
             full_answer = ""
             try:
-                async for chunk in self.generate_answer_stream(
+                async for chunk in self._agentic_stream(
                     query=original_query,
-                    summaries=final_candidates,
-                    keywords=keywords,
                     conversation_history=conversation_history,
-                    search_query=search_query,
-                    query_rewritten=query_rewritten,
+                    time_range=time_range,
+                    date_after=date_after,
+                    keywords=keywords,
                 ):
                     full_answer += chunk
                     yield chunk
+
             except Exception as e:
-                logger.error(f"[stream] AI生成失败，降级到非流式: {e}")
-                fallback = self._fallback_answer_v3(final_candidates)
-                yield fallback
-                full_answer = fallback
+                logger.error(f"[stream] Agentic 处理异常，降级到固定流水线: {e}", exc_info=True)
+                final_candidates = await self._fallback_fixed_pipeline(
+                    search_query=original_query,
+                    keywords=keywords,
+                    time_range=time_range,
+                    date_after=date_after,
+                )
+                if final_candidates:
+                    async for chunk in self.generate_answer_stream(
+                        query=original_query,
+                        summaries=final_candidates,
+                        keywords=keywords,
+                        conversation_history=conversation_history,
+                    ):
+                        full_answer += chunk
+                        yield chunk
+                else:
+                    if time_range is not None and time_range <= 7:
+                        full_answer = (
+                            f"🔍 在最近 {time_range} 天内未找到相关总结。\n\n"
+                            f"💡 提示：可以尝试扩大时间范围，例如'最近30天关于...'。"
+                        )
+                    else:
+                        full_answer = "🔍 未找到相关总结。\n\n💡 提示：尝试调整关键词或时间范围。"
+                    yield full_answer
 
             # 保存完整回答到对话历史
             if is_new_session:
@@ -1208,6 +673,210 @@ class QAEngineV3:
         sources = [f"• {info['name']}: {info['count']}条" for info in channels.values()]
 
         return f"📚 数据来源: {len(sources)}个频道\n" + "\n".join(sources)
+
+    async def _agentic_stream(
+        self,
+        query: str,
+        conversation_history: list[dict],
+        time_range: int | None,
+        date_after: str | None,
+        keywords: list[str],
+    ):
+        """Agentic RAG 流式生成器。Tool-calling 循环（非流式）+ 最终回答（流式）。"""
+        self.tool_executor.reset()
+        loop = asyncio.get_event_loop()
+
+        # 构建系统提示词：原有提示词 + 工具说明
+        channel_context = await self.memory_manager.get_channel_context()
+        conversation_context = self.conversation_mgr.format_conversation_context(
+            conversation_history
+        )
+        persona_description = get_qa_bot_persona()
+
+        system_prompt = BASE_SYSTEM_TEMPLATE.format(
+            persona_description=persona_description,
+            channel_context=channel_context,
+            conversation_context=conversation_context,
+        )
+        system_prompt += AGENT_TOOL_INSTRUCTIONS.format(max_iterations=AGENT_MAX_ITERATIONS)
+
+        # 意图上下文
+        intent_parts = []
+        if keywords:
+            intent_parts.append(f"系统分析的关键词: {', '.join(keywords)}")
+        if time_range is not None:
+            intent_parts.append(f"系统分析的时间范围: 最近 {time_range} 天")
+        if date_after:
+            intent_parts.append(f"时间过滤起点: {date_after}")
+
+        intent_note = "\n".join(intent_parts) if intent_parts else ""
+        user_content = query
+        if intent_note:
+            user_content += f"\n\n{intent_note}"
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+
+        # Tool-calling 循环（非流式）
+        for iteration in range(AGENT_MAX_ITERATIONS):
+            logger.info(f"[agent] 迭代 {iteration + 1}/{AGENT_MAX_ITERATIONS}")
+
+            response = await loop.run_in_executor(
+                None,
+                lambda: client_llm.chat.completions.create(
+                    model=get_llm_model(),
+                    messages=messages,
+                    tools=TOOL_SCHEMAS,
+                    tool_choice="auto",
+                    temperature=0.7,
+                ),
+            )
+
+            message = response.choices[0].message
+            messages.append(self._message_to_dict(message))
+
+            # 无 tool_calls → LLM 准备回答，切换到流式
+            if not message.tool_calls:
+                logger.info(f"[agent] LLM 就绪（迭代 {iteration + 1}），开始流式生成")
+                break
+
+            # 执行 tool calls
+            for tool_call in message.tool_calls:
+                tool_name = tool_call.function.name
+                try:
+                    tool_args = json.loads(tool_call.function.arguments)
+                except json.JSONDecodeError:
+                    logger.warning(f"[agent] 工具参数解析失败: {tool_call.function.arguments}")
+                    tool_args = {}
+
+                logger.info(f"[agent] 调用工具: {tool_name}")
+                result_str = await self.tool_executor.execute(tool_name, tool_args)
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": result_str,
+                    }
+                )
+        else:
+            # 达到最大迭代，追加提示
+            logger.warning(f"[agent] 达到最大迭代 {AGENT_MAX_ITERATIONS}，强制生成回答")
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "请基于已收集的信息直接生成最终回答。",
+                }
+            )
+
+        # 流式生成最终回答
+        stream = await loop.run_in_executor(
+            None,
+            lambda: client_llm.chat.completions.create(
+                model=get_llm_model(),
+                messages=messages,
+                temperature=0.7,
+                stream=True,
+            ),
+        )
+
+        full_text = ""
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content or ""
+            if delta:
+                full_text += delta
+                yield delta
+
+        # 追加来源信息
+        all_results = self.tool_executor.get_all_results()
+        if all_results and "📚 数据来源" not in full_text:
+            source_info = self._format_source_info_v3(all_results)
+            yield f"\n\n{source_info}"
+
+    @staticmethod
+    def _message_to_dict(message) -> dict:
+        """将 OpenAI Message 对象转为 dict（保留 tool_calls）。"""
+        d = {"role": "assistant", "content": message.content or ""}
+        if message.tool_calls:
+            d["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in message.tool_calls
+            ]
+        return d
+
+    async def _fallback_fixed_pipeline(
+        self,
+        search_query: str,
+        keywords: list[str],
+        time_range: int | None,
+        date_after: str | None,
+    ) -> list[dict[str, Any]]:
+        """降级到固定流水线（当 Agentic 处理异常时使用）。"""
+        logger.info("[fallback] 使用固定流水线检索")
+
+        # 语义检索
+        semantic_results = []
+        if self.vector_store.is_available():
+            try:
+                semantic_results = self.vector_store.search_similar(
+                    query=search_query, top_k=20, date_after=date_after
+                )
+            except Exception as e:
+                logger.error(f"[fallback] 语义检索失败: {e}")
+
+        # 关键词检索
+        keyword_results = []
+        if keywords or len(semantic_results) < 5:
+            try:
+                search_days = time_range if time_range is not None else 90
+                keyword_results = await self.memory_manager.search_summaries(
+                    keywords=keywords, time_range_days=search_days, limit=10
+                )
+            except Exception as e:
+                logger.error(f"[fallback] 关键词检索失败: {e}")
+
+        # 融合
+        if semantic_results and keyword_results:
+            final_candidates = self._rrf_fusion(semantic_results, keyword_results)
+        elif semantic_results:
+            final_candidates = semantic_results
+        elif keyword_results:
+            final_candidates = [
+                {
+                    "summary_id": r["id"],
+                    "summary_text": r["summary_text"],
+                    "metadata": {
+                        "channel_id": r.get("channel_id"),
+                        "channel_name": r.get("channel_name"),
+                        "created_at": r.get("created_at"),
+                    },
+                }
+                for r in keyword_results
+            ]
+        else:
+            return []
+
+        # 重排序
+        if self.reranker.is_available() and len(final_candidates) > 5:
+            try:
+                final_candidates = self.reranker.rerank(search_query, final_candidates, top_k=5)
+            except Exception as e:
+                logger.error(f"[fallback] 重排序失败: {e}")
+                final_candidates = final_candidates[:5]
+        else:
+            final_candidates = final_candidates[:5]
+
+        return final_candidates
 
     def _fallback_answer_v3(self, summaries: list[dict[str, Any]]) -> str:
         """降级方案：直接返回总结摘要（v3版本）"""
