@@ -150,20 +150,20 @@ class VectorStore:
                 logger.error("生成查询向量失败")
                 return []
 
-            # 构建 where 过滤条件
+            # 构建 where 过滤条件（ChromaDB $gte/$lte 仅支持数值类型，日期过滤在后置处理）
             where_conditions = []
             if filter_metadata:
                 for k, v in filter_metadata.items():
                     where_conditions.append({k: {"$eq": v}})
-            if date_after:
-                where_conditions.append({"created_at": {"$gte": date_after}})
-            if date_before:
-                where_conditions.append({"created_at": {"$lte": date_before}})
+
+            # 有日期过滤时扩大召回量，后置过滤后再截断
+            need_date_filter = date_after or date_before
+            fetch_k = top_k * 3 if need_date_filter else top_k
 
             # 构建查询参数
             query_params = {
                 "query_embeddings": [query_embedding],
-                "n_results": top_k,
+                "n_results": fetch_k,
                 "include": ["metadatas", "documents", "distances"],
             }
 
@@ -178,7 +178,7 @@ class VectorStore:
                 if total_count == 0:
                     logger.info("向量库中暂无文档")
                     return []
-                if top_k > total_count:
+                if fetch_k > total_count:
                     query_params["n_results"] = total_count
             except Exception:
                 pass
@@ -204,6 +204,30 @@ class VectorStore:
                             "similarity": 1 - distance,  # 余弦距离转相似度
                         }
                     )
+
+            # 后置日期过滤（ChromaDB $gte/$lte 不支持字符串）
+            if need_date_filter:
+                from datetime import datetime
+
+                def _parse_dt(s: str) -> datetime | None:
+                    try:
+                        return datetime.fromisoformat(s)
+                    except (ValueError, TypeError):
+                        return None
+
+                after_dt = _parse_dt(date_after) if date_after else None
+                before_dt = _parse_dt(date_before) if date_before else None
+
+                filtered = []
+                for s in summaries:
+                    created_str = s["metadata"].get("created_at", "")
+                    created_dt = _parse_dt(created_str)
+                    if after_dt and (created_dt is None or created_dt < after_dt):
+                        continue
+                    if before_dt and (created_dt is None or created_dt > before_dt):
+                        continue
+                    filtered.append(s)
+                summaries = filtered[:top_k]
 
             logger.info(f"语义搜索完成: 找到 {len(summaries)} 条结果")
             return summaries
