@@ -166,6 +166,7 @@ class PollSettings(BaseSettings):
         default=POLL_REGEN_THRESHOLD_DEFAULT, alias="POLL_REGEN_THRESHOLD"
     )
     enable_vote_regen_request: bool = Field(default=True, alias="ENABLE_VOTE_REGEN_REQUEST")
+    public_voters: bool = Field(default=True, alias="POLL_PUBLIC_VOTERS")
 
     @field_validator("poll_regen_threshold")
     @classmethod
