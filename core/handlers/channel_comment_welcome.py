@@ -298,11 +298,20 @@ class CommentWelcomeHandler:
         处理讨论组新消息事件（异步）
         检测是否为频道转发消息，如果是则发送欢迎消息
 
+        仅处理讨论组中的消息，跳过频道本身的消息，
+        避免在频道中直接发送欢迎消息。
+
         Args:
             event: Telethon NewMessage事件
         """
         try:
             msg = event.message
+
+            # 仅处理讨论组中的消息（跳过频道本身的消息）
+            # Telethon 中：频道 = Channel(megagroup=False)，讨论组 = Channel(megagroup=True)
+            chat = event.chat
+            if chat is None or getattr(chat, "megagroup", None) is not True:
+                return
 
             # 检查是否为转发消息
             if not (hasattr(msg, "fwd_from") and msg.fwd_from):
@@ -318,64 +327,91 @@ class CommentWelcomeHandler:
             ):
                 return
 
-            channel_id_num = fwd_from.from_id.channel_id
+            source_channel_id = fwd_from.from_id.channel_id
             channel_post_id = fwd_from.channel_post
 
             if not channel_post_id:
                 return
 
-            # 检查是否在监控的频道列表中（严格白名单模式）
-            from core.config import CHANNELS
-
-            # 首先尝试通过频道实体获取 username 用于白名单匹配
+            # 确定讨论组所属的链接频道（讨论组 linked_chat_id 即为关联的频道）
+            # get_entity 返回的 Channel 对象可能没有 linked_chat_id，
+            # 需要用 GetFullChannelRequest 获取完整的 full_chat 信息
+            linked_chat_id = None
             try:
-                channel_entity = await self.client.get_entity(channel_id_num)
-                channel_identifier = (
-                    channel_entity.username
-                    if hasattr(channel_entity, "username") and channel_entity.username
-                    else str(channel_id_num)
-                )
-            except Exception as e:
-                logger.warning(f"获取频道实体失败: {e}")
-                channel_identifier = str(channel_id_num)
+                from telethon.tl.functions.channels import GetFullChannelRequest
 
-            # 严格白名单检查：只处理 CHANNELS 中配置的频道
-            if not is_channel_in_whitelist(channel_identifier, CHANNELS):
-                logger.debug(f"频道 {channel_identifier} 不在白名单中，忽略")
+                full_info = await self.client(GetFullChannelRequest(msg.chat_id))
+                linked_chat_id = getattr(full_info.full_chat, "linked_chat_id", None)
+            except Exception as e:
+                logger.warning(f"获取讨论组完整信息失败: {e}")
+
+            logger.debug(
+                f"[评论欢迎] 讨论组 {msg.chat_id} linked_chat_id={linked_chat_id}, "
+                f"source_channel_id={source_channel_id}"
+            )
+            if not linked_chat_id:
+                logger.debug(f"讨论组 {msg.chat_id} 没有关联频道，跳过")
                 return
 
-            # 去重检查：使用消息ID和grouped_id
-            cache_key = f"{msg.chat_id}_{channel_post_id}"
+            # 白名单检查：验证讨论组所属的频道是否在 CHANNELS 配置中
+            # 这样可以确保只在配置的目标频道的讨论组中发送欢迎消息
+            from core.config import CHANNELS
+
+            try:
+                linked_entity = await self.client.get_entity(linked_chat_id)
+                linked_identifier = (
+                    linked_entity.username
+                    if hasattr(linked_entity, "username") and linked_entity.username
+                    else str(linked_chat_id)
+                )
+            except Exception as e:
+                logger.warning(f"获取关联频道实体失败: {e}")
+                linked_identifier = str(linked_chat_id)
+
+            if not is_channel_in_whitelist(linked_identifier, CHANNELS):
+                logger.debug(f"关联频道 {linked_identifier} 不在白名单中，忽略")
+                return
+
+            # 获取转发来源频道标识符（用于欢迎消息中的按钮回调数据）
+            try:
+                source_entity = await self.client.get_entity(source_channel_id)
+                source_identifier = (
+                    source_entity.username
+                    if hasattr(source_entity, "username") and source_entity.username
+                    else str(source_channel_id)
+                )
+            except Exception as e:
+                logger.warning(f"获取来源频道实体失败: {e}")
+                source_identifier = str(source_channel_id)
+
+            # 去重检查：使用讨论组ID + 来源频道帖子ID
+            cache_key = f"{msg.chat_id}_{source_channel_id}_{channel_post_id}"
             if hasattr(msg, "grouped_id") and msg.grouped_id:
-                # 如果是媒体组，使用grouped_id作为去重键
                 cache_key = f"{msg.chat_id}_{msg.grouped_id}"
 
             async with _cache_lock:
-                # 检查缓存中是否存在
                 if cache_key in _message_cache:
-                    # 检查是否过期
                     if datetime.now(UTC) - _message_cache[cache_key] < _CACHE_TTL:
                         logger.debug(f"消息 {cache_key} 已在缓存中，跳过")
                         return
                     else:
-                        # 过期，删除旧记录
                         del _message_cache[cache_key]
 
-                # 添加到缓存
                 _message_cache[cache_key] = datetime.now(UTC)
 
-            # 添加到任务队列（异步处理，避免阻塞）
+            # 添加到任务队列
             await self.task_queue.put(
                 {
                     "discussion_id": msg.chat_id,
                     "forward_msg_id": msg.id,
-                    "channel_id": channel_identifier,
+                    "channel_id": linked_identifier,
                     "channel_msg_id": channel_post_id,
                 }
             )
 
             logger.info(
-                f"📥 检测到频道 {channel_identifier} 的新消息 {channel_post_id}，已加入发送队列"
+                f"📥 检测到来自频道 {source_identifier} 的转发消息 "
+                f"(帖子 {channel_post_id}) 出现在讨论组 {msg.chat_id}，已加入发送队列"
             )
 
         except Exception as e:

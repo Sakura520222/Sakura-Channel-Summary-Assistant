@@ -56,6 +56,8 @@ BASE_SYSTEM_TEMPLATE = """{persona_description}
 
 ## 当前上下文
 {channel_context}{conversation_context}
+
+当前日期时间：{current_time}
 """
 
 # Agentic RAG 最大工具调用迭代次数
@@ -381,10 +383,12 @@ class QAEngineV3:
                 conversation_context = f"\n【对话历史】\n{conversation_context}\n"
 
         persona_description = get_qa_bot_persona()
+        current_time = datetime.now(UTC).strftime("%Y-%m-%d %H:%M") + " (UTC)"
         system_prompt = BASE_SYSTEM_TEMPLATE.format(
             persona_description=persona_description,
             channel_context=channel_context,
             conversation_context=conversation_context,
+            current_time=current_time,
         )
 
         user_prompt = (
@@ -711,10 +715,12 @@ class QAEngineV3:
         )
         persona_description = get_qa_bot_persona()
 
+        current_time = datetime.now(UTC).strftime("%Y-%m-%d %H:%M") + " (UTC)"
         system_prompt = BASE_SYSTEM_TEMPLATE.format(
             persona_description=persona_description,
             channel_context=channel_context,
             conversation_context=conversation_context,
+            current_time=current_time,
         )
         system_prompt += AGENT_TOOL_INSTRUCTIONS.format(max_iterations=AGENT_MAX_ITERATIONS)
 
