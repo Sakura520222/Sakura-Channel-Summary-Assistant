@@ -19,6 +19,7 @@ from .comment_welcome_initializer import CommentWelcomeInitializer
 from .communication_initializer import CommunicationInitializer
 from .database_initializer import DatabaseInitializer
 from .forwarding_initializer import ForwardingInitializer
+from .realtime_rag_initializer import RealtimeRAGInitializer
 from .scheduler_initializer import SchedulerInitializer
 from .startup_notifier import StartupNotifier
 from .userbot_initializer import UserBotInitializer
@@ -31,5 +32,6 @@ __all__ = [
     "ForwardingInitializer",
     "CommentWelcomeInitializer",
     "CommunicationInitializer",
+    "RealtimeRAGInitializer",
     "StartupNotifier",
 ]

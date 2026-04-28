@@ -56,6 +56,8 @@ BASE_SYSTEM_TEMPLATE = """{persona_description}
 
 ## 当前上下文
 {channel_context}{conversation_context}
+
+当前日期时间：{current_time}
 """
 
 # Agentic RAG 最大工具调用迭代次数
@@ -153,8 +155,10 @@ class QAEngineV3:
 
         vector_info = ""
         if vector_stats.get("available"):
-            total_vectors = vector_stats.get("total_vectors", 0)
-            vector_info = f"\n• 向量总结数: {total_vectors} 条"
+            summaries_count = vector_stats.get("summaries", {}).get("total_vectors", 0)
+            messages_count = vector_stats.get("messages", {}).get("total_vectors", 0)
+            vector_info = f"\n• 向量总结数: {summaries_count} 条"
+            vector_info += f"\n• 向量消息数: {messages_count} 条"
 
         return f"""📊 系统状态
 
@@ -209,14 +213,21 @@ class QAEngineV3:
                 date_after = cutoff.isoformat()
                 logger.info(f"时间过滤: date_after={date_after[:10]}")
 
-            # ── 步骤2: 语义检索（召回Top-20，含时间过滤） ────────────────────────
+            # ── 步骤2: 语义检索（双 collection: summaries + messages） ─────────────
             semantic_results = []
             if self.vector_store.is_available():
                 try:
-                    semantic_results = self.vector_store.search_similar(
-                        query=query, top_k=20, date_after=date_after
-                    )
-                    logger.info(f"语义检索: 找到 {len(semantic_results)} 条结果")
+                    # 优先使用双 collection 联合检索
+                    if self.vector_store.is_messages_available():
+                        semantic_results = self.vector_store.search_all(
+                            query=query, top_k=20, date_after=date_after
+                        )
+                        logger.info(f"双collection语义检索: 找到 {len(semantic_results)} 条结果")
+                    else:
+                        semantic_results = self.vector_store.search_similar(
+                            query=query, top_k=20, date_after=date_after
+                        )
+                        logger.info(f"语义检索(summaries): 找到 {len(semantic_results)} 条结果")
                 except Exception as e:
                     logger.error(f"语义检索失败: {e}")
 
@@ -372,10 +383,12 @@ class QAEngineV3:
                 conversation_context = f"\n【对话历史】\n{conversation_context}\n"
 
         persona_description = get_qa_bot_persona()
+        current_time = datetime.now(UTC).strftime("%Y-%m-%d %H:%M") + " (UTC)"
         system_prompt = BASE_SYSTEM_TEMPLATE.format(
             persona_description=persona_description,
             channel_context=channel_context,
             conversation_context=conversation_context,
+            current_time=current_time,
         )
 
         user_prompt = (
@@ -642,6 +655,13 @@ class QAEngineV3:
             created_at = metadata.get("created_at") or summary.get("created_at", "")
             summary_text = summary.get("summary_text", "")
 
+            # 来源标签（总结 or 原始消息）
+            source_tag = ""
+            if summary.get("source") == "message":
+                source_tag = " [消息]"
+            elif summary.get("source") == "summary":
+                source_tag = " [总结]"
+
             # 动态截断
             text_preview = (
                 summary_text[:max_chars] + "..." if len(summary_text) > max_chars else summary_text
@@ -654,7 +674,9 @@ class QAEngineV3:
             if "rerank_score" in summary:
                 score_info += f" [重排分: {summary['rerank_score']:.2f}]"
 
-            context_parts.append(f"[{i}] {channel_name} ({created_at}){score_info}\n{text_preview}")
+            context_parts.append(
+                f"[{i}] {channel_name} ({created_at}){source_tag}{score_info}\n{text_preview}"
+            )
 
         return "\n\n".join(context_parts)
 
@@ -693,10 +715,12 @@ class QAEngineV3:
         )
         persona_description = get_qa_bot_persona()
 
+        current_time = datetime.now(UTC).strftime("%Y-%m-%d %H:%M") + " (UTC)"
         system_prompt = BASE_SYSTEM_TEMPLATE.format(
             persona_description=persona_description,
             channel_context=channel_context,
             conversation_context=conversation_context,
+            current_time=current_time,
         )
         system_prompt += AGENT_TOOL_INSTRUCTIONS.format(max_iterations=AGENT_MAX_ITERATIONS)
 
