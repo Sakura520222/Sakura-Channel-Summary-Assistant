@@ -32,6 +32,7 @@ from core.initializers import (
     CommunicationInitializer,
     DatabaseInitializer,
     ForwardingInitializer,
+    RealtimeRAGInitializer,
     SchedulerInitializer,
     StartupNotifier,
     UserBotInitializer,
@@ -44,7 +45,7 @@ from core.telegram.client import set_active_client
 class AppBootstrap:
     """应用引导程序 - 协调所有初始化器的工作"""
 
-    def __init__(self, version: str = "1.7.7", config_manager=None):
+    def __init__(self, version: str = "1.7.8", config_manager=None):
         self.logger = logging.getLogger(__name__)
         self.version = version
         self.client: TelegramClient | None = None
@@ -65,6 +66,7 @@ class AppBootstrap:
         )
         self.userbot_initializer = UserBotInitializer()
         self.forwarding_initializer = ForwardingInitializer(event_bus=self._event_bus)
+        self.realtime_rag_initializer = RealtimeRAGInitializer()
         self.comment_welcome_initializer = CommentWelcomeInitializer()
         self.communication_initializer = CommunicationInitializer()
         self.command_registrar = CommandRegistrar()
@@ -112,6 +114,9 @@ class AppBootstrap:
 
             # 第11步：初始化转发功能
             await self._initialize_forwarding()
+
+            # 第11.5步：初始化实时RAG功能
+            await self._initialize_realtime_rag()
 
             # 第12步：发送启动通知
             await self._send_startup_notifications()
@@ -192,6 +197,13 @@ class AppBootstrap:
         userbot = self.userbot_initializer.get_userbot()
         await self.forwarding_initializer.initialize(self.client, self.userbot_client, userbot)
 
+    async def _initialize_realtime_rag(self) -> None:
+        """初始化实时RAG功能（频道消息向量入库）"""
+        await self.realtime_rag_initializer.initialize(
+            bot_client=self.client,
+            userbot_client=self.userbot_client,
+        )
+
     async def _register_bot_commands(self) -> None:
         """注册机器人命令菜单"""
         from core.bot_commands import register_commands
@@ -227,6 +239,15 @@ class AppBootstrap:
     async def _cleanup(self) -> None:
         """清理资源"""
         self.logger.info("正在清理资源...")
+
+        # 0. 停止实时RAG处理器
+        try:
+            from core.handlers.realtime_rag_handler import get_realtime_rag_handler
+
+            rag_handler = get_realtime_rag_handler()
+            await rag_handler.stop()
+        except Exception as e:
+            self.logger.error(f"停止实时RAG处理器时出错: {type(e).__name__}: {e}")
 
         # 1. 停止调度器
         from core.config import get_scheduler_instance

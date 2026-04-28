@@ -30,9 +30,10 @@ TOOL_SCHEMAS = [
         "function": {
             "name": "semantic_search",
             "description": (
-                "搜索与查询语义相关的频道历史总结。"
+                "搜索与查询语义相关的频道历史总结和消息。"
                 "使用向量相似度检索，适合模糊匹配和概念性查询。"
                 "当用户询问某个主题、概念或需要广泛召回时使用此工具。"
+                "默认同时搜索总结和原始消息两个数据源。"
             ),
             "parameters": {
                 "type": "object",
@@ -57,6 +58,12 @@ TOOL_SCHEMAS = [
                     "channel_id": {
                         "type": "string",
                         "description": "限定搜索的频道ID",
+                    },
+                    "collection": {
+                        "type": "string",
+                        "description": "搜索的数据源: 'all'(默认，同时搜summaries+messages)、'summaries'(仅总结)、'messages'(仅原始消息)",
+                        "enum": ["all", "summaries", "messages"],
+                        "default": "all",
                     },
                 },
                 "required": ["query"],
@@ -208,13 +215,43 @@ class ToolExecutor:
         if args.get("channel_id"):
             filter_metadata = {"channel_id": args["channel_id"]}
 
-        results = self.vector_store.search_similar(
-            query=args["query"],
-            top_k=args.get("top_k", 20),
-            filter_metadata=filter_metadata,
-            date_after=args.get("date_after"),
-            date_before=args.get("date_before"),
-        )
+        # 根据 collection 参数选择数据源
+        collection = args.get("collection", "all")
+
+        if collection == "messages" and self.vector_store.is_messages_available():
+            results = self.vector_store.search_messages(
+                query=args["query"],
+                top_k=args.get("top_k", 20),
+                filter_metadata=filter_metadata,
+                date_after=args.get("date_after"),
+                date_before=args.get("date_before"),
+            )
+        elif collection == "summaries":
+            results = self.vector_store.search_similar(
+                query=args["query"],
+                top_k=args.get("top_k", 20),
+                filter_metadata=filter_metadata,
+                date_after=args.get("date_after"),
+                date_before=args.get("date_before"),
+            )
+        else:
+            # 默认: 同时搜索 summaries + messages
+            if self.vector_store.is_messages_available():
+                results = self.vector_store.search_all(
+                    query=args["query"],
+                    top_k=args.get("top_k", 20),
+                    filter_metadata=filter_metadata,
+                    date_after=args.get("date_after"),
+                    date_before=args.get("date_before"),
+                )
+            else:
+                results = self.vector_store.search_similar(
+                    query=args["query"],
+                    top_k=args.get("top_k", 20),
+                    filter_metadata=filter_metadata,
+                    date_after=args.get("date_after"),
+                    date_before=args.get("date_before"),
+                )
 
         # 累积到 result_store 并序列化（截断长文本）
         serialized = []
