@@ -20,6 +20,7 @@ from datetime import UTC, datetime, timedelta
 
 from telethon import Button, events
 from telethon.errors import FloodWaitError
+from telethon.tl.functions.channels import GetFullChannelRequest
 
 from core.config import QA_BOT_USERNAME, normalize_channel_id
 from core.handlers.channel_comment_welcome_config import (
@@ -293,6 +294,23 @@ class CommentWelcomeHandler:
                 exc_info=True,
             )
 
+    async def _get_channel_identifier(self, channel_id: int) -> str:
+        """通过频道数字ID获取可读标识符（username 或字符串ID）。
+
+        Args:
+            channel_id: 频道数字ID
+
+        Returns:
+            频道 username（小写）或字符串化的数字ID
+        """
+        try:
+            entity = await self.client.get_entity(channel_id)
+            if hasattr(entity, "username") and entity.username:
+                return entity.username
+        except Exception as e:
+            logger.warning(f"获取频道实体失败 (id={channel_id}): {e}")
+        return str(channel_id)
+
     async def handle_discussion_message(self, event: events.NewMessage.Event):
         """
         处理讨论组新消息事件（异步）
@@ -338,8 +356,6 @@ class CommentWelcomeHandler:
             # 需要用 GetFullChannelRequest 获取完整的 full_chat 信息
             linked_chat_id = None
             try:
-                from telethon.tl.functions.channels import GetFullChannelRequest
-
                 full_info = await self.client(GetFullChannelRequest(msg.chat_id))
                 linked_chat_id = getattr(full_info.full_chat, "linked_chat_id", None)
             except Exception as e:
@@ -357,32 +373,14 @@ class CommentWelcomeHandler:
             # 这样可以确保只在配置的目标频道的讨论组中发送欢迎消息
             from core.config import CHANNELS
 
-            try:
-                linked_entity = await self.client.get_entity(linked_chat_id)
-                linked_identifier = (
-                    linked_entity.username
-                    if hasattr(linked_entity, "username") and linked_entity.username
-                    else str(linked_chat_id)
-                )
-            except Exception as e:
-                logger.warning(f"获取关联频道实体失败: {e}")
-                linked_identifier = str(linked_chat_id)
+            # linked_chat_id 已通过上方守卫保证非 None
+            linked_identifier = await self._get_channel_identifier(linked_chat_id)
 
             if not is_channel_in_whitelist(linked_identifier, CHANNELS):
                 logger.debug(f"关联频道 {linked_identifier} 不在白名单中，忽略")
                 return
 
-            # 获取转发来源频道标识符（用于欢迎消息中的按钮回调数据）
-            try:
-                source_entity = await self.client.get_entity(source_channel_id)
-                source_identifier = (
-                    source_entity.username
-                    if hasattr(source_entity, "username") and source_entity.username
-                    else str(source_channel_id)
-                )
-            except Exception as e:
-                logger.warning(f"获取来源频道实体失败: {e}")
-                source_identifier = str(source_channel_id)
+            source_identifier = await self._get_channel_identifier(source_channel_id)
 
             # 去重检查：使用讨论组ID + 来源频道帖子ID
             cache_key = f"{msg.chat_id}_{source_channel_id}_{channel_post_id}"
