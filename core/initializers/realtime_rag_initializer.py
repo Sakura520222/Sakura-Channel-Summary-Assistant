@@ -86,8 +86,8 @@ class RealtimeRAGInitializer:
                 if not event.is_channel:
                     return
 
-                # 检查频道是否在白名单中
-                chat = await event.get_chat()
+                # 检查频道是否在白名单中（优先使用缓存的 chat 实体）
+                chat = event.chat or await event.get_chat()
                 if not self._is_whitelisted_channel(chat):
                     return
 
@@ -121,7 +121,7 @@ class RealtimeRAGInitializer:
                 if not event.is_channel:
                     return
 
-                chat = await event.get_chat()
+                chat = event.chat or await event.get_chat()
                 if not self._is_whitelisted_channel(chat):
                     return
 
@@ -170,6 +170,25 @@ class RealtimeRAGInitializer:
 
         self.logger.info("实时RAG事件监听器注册完成（NewMessage + MessageEdited + MessageDeleted）")
 
+    def _extract_channel_identifier(self, channel_str: str) -> str:
+        """
+        从频道 URL/username 中提取标识符
+
+        支持格式: @username, https://t.me/username, t.me/username, username
+
+        Args:
+            channel_str: 频道字符串（URL、@username 或纯 username）
+
+        Returns:
+            归一化后的标识符（纯 username 部分）
+        """
+        normalized = channel_str.strip().lstrip("@")
+        for prefix in ("https://t.me/", "http://t.me/", "t.me/"):
+            if normalized.startswith(prefix):
+                normalized = normalized.replace(prefix, "")
+                break
+        return normalized
+
     def _is_whitelisted_channel(self, chat) -> bool:
         """
         检查频道是否在白名单中
@@ -186,16 +205,7 @@ class RealtimeRAGInitializer:
         username = getattr(chat, "username", None)
 
         for ch in CHANNELS:
-            # 从 URL 中提取标识符（与 channel_comment_welcome 相同的逻辑）
-            normalized = ch.strip().lstrip("@")
-            if normalized.startswith("https://t.me/"):
-                normalized = normalized.replace("https://t.me/", "")
-            elif normalized.startswith("http://t.me/"):
-                normalized = normalized.replace("http://t.me/", "")
-            elif normalized.startswith("t.me/"):
-                normalized = normalized.replace("t.me/", "")
-
-            # 比较 username 或数字 ID
+            normalized = self._extract_channel_identifier(ch)
             if normalized == username or normalized == chat_id:
                 return True
 
@@ -212,14 +222,7 @@ class RealtimeRAGInitializer:
             是否在白名单中
         """
         for ch in CHANNELS:
-            normalized = ch.strip().lstrip("@")
-            if normalized.startswith("https://t.me/"):
-                normalized = normalized.replace("https://t.me/", "")
-            elif normalized.startswith("http://t.me/"):
-                normalized = normalized.replace("http://t.me/", "")
-            elif normalized.startswith("t.me/"):
-                normalized = normalized.replace("t.me/", "")
-
+            normalized = self._extract_channel_identifier(ch)
             if normalized == chat_id:
                 return True
 

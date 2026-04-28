@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # 批量处理配置
 BATCH_SIZE = 5  # 每批处理的消息数量
 BATCH_INTERVAL = 5.0  # 批量处理间隔（秒）
+QUEUE_MAX_SIZE = 1000  # 队列最大容量，防止内存无限增长
 
 
 class RealtimeRAGHandler:
@@ -30,7 +31,7 @@ class RealtimeRAGHandler:
 
     def __init__(self):
         """初始化处理器"""
-        self._queue: asyncio.Queue[dict] = asyncio.Queue()
+        self._queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=QUEUE_MAX_SIZE)
         self._running = False
         self._worker_task: asyncio.Task | None = None
         self._processed_count = 0
@@ -98,20 +99,32 @@ class RealtimeRAGHandler:
         if not text or not text.strip():
             return False
 
+        if not self._running:
+            logger.warning("实时RAG处理器未运行，消息将无法处理")
+            return False
+
         # 使用 channel_id:message_id 作为向量库唯一标识
         vector_id = f"{channel_id}:{message_id}"
 
-        self._queue.put_nowait(
-            {
-                "vector_id": vector_id,
-                "message_id": message_id,
-                "channel_id": channel_id,
-                "channel_name": channel_name,
-                "text": text.strip(),
-                "sender_id": sender_id,
-                "created_at": datetime.now(UTC).isoformat(),
-            }
-        )
+        try:
+            self._queue.put_nowait(
+                {
+                    "vector_id": vector_id,
+                    "message_id": message_id,
+                    "channel_id": channel_id,
+                    "channel_name": channel_name,
+                    "text": text.strip(),
+                    "sender_id": sender_id,
+                    "created_at": datetime.now(UTC).isoformat(),
+                }
+            )
+        except asyncio.QueueFull:
+            logger.warning(
+                f"实时RAG队列已满({self._queue.maxsize})，丢弃消息: "
+                f"channel={channel_id}, msg_id={message_id}"
+            )
+            return False
+
         logger.debug(f"消息已入队: channel={channel_id}, msg_id={message_id}")
         return True
 
@@ -139,20 +152,32 @@ class RealtimeRAGHandler:
         if not text or not text.strip():
             return False
 
+        if not self._running:
+            logger.warning("实时RAG处理器未运行，消息更新将无法处理")
+            return False
+
         vector_id = f"{channel_id}:{message_id}"
 
-        self._queue.put_nowait(
-            {
-                "vector_id": vector_id,
-                "message_id": message_id,
-                "channel_id": channel_id,
-                "channel_name": channel_name,
-                "text": text.strip(),
-                "sender_id": sender_id,
-                "created_at": datetime.now(UTC).isoformat(),
-                "is_update": True,
-            }
-        )
+        try:
+            self._queue.put_nowait(
+                {
+                    "vector_id": vector_id,
+                    "message_id": message_id,
+                    "channel_id": channel_id,
+                    "channel_name": channel_name,
+                    "text": text.strip(),
+                    "sender_id": sender_id,
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "is_update": True,
+                }
+            )
+        except asyncio.QueueFull:
+            logger.warning(
+                f"实时RAG队列已满({self._queue.maxsize})，丢弃更新: "
+                f"channel={channel_id}, msg_id={message_id}"
+            )
+            return False
+
         logger.debug(f"消息更新已入队: channel={channel_id}, msg_id={message_id}")
         return True
 
@@ -266,7 +291,11 @@ class RealtimeRAGHandler:
 
             # 批量生成 embedding
             loop = asyncio.get_running_loop()
-            embeddings = await loop.run_in_executor(None, lambda: emb_gen.batch_generate(texts))
+
+            def _batch_embed():
+                return emb_gen.batch_generate(texts)
+
+            embeddings = await loop.run_in_executor(None, _batch_embed)
 
             if embeddings is None or len(embeddings) != len(batch):
                 logger.error(

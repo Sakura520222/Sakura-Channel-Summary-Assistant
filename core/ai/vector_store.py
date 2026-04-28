@@ -12,6 +12,7 @@
 向量存储管理器 - 使用ChromaDB存储和检索向量
 """
 
+import hashlib
 import logging
 import os
 from typing import Any
@@ -241,7 +242,7 @@ class VectorStore:
             return 0
 
         try:
-            self.messages_collection.add(
+            self.messages_collection.upsert(
                 ids=ids,
                 embeddings=embeddings,
                 documents=texts,
@@ -352,12 +353,12 @@ class VectorStore:
         all_results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
         return all_results[:top_k]
 
-    def delete_message(self, message_id: int) -> bool:
+    def delete_message(self, message_id: int | str) -> bool:
         """
         删除消息向量
 
         Args:
-            message_id: 消息ID
+            message_id: 消息ID（支持 int 或 "channel_id:msg_id" 格式的字符串）
 
         Returns:
             是否成功
@@ -375,13 +376,13 @@ class VectorStore:
             return False
 
     def update_message(
-        self, message_id: int, text: str, metadata: dict[str, Any], embedding: list[float]
+        self, message_id: int | str, text: str, metadata: dict[str, Any], embedding: list[float]
     ) -> bool:
         """
-        更新消息向量（先删后加）
+        更新消息向量（upsert）
 
         Args:
-            message_id: 消息ID
+            message_id: 消息ID（支持 int 或 "channel_id:msg_id" 格式的字符串）
             text: 新的文本内容
             metadata: 新的元数据
             embedding: 新的向量
@@ -469,8 +470,8 @@ class VectorStore:
                 return []
             if fetch_k > total_count:
                 query_params["n_results"] = total_count
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"获取collection文档数量失败: {type(e).__name__}: {e}")
 
         results = collection.query(**query_params)
 
@@ -483,7 +484,8 @@ class VectorStore:
                 try:
                     numeric_id = int(doc_id)
                 except (ValueError, TypeError):
-                    numeric_id = hash(doc_id)  # 字符串 ID 用 hash 作为数值标识
+                    # 字符串 ID 用确定性哈希生成数值标识（跨进程稳定）
+                    numeric_id = int(hashlib.md5(doc_id.encode()).hexdigest()[:8], 16)
                 formatted.append(
                     {
                         "summary_id": numeric_id,
