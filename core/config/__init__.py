@@ -30,6 +30,7 @@ BOT_STATE_SHUTTING_DOWN = _old_config.BOT_STATE_SHUTTING_DOWN
 BOT_TOKEN = _old_config.BOT_TOKEN
 CHANNELS = _old_config.CHANNELS
 CHANNEL_POLL_SETTINGS = _old_config.CHANNEL_POLL_SETTINGS
+CHANNEL_AUTO_POLL_SETTINGS = _old_config.CHANNEL_AUTO_POLL_SETTINGS
 CONFIG_FILE = _old_config.CONFIG_FILE
 DEFAULT_LOG_LEVEL = _old_config.DEFAULT_LOG_LEVEL
 DEFAULT_POLL_PROMPT = _old_config.DEFAULT_POLL_PROMPT
@@ -39,6 +40,7 @@ DEFAULT_SUMMARY_DAY = _old_config.DEFAULT_SUMMARY_DAY
 DEFAULT_SUMMARY_HOUR = _old_config.DEFAULT_SUMMARY_HOUR
 DEFAULT_SUMMARY_MINUTE = _old_config.DEFAULT_SUMMARY_MINUTE
 ENABLE_POLL = _old_config.ENABLE_POLL
+ENABLE_AUTO_POLL = _old_config.ENABLE_AUTO_POLL
 ENABLE_VOTE_REGEN_REQUEST = _old_config.ENABLE_VOTE_REGEN_REQUEST
 LANGUAGE_FROM_CONFIG = _old_config.LANGUAGE_FROM_CONFIG
 LANGUAGE_FROM_ENV = _old_config.LANGUAGE_FROM_ENV
@@ -67,11 +69,13 @@ cache_discussion_group_id = _old_config.cache_discussion_group_id
 cleanup_old_regenerations = _old_config.cleanup_old_regenerations
 clear_discussion_group_cache = _old_config.clear_discussion_group_cache
 delete_channel_poll_config = _old_config.delete_channel_poll_config
+delete_channel_auto_poll_config = _old_config.delete_channel_auto_poll_config
 delete_channel_schedule = _old_config.delete_channel_schedule
 delete_poll_regeneration = _old_config.delete_poll_regeneration
 get_bot_state = _old_config.get_bot_state
 get_cached_discussion_group_id = _old_config.get_cached_discussion_group_id
 get_channel_poll_config = _old_config.get_channel_poll_config
+get_channel_auto_poll_config = _old_config.get_channel_auto_poll_config
 get_channel_schedule = _old_config.get_channel_schedule
 get_discussion_group_id_cached = _old_config.get_discussion_group_id_cached
 get_forwarding_config = _old_config.get_forwarding_config
@@ -93,6 +97,7 @@ save_config = _old_config.save_config
 save_poll_regenerations = _old_config.save_poll_regenerations
 set_bot_state = _old_config.set_bot_state
 set_channel_poll_config = _old_config.set_channel_poll_config
+set_channel_auto_poll_config = _old_config.set_channel_auto_poll_config
 set_channel_schedule = _old_config.set_channel_schedule
 set_channel_schedule_v2 = _old_config.set_channel_schedule_v2
 set_scheduler_instance = _old_config.set_scheduler_instance
@@ -128,6 +133,7 @@ __all__ = [
     "BOT_TOKEN",
     "CHANNELS",
     "CHANNEL_POLL_SETTINGS",
+    "CHANNEL_AUTO_POLL_SETTINGS",
     "CONFIG_FILE",
     "DEFAULT_LOG_LEVEL",
     "DEFAULT_POLL_PROMPT",
@@ -137,6 +143,7 @@ __all__ = [
     "DEFAULT_SUMMARY_HOUR",
     "DEFAULT_SUMMARY_MINUTE",
     "ENABLE_POLL",
+    "ENABLE_AUTO_POLL",
     "ENABLE_VOTE_REGEN_REQUEST",
     "LANGUAGE_FROM_CONFIG",
     "LANGUAGE_FROM_ENV",
@@ -165,11 +172,13 @@ __all__ = [
     "cleanup_old_regenerations",
     "clear_discussion_group_cache",
     "delete_channel_poll_config",
+    "delete_channel_auto_poll_config",
     "delete_channel_schedule",
     "delete_poll_regeneration",
     "get_bot_state",
     "get_cached_discussion_group_id",
     "get_channel_poll_config",
+    "get_channel_auto_poll_config",
     "get_channel_schedule",
     "get_discussion_group_id_cached",
     "get_forwarding_config",
@@ -193,6 +202,7 @@ __all__ = [
     "save_poll_regenerations",
     "set_bot_state",
     "set_channel_poll_config",
+    "set_channel_auto_poll_config",
     "set_channel_schedule",
     "set_channel_schedule_v2",
     "set_scheduler_instance",

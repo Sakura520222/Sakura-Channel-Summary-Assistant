@@ -369,6 +369,36 @@ class CommentWelcomeHandler:
                 logger.debug(f"讨论组 {msg.chat_id} 没有关联频道，跳过")
                 return
 
+            # 跳过频道帖子自动同步到讨论组的消息，避免重复处理
+            # 场景：频道 A 转发了频道 B 的消息 → 讨论组收到两条消息：
+            #   1. 来自 B 的直接转发（source_channel_id = B）→ 先到达，正常处理
+            #   2. 频道 A 帖子自动同步（source_channel_id = A = linked_chat_id）→ 后到达
+            # 通过去重缓存判断：如果同一帖子的外部转发已被处理，则跳过同步消息
+            if source_channel_id == linked_chat_id:
+                # 检查是否已有来自其他频道的外部转发处理了同一帖子
+                async with _cache_lock:
+                    found_external = False
+                    for key in _message_cache:
+                        # 匹配 "讨论组ID_*_帖子ID" 的模式（外部转发已处理）
+                        if (
+                            hasattr(msg, "grouped_id")
+                            and msg.grouped_id
+                            and key == f"{msg.chat_id}_{msg.grouped_id}"
+                        ):
+                            found_external = True
+                            break
+                        parts = key.split("_", 2)
+                        if (
+                            len(parts) == 3
+                            and parts[0] == str(msg.chat_id)
+                            and parts[2] == str(channel_post_id)
+                        ):
+                            found_external = True
+                            break
+                if found_external:
+                    logger.info(f"频道同步消息 (帖子 {channel_post_id}) 已由外部转发处理过，跳过")
+                    return
+
             # 白名单检查：验证讨论组所属的频道是否在 CHANNELS 配置中
             # 这样可以确保只在配置的目标频道的讨论组中发送欢迎消息
             from core.config import CHANNELS
@@ -411,6 +441,30 @@ class CommentWelcomeHandler:
                 f"📥 检测到来自频道 {source_identifier} 的转发消息 "
                 f"(帖子 {channel_post_id}) 出现在讨论组 {msg.chat_id}，已加入发送队列"
             )
+
+            # 将趣味投票任务入队（独立队列，与欢迎消息互不干扰）
+            try:
+                from core.handlers.auto_poll_handler import get_auto_poll_handler
+
+                auto_poll_handler = get_auto_poll_handler()
+                if auto_poll_handler is None:
+                    logger.warning("趣味投票处理器未初始化，跳过入队")
+                elif not auto_poll_handler._running:
+                    logger.warning("趣味投票处理器未运行，跳过入队")
+                else:
+                    message_text = msg.text or ""
+                    enqueued = auto_poll_handler.enqueue_poll_task(
+                        channel_id=linked_identifier,
+                        discussion_id=msg.chat_id,
+                        forward_msg_id=msg.id,
+                        message_text=message_text,
+                    )
+                    logger.info(
+                        f"📊 趣味投票入队结果: {enqueued}, "
+                        f"channel={linked_identifier}, text_len={len(message_text)}"
+                    )
+            except Exception as e:
+                logger.warning(f"趣味投票入队失败（不影响欢迎消息）: {type(e).__name__}: {e}")
 
         except Exception as e:
             record_error(e, "handle_discussion_message")

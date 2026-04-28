@@ -27,6 +27,11 @@ from core.commands.ai_config_commands import (
     handle_set_ai_config,
     handle_show_ai_config,
 )
+from core.commands.auto_poll_commands import (
+    handle_delete_auto_poll,
+    handle_set_auto_poll,
+    handle_show_auto_poll,
+)
 from core.commands.channel_commands import (
     handle_add_channel,
     handle_delete_channel,
@@ -157,6 +162,9 @@ class CommandRegistrar:
 
         # 11. 评论区欢迎配置命令
         self._register_comment_welcome_commands(client)
+
+        # 12. 自动趣味投票配置命令
+        self._register_auto_poll_commands(client)
 
         # 13. 问答Bot控制命令
         self._register_qabot_commands(client)
@@ -302,6 +310,21 @@ class CommandRegistrar:
         client.add_event_handler(
             handle_delete_comment_welcome,
             NewMessage(pattern="/deletecommentwelcome|/delete_comment_welcome|/删除评论区欢迎"),
+        )
+
+    def _register_auto_poll_commands(self, client: "TelegramClient") -> None:
+        """注册自动趣味投票配置命令"""
+        client.add_event_handler(
+            handle_show_auto_poll,
+            NewMessage(pattern="/showautopoll|/show_auto_poll|/查看自动投票"),
+        )
+        client.add_event_handler(
+            handle_set_auto_poll,
+            NewMessage(pattern="/setautopoll|/set_auto_poll|/设置自动投票"),
+        )
+        client.add_event_handler(
+            handle_delete_auto_poll,
+            NewMessage(pattern="/deleteautopoll|/delete_auto_poll|/删除自动投票"),
         )
 
     def _register_qabot_commands(self, client: "TelegramClient") -> None:

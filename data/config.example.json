@@ -32,6 +32,12 @@
       "send_to_channel": false
     }
   },
+  "enable_auto_poll": false,
+  "channel_auto_poll_settings": {
+    "https://t.me/example_channel1": {
+      "enabled": true
+    }
+  },
   "comment_welcome": {
     "default": {
       "enabled": true,

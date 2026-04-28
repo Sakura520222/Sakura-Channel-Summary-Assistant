@@ -22,6 +22,10 @@ from telethon.events import CallbackQuery, NewMessage
 if TYPE_CHECKING:
     from telethon import TelegramClient
 
+from core.handlers.auto_poll_handler import (
+    initialize_auto_poll,
+    shutdown_auto_poll,
+)
 from core.handlers.channel_comment_welcome import (
     get_comment_welcome_handler,
     handle_summary_request_callback,
@@ -48,6 +52,10 @@ class CommentWelcomeInitializer:
             # 初始化评论区欢迎处理器
             await initialize_comment_welcome(client, db_manager)
 
+            # 初始化自动趣味投票处理器（复用 RealtimeRAGHandler 队列模式）
+            await initialize_auto_poll(client)
+            self.logger.info("自动趣味投票处理器已初始化")
+
             # 添加评论欢迎消息监听器
             comment_welcome_handler = get_comment_welcome_handler()
             client.add_event_handler(
@@ -65,3 +73,17 @@ class CommentWelcomeInitializer:
 
         except Exception as e:
             self.logger.error(f"初始化频道评论区欢迎消息功能失败: {type(e).__name__}: {e}")
+            # 即使欢迎消息功能失败，也要尝试启动趣味投票
+            try:
+                await initialize_auto_poll(client)
+                self.logger.info("自动趣味投票处理器已初始化（降级模式）")
+            except Exception as ap_err:
+                self.logger.error(
+                    f"初始化自动趣味投票处理器失败: {type(ap_err).__name__}: {ap_err}"
+                )
+
+    async def shutdown(self) -> None:
+        """关闭评论区欢迎和自动趣味投票功能"""
+        self.logger.info("正在关闭评论区欢迎和自动趣味投票功能...")
+        await shutdown_auto_poll()
+        self.logger.info("自动趣味投票处理器已关闭")

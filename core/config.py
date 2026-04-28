@@ -175,6 +175,9 @@ ENABLE_VOTE_REGEN_REQUEST = True
 # 投票是否公开投票者，默认为True（公开）
 POLL_PUBLIC_VOTERS = os.getenv("POLL_PUBLIC_VOTERS", "true").lower() in ("true", "1", "yes")
 
+# 是否启用自动趣味投票功能，默认为False
+ENABLE_AUTO_POLL = False
+
 # 投票重新生成数据文件锁，用于并发控制
 _poll_regenerations_lock = asyncio.Lock()
 
@@ -256,7 +259,9 @@ def update_module_variables(config):
         CHANNEL_POLL_SETTINGS, \
         POLL_REGEN_THRESHOLD, \
         ENABLE_VOTE_REGEN_REQUEST, \
-        POLL_PUBLIC_VOTERS
+        POLL_PUBLIC_VOTERS, \
+        ENABLE_AUTO_POLL, \
+        CHANNEL_AUTO_POLL_SETTINGS
 
     # 更新AI配置
     LLM_API_KEY = config.get("api_key", LLM_API_KEY)
@@ -307,6 +312,19 @@ def update_module_variables(config):
         else:
             POLL_PUBLIC_VOTERS = bool(_val)
         logger.info(f"已更新内存中的投票公开配置: {POLL_PUBLIC_VOTERS}")
+
+    # 更新自动趣味投票配置
+    if "enable_auto_poll" in config:
+        ENABLE_AUTO_POLL = config["enable_auto_poll"]
+        logger.info(f"已更新内存中的自动趣味投票配置: {ENABLE_AUTO_POLL}")
+
+    # 更新频道级自动趣味投票配置
+    auto_poll_config = config.get("channel_auto_poll_settings", {})
+    if isinstance(auto_poll_config, dict):
+        CHANNEL_AUTO_POLL_SETTINGS = auto_poll_config
+        logger.info(
+            f"已更新内存中的频道级自动趣味投票配置: {len(CHANNEL_AUTO_POLL_SETTINGS)} 个频道"
+        )
 
 
 # 加载配置文件，覆盖环境变量默认值
@@ -378,6 +396,15 @@ if config:
     else:
         POLL_PUBLIC_VOTERS = bool(_pv)
     logger.info(f"已从配置文件加载投票公开配置: {POLL_PUBLIC_VOTERS}")
+
+    # 从配置文件读取自动趣味投票配置
+    ENABLE_AUTO_POLL = config.get("enable_auto_poll", ENABLE_AUTO_POLL)
+    logger.info(f"已从配置文件加载自动趣味投票配置: {ENABLE_AUTO_POLL}")
+
+    _caps = config.get("channel_auto_poll_settings", {})
+    if isinstance(_caps, dict):
+        CHANNEL_AUTO_POLL_SETTINGS = _caps
+    logger.info(f"已从配置文件加载频道级自动趣味投票配置: {len(CHANNEL_AUTO_POLL_SETTINGS)} 个频道")
 
     # 从配置文件读取日志级别
     LOG_LEVEL_FROM_CONFIG = config.get("log_level")
@@ -492,6 +519,18 @@ if config:
         logger.info(f"已从配置文件加载频道级投票配置: {len(CHANNEL_POLL_SETTINGS)} 个频道")
     else:
         logger.warning("配置文件中的channel_poll_settings格式不正确，使用默认配置")
+
+# 频道级自动趣味投票配置
+CHANNEL_AUTO_POLL_SETTINGS = {}
+if config:
+    auto_poll_config = config.get("channel_auto_poll_settings", {})
+    if isinstance(auto_poll_config, dict):
+        CHANNEL_AUTO_POLL_SETTINGS = auto_poll_config
+        logger.info(
+            f"已从配置文件加载频道级自动趣味投票配置: {len(CHANNEL_AUTO_POLL_SETTINGS)} 个频道"
+        )
+    else:
+        logger.warning("配置文件中的channel_auto_poll_settings格式不正确，使用默认配置")
 
 
 # 获取频道的时间配置
@@ -894,6 +933,94 @@ def delete_channel_poll_config(channel):
 
 # 投票重新生成数据存储
 POLL_REGENERATIONS_FILE = os.path.join("data", ".poll_regenerations.json")
+
+
+# ==================== 频道级自动趣味投票配置管理函数 ====================
+
+
+def get_channel_auto_poll_config(channel):
+    """获取指定频道的自动趣味投票配置
+
+    Args:
+        channel: 频道URL
+
+    Returns:
+        dict: 包含 enabled 的配置字典
+            - enabled: 是否启用自动趣味投票（None 表示使用全局配置）
+    """
+    if channel in CHANNEL_AUTO_POLL_SETTINGS:
+        config = CHANNEL_AUTO_POLL_SETTINGS[channel]
+        return {
+            "enabled": config.get("enabled", None),  # None 表示使用全局配置
+        }
+    else:
+        return {
+            "enabled": None,  # 使用全局 ENABLE_AUTO_POLL
+        }
+
+
+def set_channel_auto_poll_config(channel, enabled=None):
+    """设置指定频道的自动趣味投票配置
+
+    Args:
+        channel: 频道URL
+        enabled: 是否启用自动趣味投票（None 表示不修改）
+
+    Returns:
+        bool: 是否成功保存配置
+    """
+    try:
+        current_config = load_config()
+
+        if "channel_auto_poll_settings" not in current_config:
+            current_config["channel_auto_poll_settings"] = {}
+
+        if channel not in current_config["channel_auto_poll_settings"]:
+            current_config["channel_auto_poll_settings"][channel] = {}
+
+        channel_config = current_config["channel_auto_poll_settings"][channel]
+
+        if enabled is not None:
+            channel_config["enabled"] = enabled
+            logger.info(f"设置频道 {channel} 的自动趣味投票启用状态: {enabled}")
+
+        save_config(current_config)
+
+        logger.info(f"已更新频道 {channel} 的自动趣味投票配置")
+        return True
+    except Exception as e:
+        logger.error(f"设置频道自动趣味投票配置时出错: {type(e).__name__}: {e}", exc_info=True)
+        return False
+
+
+def delete_channel_auto_poll_config(channel):
+    """删除指定频道的自动趣味投票配置
+
+    删除后，该频道将使用全局自动趣味投票配置
+
+    Args:
+        channel: 频道URL
+
+    Returns:
+        bool: 是否成功删除配置
+    """
+    try:
+        current_config = load_config()
+
+        if (
+            "channel_auto_poll_settings" in current_config
+            and channel in current_config["channel_auto_poll_settings"]
+        ):
+            del current_config["channel_auto_poll_settings"][channel]
+            save_config(current_config)
+            logger.info(f"已删除频道 {channel} 的自动趣味投票配置，将使用全局配置")
+            return True
+        else:
+            logger.info(f"频道 {channel} 没有独立的自动趣味投票配置，无需删除")
+            return True
+    except Exception as e:
+        logger.error(f"删除频道自动趣味投票配置时出错: {type(e).__name__}: {e}", exc_info=True)
+        return False
 
 
 def load_poll_regenerations():

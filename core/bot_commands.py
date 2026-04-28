@@ -82,6 +82,9 @@ BOT_COMMANDS = [
             ("showcommentwelcome", "查看频道评论区欢迎配置"),
             ("setcommentwelcome", "设置频道评论区欢迎配置"),
             ("deletecommentwelcome", "删除频道评论区欢迎配置"),
+            ("showautopoll", "查看自动趣味投票配置"),
+            ("setautopoll", "设置自动趣味投票配置"),
+            ("deleteautopoll", "删除自动趣味投票配置"),
         ],
     },
     # ========== 6. 统计与历史 ==========
