@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 # Import event system for config hot-reload
-from ..config import AsyncIOEventBus, ConfigChangedEvent
+from ..config import QA_BOT_USERNAME, AsyncIOEventBus, ConfigChangedEvent
 from .download_manager import DownloadManager
 from .filters import (
     should_forward_by_keywords,
@@ -868,7 +868,7 @@ class ForwardingHandler:
 
         支持三种模式：
         1. 自定义底栏模式：规则设置了 custom_footer 时，使用自定义模板
-        2. 默认底栏模式：未设置自定义底栏时，使用格式 [Source](链接) @频道
+        2. 默认底栏模式：未设置自定义底栏时，使用格式 [Source](链接) @频道 🌸助推 | 助手BOT
         3. 隐藏底栏模式：全局配置 show_default_footer=False 时，不添加任何底栏
 
         支持的占位符：
@@ -935,10 +935,19 @@ class ForwardingHandler:
                 return ""
 
             # 模式3：使用默认格式
+            # [Source](链接) @目标频道 🌸助推 | 助手BOT
+            footer_parts = [f"[Source]({source_link})"]
+
             if target_username:
-                return f"[Source]({source_link}) @{target_username}"
+                footer_parts.append(f"@{target_username}")
+                footer_parts.append(f"🌸[助推](https://t.me/boost/{target_username})")
             else:
-                return f"[Source]({source_link}) {target_channel}"
+                footer_parts.append(target_channel)
+
+            if QA_BOT_USERNAME:
+                footer_parts.append(f"|[助手BOT](https://t.me/{QA_BOT_USERNAME})")
+
+            return " ".join(footer_parts)
 
         except Exception as e:
             logger.error(f"生成底栏失败: {type(e).__name__}: {e}", exc_info=True)
