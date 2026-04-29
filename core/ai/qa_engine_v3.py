@@ -913,7 +913,12 @@ class QAEngineV3:
         for i, summary in enumerate(summaries[:3], 1):
             metadata = summary.get("metadata", {})
             channel_name = metadata.get("channel_name") or summary.get("channel_name", "未知频道")
-            created_at = (metadata.get("created_at") or summary.get("created_at", ""))[:10]
+            created_at_raw = metadata.get("created_at") or summary.get("created_at", "")
+            created_at = (
+                created_at_raw.strftime("%Y-%m-%d")
+                if hasattr(created_at_raw, "strftime")
+                else str(created_at_raw)
+            )[:10]
             text = summary.get("summary_text", "")[:300]
 
             result += f"{i}. **{channel_name}** ({created_at})\n{text}...\n\n"
