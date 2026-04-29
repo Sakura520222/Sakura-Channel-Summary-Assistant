@@ -11,7 +11,7 @@
 """
 数据库抽象基类模块
 
-定义数据库管理器的统一接口，支持多种数据库实现（SQLite、MySQL等）
+定义数据库管理器的统一接口，仅支持MySQL数据库实现
 """
 
 from abc import ABC, abstractmethod
@@ -336,7 +336,7 @@ class DatabaseManagerBase(ABC):
 
     @abstractmethod
     def get_database_type(self) -> str:
-        """获取数据库类型（sqlite/mysql）"""
+        """获取数据库类型（mysql）"""
         pass
 
     @abstractmethod

@@ -132,7 +132,7 @@ pytest tests/ -m "telegram" -v
 
 - **异步事件循环** - session 级别的事件循环
 - **Mock Fixtures** - Mock Telegram 客户端、事件、AI 客户端等
-- **数据库 Fixtures** - 临时 SQLite 内存数据库
+- **数据库 Fixtures** - Mock 数据库管理器
 - **环境变量 Mock** - 测试用环境变量
 - **测试数据 Fixtures** - 示例消息和总结数据
 

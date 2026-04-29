@@ -101,32 +101,22 @@ class QABot:
         logger.info("问答Bot初始化完成（v3.0.0向量搜索版本 + 多轮对话支持 + 用户系统）")
 
     async def initialize_database(self):
-        """初始化数据库连接
-
-        支持MySQL回退到SQLite的自动切换机制。
-        """
+        """初始化数据库连接"""
         from core.infrastructure.database.manager import get_db_manager
 
         db = get_db_manager()
 
-        # 检查是否需要初始化MySQL
-        if self._should_init_mysql(db):
+        # 初始化MySQL连接池
+        if hasattr(db, "init_database") and hasattr(db, "pool") and db.pool is None:
             try:
                 await self._init_mysql_pool(db)
                 logger.info("MySQL数据库连接池初始化完成")
-                return
             except Exception as e:
-                logger.warning(f"MySQL初始化失败: {e}，回退到SQLite")
-                await self._fallback_to_sqlite()
-                return
-
-        # SQLite 或已初始化的MySQL
-        if hasattr(db, "init_database"):
+                raise DatabaseError(
+                    f"MySQL初始化失败: {e}", db_type="mysql", operation="connect"
+                ) from e
+        elif hasattr(db, "init_database"):
             await db.init_database()
-
-    def _should_init_mysql(self, db) -> bool:
-        """检查是否需要初始化MySQL数据库"""
-        return hasattr(db, "init_database") and hasattr(db, "pool") and db.pool is None
 
     async def _init_mysql_pool(self, db) -> None:
         """初始化MySQL连接池
@@ -139,22 +129,6 @@ class QABot:
 
         if db.pool is None:
             raise DatabaseError("MySQL连接池创建失败", db_type="mysql", operation="connect")
-
-    async def _fallback_to_sqlite(self) -> None:
-        """回退到SQLite数据库"""
-        # 强制重新创建数据库管理器
-        import core.database as db_module
-
-        db_module.db_manager = None
-        os.environ["DATABASE_TYPE"] = "sqlite"
-
-        from core.infrastructure.database.manager import get_db_manager
-
-        db = get_db_manager()
-        if hasattr(db, "init_database"):
-            await db.init_database()
-
-        logger.info("SQLite数据库初始化完成")
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """处理/start命令"""

@@ -127,7 +127,7 @@ python main.py
 | **🔧 代码优化**        | 总结生成流程模块化，支持代码复用和统一管理         | ✅    |
 | **📱 命令菜单**        | QA Bot自动注册命令菜单，用户可直接查看所有可用命令 | ✅    |
 | **🗄️ MySQL数据库支持** | 新增MySQL数据库支持，提升性能和并发能力            | ✅    |
-| **🔄 数据库迁移**      | 一键从SQLite迁移到MySQL，自动备份和数据验证        | ✅    |
+| **�️ MySQL数据库** | 使用MySQL数据库，提供高性能和并发支持 | ✅ |
 | **📤 频道消息转发**    | 智能转发频道消息到目标频道，支持关键词和正则过滤   | ✅    |
 | **⚡ 启动时检查**      | 自动检测旧数据库并通知管理员迁移建议               | ✅    |
 | **📝 投稿审核系统**    | 用户通过QA Bot投稿，管理员审核后发布到频道         | ✅    |
@@ -373,10 +373,7 @@ python main.py
 - 支持公开/匿名投票模式切换
 - 投票内容基于频道消息自动生成
 
-**迁移说明**：
-- 支持从SQLite一键迁移到MySQL数据库
-- 迁移前自动备份，安全可靠
-- 适合生产环境和高并发场景
+**说明**：仅支持 MySQL 数据库，请确保已配置 MySQL 环境。
 
 #### UserBot 管理
 
@@ -410,7 +407,7 @@ python main.py
 **MySQL配置示例**：
 ```env
 # ===== 数据库配置 =====
-DATABASE_TYPE=mysql  # sqlite 或 mysql
+DATABASE_TYPE=mysql
 
 # MySQL配置（使用MySQL时必需）
 MYSQL_HOST=localhost
@@ -613,7 +610,6 @@ Sakura-Bot/
 | **APScheduler**         | 定时任务调度                        | 3.10+  |
 | **ChromaDB**            | 向量数据库（RAG系统）               | 0.4+   |
 | **aiomysql**            | 异步MySQL数据库                     | 0.2+   |
-| **aiosqlite**           | 异步SQLite数据库                    | 0.20+  |
 | **Pydantic Settings**   | 配置管理与数据验证                  | 2.0+   |
 | **httpx**               | HTTP客户端（Reranker调用）          | 0.27+  |
 | **watchdog**            | 文件监控（配置热重载）              | 4.0+   |

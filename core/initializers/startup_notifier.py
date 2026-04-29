@@ -27,12 +27,13 @@ if TYPE_CHECKING:
 from core.config import ADMIN_LIST, RESTART_FLAG_FILE
 from core.i18n.i18n import get_text
 from core.infrastructure.config.system_config import SystemConfigManager
+from core.infrastructure.database.manager import get_db_manager
 
 
 class StartupNotifier:
     """启动通知器"""
 
-    def __init__(self, version: str = "1.8.1", system_config_manager: SystemConfigManager = None):
+    def __init__(self, version: str = "1.8.2", system_config_manager: SystemConfigManager = None):
         self.logger = logging.getLogger(__name__)
         self.version = version
         self.system_config_manager = system_config_manager
@@ -93,44 +94,33 @@ class StartupNotifier:
             self.logger.error(f"发送启动消息时出错: {type(e).__name__}: {e}", exc_info=True)
 
     async def check_database_migration(self, client: "TelegramClient") -> None:
-        """检查数据库类型，如果使用SQLite则建议迁移
+        """检查数据库连接状态
+
+        仅支持MySQL，启动时检查数据库是否可用。
 
         Args:
             client: Telegram客户端实例
         """
-        self.logger.info("检查数据库类型...")
+        self.logger.info("检查数据库状态...")
 
-        # 读取环境变量判断当前使用的数据库类型
-        current_db_type = os.getenv("DATABASE_TYPE", "sqlite").lower()
-
-        # 只在当前使用 SQLite 时才提示迁移
-        if current_db_type == "sqlite":
-            # 检查SQLite数据库文件是否存在且有数据
-            sqlite_db_path = "data/summaries.db"
-
-            if await asyncio.to_thread(os.path.exists, sqlite_db_path):
-                # 检查数据库大小，如果有数据则提示迁移
-                db_size = await asyncio.to_thread(os.path.getsize, sqlite_db_path)
-                if db_size > 0:
-                    self.logger.info(f"检测到SQLite数据库，大小: {db_size} 字节")
-
-                    for admin_id in ADMIN_LIST:
-                        try:
-                            await client.send_message(
-                                admin_id,
-                                get_text("database.startup_old_database"),
-                                parse_mode="md",
-                                link_preview=False,
-                            )
-                            self.logger.info(f"已向管理员 {admin_id} 发送数据库迁移建议")
-                        except Exception as e:
-                            self.logger.error(f"向管理员 {admin_id} 发送迁移建议失败: {e}")
-                else:
-                    self.logger.info("SQLite数据库为空，跳过迁移提示")
+        # 检查数据库连接是否正常
+        try:
+            db = get_db_manager()
+            if db is None or (hasattr(db, "pool") and db.pool is None):
+                for admin_id in ADMIN_LIST:
+                    try:
+                        await client.send_message(
+                            admin_id,
+                            get_text("database.startup_not_connected"),
+                            parse_mode="md",
+                            link_preview=False,
+                        )
+                    except Exception as e:
+                        self.logger.error(f"向管理员 {admin_id} 发送数据库警告失败: {e}")
             else:
-                self.logger.info("未检测到SQLite数据库文件，跳过迁移提示")
-        else:
-            self.logger.info(f"使用 {current_db_type.upper()} 数据库，无需迁移")
+                self.logger.info("MySQL 数据库连接正常")
+        except Exception as e:
+            self.logger.error(f"检查数据库状态失败: {type(e).__name__}: {e}")
 
     async def check_restart_flag(self, client: "TelegramClient") -> None:
         """检查是否是重启后的首次运行

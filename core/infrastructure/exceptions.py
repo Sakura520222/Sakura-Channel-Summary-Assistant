@@ -46,7 +46,7 @@ class DatabaseError(SakuraBotError):
 
         Args:
             message: 错误消息
-            db_type: 数据库类型（如 "sqlite", "mysql"）
+            db_type: 数据库类型（如 "mysql"）
             operation: 操作类型（如 "connect", "query", "migrate"）
             details: 额外的错误详情
         """

@@ -6,7 +6,7 @@
 2. 添加 forward_status, error_message, message_type 字段
 3. 添加必要的索引
 
-版本：v1.8.1
+版本：v1.8.2
 """
 
 import asyncio
@@ -20,7 +20,7 @@ async def migrate_forwarded_messages_table(db):
     迁移 forwarded_messages 表结构
 
     Args:
-        db: 数据库管理器实例（SQLiteManager 或 MySQLManager）
+        db: 数据库管理器实例（MySQLManager）
 
     Returns:
         dict: 迁移结果
@@ -28,13 +28,10 @@ async def migrate_forwarded_messages_table(db):
     result = {"success": False, "message": "", "details": {}}
 
     try:
-        # 检查数据库类型
         db_type = db.__class__.__name__
         logger.info(f"开始迁移 forwarded_messages 表 (数据库类型: {db_type})")
 
-        if db_type == "SQLiteManager":
-            result = await _migrate_sqlite(db)
-        elif db_type == "MySQLManager":
+        if db_type == "MySQLManager":
             result = await _migrate_mysql(db)
         else:
             result["message"] = f"不支持的数据库类型: {db_type}"
@@ -45,118 +42,6 @@ async def migrate_forwarded_messages_table(db):
         logger.error(f"迁移转发消息表失败: {type(e).__name__}: {e}", exc_info=True)
         result["message"] = f"迁移失败: {str(e)}"
         return result
-
-
-async def _migrate_sqlite(db):
-    """迁移 SQLite 数据库"""
-    try:
-        conn = db.get_connection()
-        cursor = conn.cursor()
-
-        # 检查表是否存在
-        cursor.execute("""
-            SELECT name FROM sqlite_master
-            WHERE type='table' AND name='forwarded_messages'
-        """)
-        table_exists = cursor.fetchone() is not None
-
-        if not table_exists:
-            logger.info("forwarded_messages 表不存在，无需迁移")
-            conn.close()
-            return {"success": True, "message": "表不存在，无需迁移", "details": {"skipped": True}}
-
-        # 检查是否已经有 source_channel 字段
-        cursor.execute("PRAGMA table_info(forwarded_messages)")
-        columns = {row[1] for row in cursor.fetchall()}
-
-        if "source_channel" in columns and "forward_status" in columns:
-            logger.info("表结构已是最新的，无需迁移")
-            conn.close()
-            return {
-                "success": True,
-                "message": "表结构已是最新的",
-                "details": {"already_updated": True},
-            }
-
-        logger.info("开始迁移表结构...")
-
-        # 1. 备份现有数据
-        cursor.execute("""
-            SELECT message_id, target_channel, content_hash, timestamp, created_at
-            FROM forwarded_messages
-        """)
-        existing_data = cursor.fetchall()
-        logger.info(f"备份了 {len(existing_data)} 条现有记录")
-
-        # 2. 删除旧表
-        cursor.execute("DROP TABLE IF EXISTS forwarded_messages")
-
-        # 3. 创建新表（三字段主键 + 新字段）
-        cursor.execute("""
-            CREATE TABLE forwarded_messages (
-                message_id TEXT NOT NULL,
-                source_channel TEXT NOT NULL,
-                target_channel TEXT NOT NULL,
-                content_hash TEXT,
-                timestamp INTEGER NOT NULL,
-                forward_status TEXT DEFAULT 'success',
-                error_message TEXT,
-                message_type TEXT DEFAULT 'unknown',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (message_id, source_channel, target_channel)
-            )
-        """)
-
-        # 4. 创建索引
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_forwarded_source
-            ON forwarded_messages(source_channel)
-        """)
-
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_forwarded_target
-            ON forwarded_messages(target_channel)
-        """)
-
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_forwarded_timestamp
-            ON forwarded_messages(timestamp)
-        """)
-
-        # 5. 恢复数据（注意：旧数据没有 source_channel，设置为 'unknown'）
-        recovered_count = 0
-        for row in existing_data:
-            try:
-                cursor.execute(
-                    """
-                    INSERT INTO forwarded_messages
-                    (message_id, source_channel, target_channel, content_hash, timestamp, forward_status)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                    (row[0], "unknown", row[1], row[2], row[3], "success"),
-                )
-                recovered_count += 1
-            except Exception as e:
-                logger.warning(f"恢复记录失败: {e}")
-
-        conn.commit()
-        conn.close()
-
-        logger.info(f"迁移完成: 恢复了 {recovered_count}/{len(existing_data)} 条记录")
-
-        return {
-            "success": True,
-            "message": "SQLite 表迁移成功",
-            "details": {
-                "total_records": len(existing_data),
-                "recovered_records": recovered_count,
-                "lost_records": len(existing_data) - recovered_count,
-            },
-        }
-
-    except Exception as e:
-        logger.error(f"SQLite 迁移失败: {type(e).__name__}: {e}", exc_info=True)
-        raise
 
 
 async def _migrate_mysql(db):

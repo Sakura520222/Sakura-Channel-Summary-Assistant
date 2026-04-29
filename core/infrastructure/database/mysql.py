@@ -120,7 +120,7 @@ class MySQLManager(DatabaseManagerBase):
 
             # 重新抛出异常，供上层处理
             raise ConnectionError(
-                f"MySQL 连接失败: {error_msg}\n请检查 MySQL 服务是否运行，或切换到 SQLite 数据库"
+                f"MySQL 连接失败: {error_msg}\n请检查 MySQL 服务是否运行，确认配置是否正确"
             ) from e
         except Exception as e:
             logger.error(f"初始化MySQL数据库失败: {type(e).__name__}: {e}", exc_info=True)

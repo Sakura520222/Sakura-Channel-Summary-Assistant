@@ -277,10 +277,10 @@ class TestDatabaseSettings:
             monkeypatch.delenv(key, raising=False)
 
         settings = DatabaseSettings()
-        assert settings.database_type == "sqlite"
+        assert settings.database_type == "mysql"
         assert settings.mysql_host == "localhost"
         assert settings.mysql_port == 3306
-        assert settings.mysql_user == "root"
+        assert settings.mysql_user == "sakura_bot"
         assert settings.mysql_database == "sakura_bot_db"
         assert settings.mysql_pool_size == 5
 
@@ -296,8 +296,8 @@ class TestDatabaseSettings:
         # 清除环境变量以避免干扰
         monkeypatch.delenv("DATABASE_TYPE", raising=False)
 
-        settings = DatabaseSettings(database_type="postgresql")
-        assert settings.database_type == "sqlite"  # 应该使用默认值
+        with pytest.raises(ValueError):
+            DatabaseSettings(database_type="postgresql")
 
     def test_custom_mysql_config(self, monkeypatch):
         """测试自定义 MySQL 配置"""

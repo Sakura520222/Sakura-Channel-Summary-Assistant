@@ -25,7 +25,9 @@ class SubmissionRepository:
         """初始化投稿仓库
 
         Args:
-            pool: aiomysql 连接池（可选，支持延迟获取）
+            pool: aiomysql 连接池（可选，支持延迟获取）。
+                未传入时，首次访问 pool 属性将自动从全局数据库管理器获取。
+                调用前提：数据库管理器必须已完成初始化。
         """
         self._pool = pool
 
@@ -269,114 +271,3 @@ def get_submission_repo() -> SubmissionRepository:
 
     _submission_repo = SubmissionRepository()
     return _submission_repo
-
-
-def _create_sqlite_submission_repo(db) -> SubmissionRepository:
-    """为 SQLite 创建投稿仓库（简化版）"""
-    # SQLite doesn't have a connection pool, we'll create a simple wrapper
-
-    class SQLiteSubmissionRepo(SubmissionRepository):
-        def __init__(self, db_manager):
-            self._db = db_manager
-            self.pool = None  # Not used for SQLite
-
-        async def _execute(self, query: str, params=None):
-            import aiosqlite
-
-            db_path = self._db.db_path
-            async with aiosqlite.connect(db_path) as conn:
-                conn.row_factory = aiosqlite.Row
-                cursor = await conn.execute(query, params or [])
-                if query.strip().upper().startswith("SELECT"):
-                    rows = await cursor.fetchall()
-                    return [dict(row) for row in rows]
-                await conn.commit()
-                return cursor.lastrowid
-
-        async def create_submission(
-            self, submitter_id, submitter_name, title, content=None, media_files=None
-        ):
-            media_json = json.dumps(media_files, ensure_ascii=False) if media_files else None
-            result = await self._execute(
-                """INSERT INTO submissions
-                (submitter_id, submitter_name, title, content, media_files, status)
-                VALUES (?, ?, ?, ?, ?, 'pending')""",
-                (submitter_id, submitter_name, title, content, media_json),
-            )
-            return result
-
-        async def get_submission(self, submission_id):
-            rows = await self._execute("SELECT * FROM submissions WHERE id = ?", (submission_id,))
-            if rows:
-                row = rows[0]
-                if row.get("media_files"):
-                    try:
-                        row["media_files"] = json.loads(row["media_files"])
-                    except Exception:
-                        row["media_files"] = []
-                return row
-            return None
-
-        async def get_pending_submissions(self):
-            rows = await self._execute(
-                "SELECT * FROM submissions WHERE status = 'pending' ORDER BY created_at ASC"
-            )
-            for row in rows:
-                if row.get("media_files"):
-                    try:
-                        row["media_files"] = json.loads(row["media_files"])
-                    except Exception:
-                        row["media_files"] = []
-            return rows
-
-        async def get_user_submissions(self, user_id, limit=20):
-            rows = await self._execute(
-                """SELECT * FROM submissions
-                WHERE submitter_id = ?
-                ORDER BY created_at DESC
-                LIMIT ?""",
-                (user_id, limit),
-            )
-            for row in rows:
-                if row.get("media_files"):
-                    try:
-                        row["media_files"] = json.loads(row["media_files"])
-                    except Exception:
-                        row["media_files"] = []
-            return rows
-
-        async def update_submission_status(
-            self,
-            submission_id,
-            status,
-            reviewed_by=None,
-            ai_optimized_content=None,
-            review_message_id=None,
-        ):
-            update_fields = ["status = ?"]
-            params = [status]
-            if reviewed_by is not None:
-                update_fields.append("reviewed_by = ?")
-                params.append(reviewed_by)
-                update_fields.append("reviewed_at = ?")
-                params.append(datetime.now(UTC).isoformat())
-            if ai_optimized_content is not None:
-                update_fields.append("ai_optimized_content = ?")
-                params.append(ai_optimized_content)
-            if review_message_id is not None:
-                update_fields.append("review_message_id = ?")
-                params.append(review_message_id)
-            params.append(submission_id)
-            await self._execute(
-                f"UPDATE submissions SET {', '.join(update_fields)} WHERE id = ?",
-                params,
-            )
-            return True
-
-        async def get_submission_stats(self):
-            rows = await self._execute(
-                "SELECT status, COUNT(*) as count FROM submissions GROUP BY status"
-            )
-            return {row["status"]: row["count"] for row in rows}
-
-    return SQLiteSubmissionRepo(db)
