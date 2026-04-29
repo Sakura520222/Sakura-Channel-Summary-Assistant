@@ -5,7 +5,9 @@
         <n-button type="primary" @click="showAddModal = true">添加频道</n-button>
       </template>
 
-      <n-data-table :columns="columns" :data="channels" :bordered="false" />
+      <n-spin :show="loading" description="加载中...">
+        <n-data-table :columns="columns" :data="channels" :bordered="false" />
+      </n-spin>
     </n-card>
 
     <!-- 添加频道弹窗 -->
@@ -29,9 +31,11 @@
 import { ref, onMounted, h } from "vue";
 import { NButton, NTag, NSpace, useMessage } from "naive-ui";
 import type { DataTableColumns } from "naive-ui";
-import { getChannels, addChannel, deleteChannel, generateSummary } from "../api/modules";
+import { getChannels, addChannel, deleteChannel, generateSummary } from "@/api/modules";
+import { getChannelName } from "@/utils/formatters";
 
 const message = useMessage();
+const loading = ref(true);
 const channels = ref<Array<Record<string, unknown>>>([]);
 const showAddModal = ref(false);
 const showDeleteModal = ref(false);
@@ -41,7 +45,7 @@ const generatingChannels = ref<Set<string>>(new Set());
 
 const columns: DataTableColumns = [
   { title: "#", key: "index", width: 60, render: (_, i) => i + 1 },
-  { title: "频道", key: "url", render: (row) => String(row.url) },
+  { title: "频道", key: "url", render: (row) => getChannelName(row.url as string) },
   {
     title: "定时任务", key: "has_schedule", width: 100,
     render: (row) => h(NTag, { type: row.has_schedule ? 'success' : 'default', size: 'small' }, () => row.has_schedule ? '已配置' : '未配置'),
@@ -72,11 +76,14 @@ const columns: DataTableColumns = [
 ];
 
 async function loadData() {
+  loading.value = true;
   try {
     const res = await getChannels();
     if (res.success) channels.value = res.data.channels;
   } catch {
     message.error("加载频道列表失败");
+  } finally {
+    loading.value = false;
   }
 }
 

@@ -11,12 +11,14 @@
         </n-space>
       </template>
 
-      <n-data-table :columns="columns" :data="rules" :bordered="false" />
+      <n-spin :show="loading" description="加载中...">
+        <n-data-table :columns="columns" :data="rules" :bordered="false" />
+      </n-spin>
     </n-card>
 
     <!-- 添加/编辑规则弹窗 -->
     <n-modal v-model:show="showModal" preset="dialog" :title="editingIndex >= 0 ? '编辑规则' : '添加规则'"
-      style="width: 600px" positive-text="保存" negative-text="取消" @positive-click="handleSaveRule">
+      class="modal-responsive" positive-text="保存" negative-text="取消" @positive-click="handleSaveRule">
       <n-form label-placement="left" label-width="120">
         <n-form-item label="源频道">
           <n-input v-model:value="ruleForm.source_channel" placeholder="https://t.me/source_channel" />
@@ -55,9 +57,11 @@ import type { DataTableColumns } from "naive-ui";
 import {
   getForwardingConfig, toggleForwarding, addForwardingRule,
   updateForwardingRule, deleteForwardingRule,
-} from "../api/modules";
+} from "@/api/modules";
+import { getChannelName } from "@/utils/formatters";
 
 const message = useMessage();
+const loading = ref(true);
 const forwardingEnabled = ref(false);
 const rules = ref<Array<Record<string, unknown>>>([]);
 const showModal = ref(false);
@@ -78,11 +82,11 @@ const columns: DataTableColumns = [
   { title: "#", key: "index", width: 50, render: (_, i) => i + 1 },
   {
     title: "源频道", key: "source",
-    render: (row) => (row.source_channel as string).replace("https://t.me/", "@"),
+    render: (row) => getChannelName(row.source_channel as string),
   },
   {
     title: "目标频道", key: "target",
-    render: (row) => (row.target_channel as string).replace("https://t.me/", "@"),
+    render: (row) => getChannelName(row.target_channel as string),
   },
   {
     title: "模式", key: "mode", width: 80,
@@ -165,6 +169,7 @@ async function handleDeleteRule() {
 }
 
 async function loadData() {
+  loading.value = true;
   try {
     const res = await getForwardingConfig();
     if (res.success) {
@@ -173,6 +178,8 @@ async function loadData() {
     }
   } catch {
     message.error("加载转发配置失败");
+  } finally {
+    loading.value = false;
   }
 }
 

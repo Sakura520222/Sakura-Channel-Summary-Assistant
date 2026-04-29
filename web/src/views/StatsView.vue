@@ -1,4 +1,5 @@
 <template>
+  <n-spin :show="loading" description="加载中...">
   <div>
     <n-card title="统计数据">
       <template #header-extra>
@@ -34,15 +35,18 @@
       <n-data-table :columns="rankingColumns" :data="ranking" :bordered="false" />
     </n-card>
   </div>
+  </n-spin>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useMessage } from "naive-ui";
 import type { DataTableColumns } from "naive-ui";
-import { getStats, getSummaries, getChannelRanking, getChannels } from "../api/modules";
+import { getStats, getSummaries, getChannelRanking, getChannels } from "@/api/modules";
+import { getChannelName } from "@/utils/formatters";
 
 const message = useMessage();
+const loading = ref(true);
 const stats = ref<Record<string, unknown>>({});
 const summaries = ref<Array<Record<string, unknown>>>([]);
 const ranking = ref<Array<Record<string, unknown>>>([]);
@@ -51,13 +55,8 @@ const filterChannel = ref<string | null>(null);
 const loadingSummaries = ref(false);
 
 const channelOptions = computed(() =>
-  channels.value.map((ch) => ({ label: ch.replace("https://t.me/", "@"), value: ch }))
+  channels.value.map((ch) => ({ label: getChannelName(ch), value: ch }))
 );
-
-function getChannelName(url: string | undefined | null) {
-  if (!url) return "-";
-  return String(url).replace("https://t.me/", "@");
-}
 
 const summaryColumns: DataTableColumns = [
   { title: "#", key: "id", width: 60 },
@@ -87,6 +86,7 @@ const rankingColumns: DataTableColumns = [
 ];
 
 async function loadData() {
+  loading.value = true;
   try {
     const [statsRes, chRes, rankRes] = await Promise.all([
       getStats(), getChannels(), getChannelRanking(),
@@ -97,6 +97,8 @@ async function loadData() {
     await loadSummaries();
   } catch {
     message.error("加载统计数据失败");
+  } finally {
+    loading.value = false;
   }
 }
 

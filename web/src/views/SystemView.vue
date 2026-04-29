@@ -1,4 +1,5 @@
 <template>
+  <n-spin :show="loading" description="加载中...">
   <div>
     <n-grid :cols="2" :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
       <!-- Bot 状态 -->
@@ -65,15 +66,17 @@
       </n-gi>
     </n-grid>
   </div>
+  </n-spin>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from "vue";
 import { useMessage, useDialog } from "naive-ui";
-import { getSystemStatus, pauseBot, resumeBot, updateLogLevel, restartBot } from "../api/modules";
+import { getSystemStatus, pauseBot, resumeBot, updateLogLevel, restartBot } from "@/api/modules";
 
 const message = useMessage();
 const dialog = useDialog();
+const loading = ref(true);
 const logLevel = ref("INFO");
 
 const botStatus = reactive({
@@ -107,6 +110,7 @@ const logLevelOptions = [
 ];
 
 async function loadStatus() {
+  loading.value = true;
   try {
     const res = await getSystemStatus();
     if (res.success) {
@@ -115,6 +119,8 @@ async function loadStatus() {
     }
   } catch {
     message.error("获取状态失败");
+  } finally {
+    loading.value = false;
   }
 }
 

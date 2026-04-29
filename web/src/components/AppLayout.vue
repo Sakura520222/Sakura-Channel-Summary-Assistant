@@ -1,5 +1,5 @@
 <template>
-  <n-layout has-sider style="height: 100vh">
+  <n-layout has-sider class="app-layout">
     <!-- 侧边栏 -->
     <n-layout-sider
       bordered
@@ -8,7 +8,6 @@
       :width="240"
       show-trigger
       :native-scrollbar="false"
-      style="background-color: #fff"
     >
       <div class="sider-header">
         <span class="logo">🌸</span>
@@ -28,29 +27,27 @@
     <!-- 主内容区 -->
     <n-layout>
       <!-- 顶栏 -->
-      <n-layout-header bordered style="height: 56px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; background: #fff">
-        <div style="font-size: 16px; font-weight: 500">
-          {{ pageTitle }}
-        </div>
+      <n-layout-header bordered class="app-header">
+        <div class="header-title">{{ pageTitle }}</div>
         <n-space align="center">
           <n-tag :type="botOnline ? 'success' : 'error'" size="small" round>
             {{ botOnline ? '运行中' : '已停止' }}
           </n-tag>
+          <n-button size="small" quaternary @click="toggleDarkMode">
+            {{ isDark ? '🌙 深色' : '☀️ 浅色' }}
+          </n-button>
           <n-button size="small" quaternary @click="handleLogout">退出登录</n-button>
         </n-space>
       </n-layout-header>
 
       <!-- 内容 -->
-      <n-layout-content content-style="padding: 24px; min-height: calc(100vh - 56px - 48px)">
+      <n-layout-content content-class="app-content">
         <router-view />
       </n-layout-content>
 
       <!-- 页脚 -->
-      <n-layout-footer
-        bordered
-        style="height: 48px; padding: 0 24px; display: flex; align-items: center; justify-content: center; background: #fff"
-      >
-        <n-text depth="3" style="font-size: 12px">
+      <n-layout-footer bordered class="app-footer">
+        <n-text depth="3" class="footer-text">
           Sakura-Bot WebUI v1.0.0 · 基于 AGPL-3.0 许可
         </n-text>
       </n-layout-footer>
@@ -59,9 +56,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, h, onMounted, onUnmounted } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { NIcon } from "naive-ui";
 import type { MenuOption } from "naive-ui";
 import {
   DashboardOutlined,
@@ -79,6 +75,8 @@ const router = useRouter();
 const route = useRoute();
 const collapsed = ref(false);
 const botOnline = ref(false);
+const isDark = ref(false);
+let healthTimer: ReturnType<typeof setInterval> | null = null;
 
 const currentRoute = computed(() => route.path || "/");
 
@@ -97,20 +95,17 @@ const pageTitle = computed(() => {
   return map[route.path] || "Sakura-Bot";
 });
 
-function renderIcon(icon: string) {
-  return () => h(NIcon, null, { default: () => h("span", { innerHTML: icon }) });
-}
-
+// 图标已经是渲染函数，直接使用
 const menuOptions: MenuOption[] = [
-  { label: "仪表板", key: "/", icon: renderIcon(DashboardOutlined) },
-  { label: "频道管理", key: "/channels", icon: renderIcon(ChannelOutlined) },
-  { label: "AI 配置", key: "/ai-config", icon: renderIcon(RobotOutlined) },
-  { label: "定时任务", key: "/schedules", icon: renderIcon(ScheduleOutlined) },
-  { label: "转发规则", key: "/forwarding", icon: renderIcon(SwapOutlined) },
-  { label: "互动设置", key: "/interaction", icon: renderIcon(LikeOutlined) },
-  { label: "统计数据", key: "/stats", icon: renderIcon(BarChartOutlined) },
-  { label: "系统运维", key: "/system", icon: renderIcon(SettingOutlined) },
-  { label: "UserBot", key: "/userbot", icon: renderIcon(UserOutlined) },
+  { label: "仪表板", key: "/", icon: DashboardOutlined },
+  { label: "频道管理", key: "/channels", icon: ChannelOutlined },
+  { label: "AI 配置", key: "/ai-config", icon: RobotOutlined },
+  { label: "定时任务", key: "/schedules", icon: ScheduleOutlined },
+  { label: "转发规则", key: "/forwarding", icon: SwapOutlined },
+  { label: "互动设置", key: "/interaction", icon: LikeOutlined },
+  { label: "统计数据", key: "/stats", icon: BarChartOutlined },
+  { label: "系统运维", key: "/system", icon: SettingOutlined },
+  { label: "UserBot", key: "/userbot", icon: UserOutlined },
 ];
 
 function handleMenuSelect(key: string) {
@@ -122,7 +117,13 @@ function handleLogout() {
   router.push("/login");
 }
 
-// 定期检查 Bot 在线状态
+function toggleDarkMode() {
+  isDark.value = !isDark.value;
+  document.documentElement.classList.toggle("dark", isDark.value);
+  // 通知 Naive UI 的 darkTheme 由 App.vue 处理
+  window.dispatchEvent(new CustomEvent("theme-change", { detail: isDark.value }));
+}
+
 async function checkBotStatus() {
   try {
     const res = await fetch("/api/health");
@@ -137,13 +138,21 @@ async function checkBotStatus() {
 
 onMounted(() => {
   checkBotStatus();
-  // 每 30 秒检查一次
-  const timer = setInterval(checkBotStatus, 30000);
-  onUnmounted(() => clearInterval(timer));
+  healthTimer = setInterval(checkBotStatus, 30000);
+});
+
+onUnmounted(() => {
+  if (healthTimer) {
+    clearInterval(healthTimer);
+    healthTimer = null;
+  }
 });
 </script>
 
 <style scoped>
+.app-layout {
+  height: 100vh;
+}
 .sider-header {
   display: flex;
   align-items: center;
@@ -152,14 +161,37 @@ onMounted(() => {
   height: 56px;
   border-bottom: 1px solid var(--n-border-color);
 }
-
 .logo {
   font-size: 24px;
 }
-
 .title {
   font-size: 16px;
   font-weight: 600;
   color: var(--n-text-color);
+}
+.app-header {
+  height: 56px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header-title {
+  font-size: 16px;
+  font-weight: 500;
+}
+.app-content {
+  padding: 24px;
+  min-height: calc(100vh - 56px - 48px);
+}
+.app-footer {
+  height: 48px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.footer-text {
+  font-size: 12px;
 }
 </style>

@@ -1,4 +1,5 @@
 <template>
+  <n-spin :show="loading" description="加载中...">
   <div>
     <n-tabs type="line" animated>
       <!-- 投票设置 -->
@@ -82,6 +83,7 @@
       </n-tab-pane>
     </n-tabs>
   </div>
+  </n-spin>
 </template>
 
 <script setup lang="ts">
@@ -90,9 +92,11 @@ import { useMessage } from "naive-ui";
 import {
   getPollSettings, getAutoPollSettings, updateAutoPoll,
   getCommentWelcomeConfig, updateDefaultCommentWelcome,
-} from "../api/modules";
+} from "@/api/modules";
+import { getChannelName } from "@/utils/formatters";
 
 const message = useMessage();
+const loading = ref(true);
 const pollSettings = ref<Record<string, unknown>>({});
 const autoPollEnabled = ref(false);
 const autoPollChannelSettings = ref<Record<string, unknown>>({});
@@ -105,8 +109,29 @@ const welcomeConfig = reactive({
   button_action: "request_summary",
 });
 
-function getChannelName(url: string) {
-  return url.replace("https://t.me/", "@");
+async function loadData() {
+  loading.value = true;
+  try {
+    const [pollRes, autoPollRes, welcomeRes] = await Promise.all([
+      getPollSettings(), getAutoPollSettings(), getCommentWelcomeConfig(),
+    ]);
+    if (pollRes.success) pollSettings.value = pollRes.data;
+    if (autoPollRes.success) {
+      autoPollEnabled.value = autoPollRes.data.enabled;
+      autoPollChannelSettings.value = autoPollRes.data.channel_settings;
+    }
+    if (welcomeRes.success) {
+      const def = welcomeRes.data.default || {};
+      welcomeConfig.enabled = def.enabled ?? true;
+      welcomeConfig.welcome_message = def.welcome_message ?? "";
+      welcomeConfig.button_text = def.button_text ?? "";
+      welcomeConfig.button_action = def.button_action ?? "request_summary";
+    }
+  } catch {
+    message.error("加载数据失败");
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function handleAutoPollToggle(enabled: boolean) {
@@ -127,28 +152,6 @@ async function saveWelcomeConfig() {
     message.error("保存失败");
   } finally {
     savingWelcome.value = false;
-  }
-}
-
-async function loadData() {
-  try {
-    const [pollRes, autoPollRes, welcomeRes] = await Promise.all([
-      getPollSettings(), getAutoPollSettings(), getCommentWelcomeConfig(),
-    ]);
-    if (pollRes.success) pollSettings.value = pollRes.data;
-    if (autoPollRes.success) {
-      autoPollEnabled.value = autoPollRes.data.enabled;
-      autoPollChannelSettings.value = autoPollRes.data.channel_settings;
-    }
-    if (welcomeRes.success) {
-      const def = welcomeRes.data.default || {};
-      welcomeConfig.enabled = def.enabled ?? true;
-      welcomeConfig.welcome_message = def.welcome_message ?? "";
-      welcomeConfig.button_text = def.button_text ?? "";
-      welcomeConfig.button_action = def.button_action ?? "request_summary";
-    }
-  } catch {
-    message.error("加载数据失败");
   }
 }
 

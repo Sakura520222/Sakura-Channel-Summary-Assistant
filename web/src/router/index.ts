@@ -66,11 +66,17 @@ const router = createRouter({
 // 路由守卫 - 检查认证
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem("sakura_bot_token");
-  if (to.meta.public || token) {
+  if (to.meta.public) {
     next();
-  } else {
-    next("/login");
+    return;
   }
+  // 没有 token 直接跳转登录
+  if (!token) {
+    next("/login");
+    return;
+  }
+  // token 存在则放行，401 由 API 拦截器处理
+  next();
 });
 
 export default router;

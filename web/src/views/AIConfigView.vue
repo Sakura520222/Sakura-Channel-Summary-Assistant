@@ -1,4 +1,5 @@
 <template>
+  <n-spin :show="loading" description="加载中...">
   <div>
     <n-grid :cols="2" :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
       <!-- AI 配置 -->
@@ -41,14 +42,16 @@
       </n-gi>
     </n-grid>
   </div>
+  </n-spin>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from "vue";
 import { useMessage } from "naive-ui";
-import { getAIConfig, updateAIConfig, getPrompts, updatePrompt, resetPrompt } from "../api/modules";
+import { getAIConfig, updateAIConfig, getPrompts, updatePrompt, resetPrompt } from "@/api/modules";
 
 const message = useMessage();
+const loading = ref(true);
 const saving = ref(false);
 const aiConfig = reactive({ base_url: "", model: "", api_key: "", api_key_set: false });
 const prompts = ref<Array<{ prompt_type: string; content: string; is_default: boolean }>>([]);
@@ -60,6 +63,7 @@ const promptLabels: Record<string, string> = {
 };
 
 async function loadData() {
+  loading.value = true;
   try {
     const [configRes, promptsRes] = await Promise.all([getAIConfig(), getPrompts()]);
     if (configRes.success) {
@@ -71,6 +75,8 @@ async function loadData() {
     }
   } catch {
     message.error("加载 AI 配置失败");
+  } finally {
+    loading.value = false;
   }
 }
 

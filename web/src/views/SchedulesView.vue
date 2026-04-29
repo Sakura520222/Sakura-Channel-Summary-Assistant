@@ -5,7 +5,9 @@
         <n-button type="primary" @click="showAddModal = true">添加定时任务</n-button>
       </template>
 
-      <n-data-table :columns="columns" :data="scheduleList" :bordered="false" />
+      <n-spin :show="loading" description="加载中...">
+        <n-data-table :columns="columns" :data="scheduleList" :bordered="false" />
+      </n-spin>
 
       <!-- 未配置定时任务的频道 -->
       <n-divider v-if="unscheduled.length" />
@@ -50,12 +52,15 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, h } from "vue";
-import { NButton, NTag, useMessage } from "naive-ui";
+import { NButton, NTag, useMessage, useDialog } from "naive-ui";
 import type { DataTableColumns } from "naive-ui";
-import { getSchedules, updateSchedule, deleteSchedule } from "../api/modules";
-import { getChannels } from "../api/modules";
+import { getSchedules, updateSchedule, deleteSchedule } from "@/api/modules";
+import { getChannels } from "@/api/modules";
+import { getChannelName } from "@/utils/formatters";
 
 const message = useMessage();
+const dialog = useDialog();
+const loading = ref(true);
 const scheduleList = ref<Array<Record<string, unknown>>>([]);
 const unscheduled = ref<string[]>([]);
 const allChannels = ref<string[]>([]);
@@ -82,10 +87,6 @@ const weekDays = [
 const channelOptions = computed(() =>
   allChannels.value.map((ch) => ({ label: getChannelName(ch), value: ch }))
 );
-
-function getChannelName(url: string) {
-  return url.replace("https://t.me/", "@");
-}
 
 const columns: DataTableColumns = [
   { title: "频道", key: "channel", render: (row) => getChannelName(row.channel as string) },
@@ -151,16 +152,25 @@ async function handleSave() {
 }
 
 async function removeSchedule(channel: string) {
-  try {
-    const res = await deleteSchedule(channel);
-    message[res.success ? "success" : "error"](res.message);
-    if (res.success) await loadData();
-  } catch {
-    message.error("删除失败");
-  }
+  dialog.warning({
+    title: "确认删除",
+    content: `确定要删除频道 ${getChannelName(channel)} 的定时任务吗？`,
+    positiveText: "删除",
+    negativeText: "取消",
+    onPositiveClick: async () => {
+      try {
+        const res = await deleteSchedule(channel);
+        message[res.success ? "success" : "error"](res.message);
+        if (res.success) await loadData();
+      } catch {
+        message.error("删除失败");
+      }
+    },
+  });
 }
 
 async function loadData() {
+  loading.value = true;
   try {
     const [schedRes, chRes] = await Promise.all([getSchedules(), getChannels()]);
     if (schedRes.success) {
@@ -172,6 +182,8 @@ async function loadData() {
     }
   } catch {
     message.error("加载数据失败");
+  } finally {
+    loading.value = false;
   }
 }
 

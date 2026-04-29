@@ -44,7 +44,7 @@
                 {{ dashboard.forwarding_enabled ? '已启用' : '已禁用' }}
               </n-tag>
             </n-descriptions-item>
-            <n-descriptions-item label="运行时长">{{ formatUptime(dashboard.uptime_seconds as number) }}</n-descriptions-item>
+            <n-descriptions-item label="运行时长">{{ formatUptimeLocal(dashboard.uptime_seconds as number) }}</n-descriptions-item>
           </n-descriptions>
         </n-card>
       </n-gi>
@@ -73,7 +73,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useMessage } from "naive-ui";
-import { getDashboard, getSchedules } from "../api/modules";
+import { getDashboard, getSchedules } from "@/api/modules";
+import { getChannelName, formatUptime } from "@/utils/formatters";
 
 const message = useMessage();
 const loading = ref(true);
@@ -89,16 +90,8 @@ const statusLabel = computed(() => {
 
 const scheduleCount = computed(() => schedules.value.length);
 
-function getChannelName(url: string) {
-  return url.replace("https://t.me/", "@");
-}
-
-function formatUptime(seconds: number | undefined) {
-  if (!seconds) return "未知";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 24) return `${Math.floor(h / 24)} 天 ${h % 24} 小时`;
-  return `${h} 小时 ${m} 分钟`;
+function formatUptimeLocal(seconds: number | undefined) {
+  return formatUptime(seconds);
 }
 
 async function loadData() {

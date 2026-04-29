@@ -1,5 +1,13 @@
 import apiClient from "./client";
 
+// ==================== 通用类型 ====================
+
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  message?: string;
+}
+
 // ==================== 认证 ====================
 
 export async function loginWithToken(token: string) {

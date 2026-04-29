@@ -27,6 +27,12 @@ apiClient.interceptors.response.use(
       if (window.location.pathname !== "/login") {
         window.location.href = "/login";
       }
+    } else if (!error.response) {
+      // 网络错误（超时、断网等）
+      console.error("[API] 网络错误:", error.message);
+    } else if (error.response.status >= 500) {
+      // 服务端错误
+      console.error("[API] 服务端错误:", error.response.status, error.response.data);
     }
     return Promise.reject(error);
   }

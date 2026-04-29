@@ -32,7 +32,7 @@
 import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { useMessage } from "naive-ui";
-import { loginWithToken } from "../api/modules";
+import { loginWithToken } from "@/api/modules";
 
 const router = useRouter();
 const message = useMessage();
@@ -74,16 +74,17 @@ async function handleDevLogin() {
       message.info("已进入开发模式");
       router.push("/");
     } else {
-      // 开发模式 fallback：直接设置 dev token
-      localStorage.setItem("sakura_bot_token", "dev");
-      message.info("已进入开发模式");
-      router.push("/");
+      message.error(res.message || "开发模式认证失败");
     }
   } catch {
-    // 后端不可用时，仍然允许进入
-    localStorage.setItem("sakura_bot_token", "dev");
-    message.info("已进入开发模式（后端不可用）");
-    router.push("/");
+    // 仅开发环境允许 fallback
+    if (import.meta.env.DEV) {
+      localStorage.setItem("sakura_bot_token", "dev");
+      message.info("已进入开发模式（后端不可用）");
+      router.push("/");
+    } else {
+      message.error("无法连接到服务器，请检查网络或稍后重试");
+    }
   } finally {
     devLoading.value = false;
   }
