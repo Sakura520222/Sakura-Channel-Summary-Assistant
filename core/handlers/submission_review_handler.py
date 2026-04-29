@@ -513,7 +513,11 @@ class SubmissionReviewHandler:
     async def _notify_submitter(
         self, submission: dict[str, Any], status: str, publish_result=None
     ) -> None:
-        """通过 notification_queue 通知投稿者审核结果"""
+        """通过 notification_queue 通知投稿者审核结果
+
+        注意：已移除历史遗留的未使用 client 参数。通知统一通过数据库
+        notification_queue 实现，无需直接调用 Telegram client 发送消息。
+        """
         try:
             from core.infrastructure.database.manager import get_db_manager
 

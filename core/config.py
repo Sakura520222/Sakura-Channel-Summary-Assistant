@@ -247,8 +247,25 @@ def save_config(config):
         logger.error(f"保存配置到文件 {CONFIG_FILE} 时出错: {type(e).__name__}: {e}", exc_info=True)
 
 
+def _parse_bool(value) -> bool:
+    """将配置值安全解析为布尔类型
+
+    支持 bool、str（"true"/"1"/"yes"）和 int 类型输入。
+    用于热重载时防止 JSON 配置文件中字符串形式的布尔值导致类型不一致。
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in ("true", "1", "yes")
+    return bool(value)
+
+
 def update_module_variables(config):
-    """更新模块变量以匹配配置文件"""
+    """更新模块变量以匹配配置文件
+
+    注意：所有布尔型配置项均通过 _parse_bool() 解析，确保无论配置文件
+    传入 bool 还是 str 类型（如 "true"/"false"），都能正确转换为 Python bool。
+    """
     global \
         LLM_API_KEY, \
         LLM_BASE_URL, \
@@ -276,12 +293,12 @@ def update_module_variables(config):
 
     # 更新是否将报告发送回源频道的配置
     if "send_report_to_source" in config:
-        SEND_REPORT_TO_SOURCE = config["send_report_to_source"]
+        SEND_REPORT_TO_SOURCE = _parse_bool(config["send_report_to_source"])
         logger.info(f"已更新内存中的发送报告到源频道的配置: {SEND_REPORT_TO_SOURCE}")
 
     # 更新是否启用投票功能的配置
     if "enable_poll" in config:
-        ENABLE_POLL = config["enable_poll"]
+        ENABLE_POLL = _parse_bool(config["enable_poll"])
         logger.info(f"已更新内存中的投票功能配置: {ENABLE_POLL}")
 
     # 更新频道级时间配置
@@ -302,20 +319,16 @@ def update_module_variables(config):
         logger.info(f"已更新内存中的投票重新生成阈值: {POLL_REGEN_THRESHOLD}")
 
     if "enable_vote_regen_request" in config:
-        ENABLE_VOTE_REGEN_REQUEST = config["enable_vote_regen_request"]
+        ENABLE_VOTE_REGEN_REQUEST = _parse_bool(config["enable_vote_regen_request"])
         logger.info(f"已更新内存中的投票重新生成请求功能配置: {ENABLE_VOTE_REGEN_REQUEST}")
 
     if "public_voters" in config:
-        _val = config["public_voters"]
-        if isinstance(_val, str):
-            POLL_PUBLIC_VOTERS = _val.lower() in ("true", "1", "yes")
-        else:
-            POLL_PUBLIC_VOTERS = bool(_val)
+        POLL_PUBLIC_VOTERS = _parse_bool(config["public_voters"])
         logger.info(f"已更新内存中的投票公开配置: {POLL_PUBLIC_VOTERS}")
 
     # 更新自动趣味投票配置
     if "enable_auto_poll" in config:
-        ENABLE_AUTO_POLL = config["enable_auto_poll"]
+        ENABLE_AUTO_POLL = _parse_bool(config["enable_auto_poll"])
         logger.info(f"已更新内存中的自动趣味投票配置: {ENABLE_AUTO_POLL}")
 
     # 更新频道级自动趣味投票配置

@@ -112,7 +112,29 @@ class SubmissionService:
                     },
                 ],
             )
-            raw_result = response.choices[0].message.content.strip()
+
+            # 空值保护：校验 API 响应结构
+            if not response.choices or not response.choices[0].message:
+                logger.error(
+                    f"AI 优化服务返回了无效的响应结构: "
+                    f"choices={len(response.choices) if response.choices else 0}"
+                )
+                return {
+                    "success": False,
+                    "optimized_content": None,
+                    "message": "AI 优化服务返回了无效的响应",
+                }
+
+            raw_result = response.choices[0].message.content
+            if not raw_result:
+                logger.error("AI 优化服务返回了空内容")
+                return {
+                    "success": False,
+                    "optimized_content": None,
+                    "message": "AI 优化服务返回了空内容",
+                }
+
+            raw_result = raw_result.strip()
 
             # 解析 JSON 结果
             import json

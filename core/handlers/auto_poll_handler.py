@@ -163,7 +163,7 @@ class AutoPollHandler:
             )
             # 记入去重缓存（LRU 淘汰：超过上限时移除最旧条目）
             self._poll_cache[cache_key] = datetime.now(UTC)
-            while len(self._poll_cache) > _CACHE_MAX_SIZE:
+            if len(self._poll_cache) > _CACHE_MAX_SIZE:
                 self._poll_cache.popitem(last=False)  # FIFO 淘汰最旧
         except asyncio.QueueFull:
             logger.warning(
