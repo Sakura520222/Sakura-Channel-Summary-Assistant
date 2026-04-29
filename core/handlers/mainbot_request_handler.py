@@ -81,14 +81,16 @@ class MainBotRequestHandler:
             logger.error(f"检查请求失败: {type(e).__name__}: {e}", exc_info=True)
 
     async def _build_admin_message(self, request: dict[str, Any]) -> str:
-        """
-        构建管理员通知消息
+        """构建管理员通知消息
+
+        使用 Telegram Markdown 格式：**粗体**、`内联代码`。动态字段（频道URL、
+        用户ID等）用反引号包裹，防止其中的 _ * 等字符被解析为斜体/粗体。
 
         Args:
             request: 请求信息字典
 
         Returns:
-            str: 格式化的通知消息
+            str: 格式化的通知消息（parse_mode="Markdown"）
         """
         request_id = request.get("id")
         channel_id = request.get("target_channel")
@@ -107,9 +109,9 @@ class MainBotRequestHandler:
         # 构建通知消息
         message = f"""📝 **新的总结请求**
 
-**请求ID**: {request_id}
-**频道**: {channel_id}
-**请求者**: {user_name} (ID: {requested_by})
+**请求ID**: `{request_id}`
+**频道**: `{channel_id}`
+**请求者**: {user_name} (ID: `{requested_by}`)
 **时间**: {created_at}
 
 请确认是否为该频道生成总结？"""

@@ -106,7 +106,7 @@ class QAUserSystem:
             if success:
                 return {
                     "success": True,
-                    "message": f"✅ 已订阅 {channel_name} 的总结推送\n\n当该频道有新总结时，我会及时通知您！",
+                    "message": f"✅ 已订阅 `{channel_name}` 的总结推送\n\n当该频道有新总结时，我会及时通知您！",
                 }
             else:
                 return {"success": False, "message": "订阅失败，请稍后重试。"}
@@ -295,7 +295,7 @@ class QAUserSystem:
             channel_name = sub.get("channel_name", sub.get("channel_id", "未知频道"))
             channel_id = sub.get("channel_id", "")
             created_at = self._format_date_field(sub.get("created_at"))
-            lines.append(f"{i}. **{channel_name}**")
+            lines.append(f"{i}. `{channel_name}`")
             lines.append(f"   链接: `{channel_id}`")
             lines.append(f"   订阅时间: {created_at}")
             lines.append("")
