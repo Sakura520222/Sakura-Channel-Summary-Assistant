@@ -311,6 +311,62 @@ class CommentWelcomeHandler:
             logger.warning(f"获取频道实体失败 (id={channel_id}): {e}")
         return str(channel_id)
 
+    async def _collect_media_group_text(self, source_channel_id: int, channel_post_id: int) -> str:
+        """从源频道获取媒体组的完整文本。
+
+        讨论组中的媒体组消息去重后仅处理一条，但该消息可能没有 caption。
+        通过获取源频道原始帖子及其相邻消息，收集整个媒体组的文本内容。
+
+        Args:
+            source_channel_id: 源频道数字ID
+            channel_post_id: 源频道帖子ID
+
+        Returns:
+            合并后的文本内容，失败时返回空字符串
+        """
+        try:
+            # 获取原始帖子消息
+            original_msg = await self.client.get_messages(source_channel_id, ids=channel_post_id)
+            if not original_msg:
+                return ""
+
+            # 如果原始消息本身有文本，直接返回
+            original_text = original_msg.text or ""
+            if original_text.strip():
+                return original_text
+
+            # 原始消息无文本，尝试获取附近消息（同一媒体组）
+            grouped_id = getattr(original_msg, "grouped_id", None)
+            if not grouped_id:
+                return ""
+
+            # 获取前后各5条消息，寻找同组的有文本消息
+            nearby_ids = list(range(max(1, channel_post_id - 5), channel_post_id + 6))
+            nearby_msgs = await self.client.get_messages(source_channel_id, ids=nearby_ids)
+            if not nearby_msgs:
+                return ""
+
+            # 确保 nearby_msgs 是列表（单个消息时 get_messages 可能返回单个对象）
+            if not isinstance(nearby_msgs, list):
+                nearby_msgs = [nearby_msgs]
+
+            # 收集同组消息中的文本
+            texts = []
+            for m in nearby_msgs:
+                if m and getattr(m, "grouped_id", None) == grouped_id:
+                    m_text = m.text or ""
+                    if m_text.strip():
+                        texts.append(m_text.strip())
+
+            return "\n".join(texts)
+
+        except Exception as e:
+            logger.debug(
+                f"获取媒体组文本失败: channel={source_channel_id}, "
+                f"post={channel_post_id}, error={type(e).__name__}: {e}"
+            )
+            return ""
+
     async def handle_discussion_message(self, event: events.NewMessage.Event):
         """
         处理讨论组新消息事件（异步）
@@ -369,6 +425,36 @@ class CommentWelcomeHandler:
                 logger.debug(f"讨论组 {msg.chat_id} 没有关联频道，跳过")
                 return
 
+            # 跳过频道帖子自动同步到讨论组的消息，避免重复处理
+            # 场景：频道 A 转发了频道 B 的消息 → 讨论组收到两条消息：
+            #   1. 来自 B 的直接转发（source_channel_id = B）→ 先到达，正常处理
+            #   2. 频道 A 帖子自动同步（source_channel_id = A = linked_chat_id）→ 后到达
+            # 通过去重缓存判断：如果同一帖子的外部转发已被处理，则跳过同步消息
+            if source_channel_id == linked_chat_id:
+                # 检查是否已有来自其他频道的外部转发处理了同一帖子
+                async with _cache_lock:
+                    found_external = False
+                    for key in _message_cache:
+                        # 匹配 "讨论组ID_*_帖子ID" 的模式（外部转发已处理）
+                        if (
+                            hasattr(msg, "grouped_id")
+                            and msg.grouped_id
+                            and key == f"{msg.chat_id}_{msg.grouped_id}"
+                        ):
+                            found_external = True
+                            break
+                        parts = key.split("_", 2)
+                        if (
+                            len(parts) == 3
+                            and parts[0] == str(msg.chat_id)
+                            and parts[2] == str(channel_post_id)
+                        ):
+                            found_external = True
+                            break
+                if found_external:
+                    logger.info(f"频道同步消息 (帖子 {channel_post_id}) 已由外部转发处理过，跳过")
+                    return
+
             # 白名单检查：验证讨论组所属的频道是否在 CHANNELS 配置中
             # 这样可以确保只在配置的目标频道的讨论组中发送欢迎消息
             from core.config import CHANNELS
@@ -411,6 +497,57 @@ class CommentWelcomeHandler:
                 f"📥 检测到来自频道 {source_identifier} 的转发消息 "
                 f"(帖子 {channel_post_id}) 出现在讨论组 {msg.chat_id}，已加入发送队列"
             )
+
+            # 将趣味投票任务入队（独立队列，与欢迎消息互不干扰）
+            try:
+                from core.handlers.auto_poll_handler import get_auto_poll_handler
+
+                auto_poll_handler = get_auto_poll_handler()
+                if auto_poll_handler is None:
+                    logger.warning("趣味投票处理器未初始化，跳过入队")
+                elif not auto_poll_handler._running:
+                    logger.warning("趣味投票处理器未运行，跳过入队")
+                else:
+                    message_text = msg.text or ""
+
+                    # 媒体组消息：讨论组中仅处理一条（去重），但该消息可能没有 caption。
+                    # 此时从源频道获取原始帖子的完整文本（遍历同组所有消息）。
+                    if (
+                        not message_text.strip()
+                        and hasattr(msg, "grouped_id")
+                        and msg.grouped_id
+                        and source_channel_id
+                        and channel_post_id
+                    ):
+                        try:
+                            full_text = await self._collect_media_group_text(
+                                source_channel_id, channel_post_id
+                            )
+                            if full_text:
+                                message_text = full_text
+                                logger.info(
+                                    f"📝 媒体组文本从源频道补充获取: "
+                                    f"channel={source_channel_id}, "
+                                    f"post={channel_post_id}, text_len={len(message_text)}"
+                                )
+                        except Exception as fetch_err:
+                            logger.debug(
+                                f"从源频道获取媒体组文本失败: {type(fetch_err).__name__}: "
+                                f"{fetch_err}"
+                            )
+
+                    enqueued = auto_poll_handler.enqueue_poll_task(
+                        channel_id=linked_identifier,
+                        discussion_id=msg.chat_id,
+                        forward_msg_id=msg.id,
+                        message_text=message_text,
+                    )
+                    logger.info(
+                        f"📊 趣味投票入队结果: {enqueued}, "
+                        f"channel={linked_identifier}, text_len={len(message_text)}"
+                    )
+            except Exception as e:
+                logger.warning(f"趣味投票入队失败（不影响欢迎消息）: {type(e).__name__}: {e}")
 
         except Exception as e:
             record_error(e, "handle_discussion_message")

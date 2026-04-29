@@ -110,6 +110,14 @@ class ConfigValidator:
                     error="forwarding 必须是对象类型", config_path=str(file_path)
                 )
 
+        # 5. 验证 channel_auto_poll_settings
+        if "channel_auto_poll_settings" in config:
+            auto_poll_settings = config["channel_auto_poll_settings"]
+            if not isinstance(auto_poll_settings, dict):
+                return ConfigValidationErrorEvent(
+                    error="channel_auto_poll_settings 必须是对象类型", config_path=str(file_path)
+                )
+
         return None
 
     @staticmethod

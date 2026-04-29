@@ -161,6 +161,26 @@ class SchedulerInitializer:
         )
         self.logger.info("跨Bot请求检查任务已配置：每30秒执行一次")
 
+        # 投稿审核检查任务
+        from core.handlers.submission_review_handler import get_submission_review_handler
+
+        submission_review_handler = get_submission_review_handler()
+
+        async def check_submissions_job():
+            """定期检查并处理待审核的投稿"""
+            try:
+                await submission_review_handler.check_pending_submissions(telethon_client=client)
+            except Exception as e:
+                self.logger.error(f"检查投稿任务失败: {type(e).__name__}: {e}")
+
+        self.scheduler.add_job(
+            check_submissions_job,
+            "interval",
+            seconds=30,
+            id="check_submissions",
+        )
+        self.logger.info("投稿审核检查任务已配置：每30秒执行一次")
+
     def _add_qabot_health_check_jobs(self, client: "TelegramClient") -> None:
         """添加问答Bot健康检查任务
 

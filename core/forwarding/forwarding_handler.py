@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 # Import event system for config hot-reload
-from ..config import AsyncIOEventBus, ConfigChangedEvent
+from ..config import QA_BOT_USERNAME, AsyncIOEventBus, ConfigChangedEvent
 from .download_manager import DownloadManager
 from .filters import (
     should_forward_by_keywords,
@@ -559,7 +559,7 @@ class ForwardingHandler:
 
             # 内存转发（小文件或纯图片）- 使用 Bot 发送
             if rule.get("copy_mode", False):
-                # 复制模式：逐条发送（保持原始顺序）
+                # 复制模式：优先内存发送，捕获异常后回退到下载转发
                 captions = []
                 files = []
 
@@ -572,6 +572,13 @@ class ForwardingHandler:
                         else:
                             captions.append("")
 
+                if not files:
+                    logger.error(
+                        f"媒体组 {group_key} 在复制模式下无有效媒体文件，"
+                        f"消息数={len(media_group_messages)}，跳过转发"
+                    )
+                    return False
+
                 # 生成底栏
                 footer = await self._generate_footer(
                     media_group_messages[0], source_channel, target_channel, rule
@@ -582,13 +589,23 @@ class ForwardingHandler:
                 if footer:
                     caption = f"{caption}\n\n{footer}" if caption else footer
 
-                # 批量发送媒体组
-                await self.sending_client.send_file(
-                    entity=target_channel,
-                    file=files,
-                    caption=caption if caption else None,
-                    link_preview=False,  # 禁用链接预览
-                )
+                try:
+                    # 尝试批量发送媒体组（直接重发 media 对象）
+                    await self.sending_client.send_file(
+                        entity=target_channel,
+                        file=files,
+                        caption=caption if caption else None,
+                        link_preview=False,  # 禁用链接预览
+                    )
+                except Exception as send_err:
+                    # 内存发送失败（如 MediaEmptyError），回退到下载转发
+                    logger.warning(
+                        f"媒体组内存发送失败 ({type(send_err).__name__}: {send_err})，"
+                        f"回退到下载转发模式"
+                    )
+                    return await self._forward_media_group_with_download(
+                        media_group_messages, group_key, target_channel, source_channel, rule
+                    )
             else:
                 # 转发模式：使用forward_messages批量转发
                 await self.sending_client.forward_messages(
@@ -854,7 +871,7 @@ class ForwardingHandler:
 
         支持三种模式：
         1. 自定义底栏模式：规则设置了 custom_footer 时，使用自定义模板
-        2. 默认底栏模式：未设置自定义底栏时，使用格式 [Source](链接) @频道
+        2. 默认底栏模式：未设置自定义底栏时，使用格式 [Source](链接) @频道 🌸助推 | 助手BOT 📝投稿
         3. 隐藏底栏模式：全局配置 show_default_footer=False 时，不添加任何底栏
 
         支持的占位符：
@@ -921,10 +938,20 @@ class ForwardingHandler:
                 return ""
 
             # 模式3：使用默认格式
+            # [Source](链接) @目标频道\n🌸助推 | 助手BOT
+            footer_parts = [f"[Source]({source_link})"]
+
             if target_username:
-                return f"[Source]({source_link}) @{target_username}"
+                footer_parts.append(f"@{target_username}")
+                footer_parts.append(f"\n🌸[助推](https://t.me/boost/{target_username})")
             else:
-                return f"[Source]({source_link}) {target_channel}"
+                footer_parts.append(target_channel)
+
+            if QA_BOT_USERNAME:
+                footer_parts.append(f"| [助手BOT](https://t.me/{QA_BOT_USERNAME})")
+                footer_parts.append(f"| [投稿](https://t.me/{QA_BOT_USERNAME}?start=submit)")
+
+            return " ".join(footer_parts)
 
         except Exception as e:
             logger.error(f"生成底栏失败: {type(e).__name__}: {e}", exc_info=True)

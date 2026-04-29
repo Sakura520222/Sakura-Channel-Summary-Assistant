@@ -27,6 +27,11 @@ from core.commands.ai_config_commands import (
     handle_set_ai_config,
     handle_show_ai_config,
 )
+from core.commands.auto_poll_commands import (
+    handle_delete_auto_poll,
+    handle_set_auto_poll,
+    handle_show_auto_poll,
+)
 from core.commands.channel_commands import (
     handle_add_channel,
     handle_delete_channel,
@@ -157,6 +162,9 @@ class CommandRegistrar:
 
         # 11. 评论区欢迎配置命令
         self._register_comment_welcome_commands(client)
+
+        # 12. 自动趣味投票配置命令
+        self._register_auto_poll_commands(client)
 
         # 13. 问答Bot控制命令
         self._register_qabot_commands(client)
@@ -302,6 +310,21 @@ class CommandRegistrar:
         client.add_event_handler(
             handle_delete_comment_welcome,
             NewMessage(pattern="/deletecommentwelcome|/delete_comment_welcome|/删除评论区欢迎"),
+        )
+
+    def _register_auto_poll_commands(self, client: "TelegramClient") -> None:
+        """注册自动趣味投票配置命令"""
+        client.add_event_handler(
+            handle_show_auto_poll,
+            NewMessage(pattern="/showautopoll|/show_auto_poll|/查看自动投票"),
+        )
+        client.add_event_handler(
+            handle_set_auto_poll,
+            NewMessage(pattern="/setautopoll|/set_auto_poll|/设置自动投票"),
+        )
+        client.add_event_handler(
+            handle_delete_auto_poll,
+            NewMessage(pattern="/deleteautopoll|/delete_auto_poll|/删除自动投票"),
         )
 
     def _register_qabot_commands(self, client: "TelegramClient") -> None:
@@ -578,3 +601,27 @@ class CommandRegistrar:
             CallbackQuery(func=lambda e: e.data and e.data.startswith(b"req_summary:")),
         )
         self.logger.info("申请周报总结按钮回调处理器已注册")
+
+        # 投稿审核回调
+        from core.handlers.submission_review_handler import get_submission_review_handler
+
+        submission_review_handler = get_submission_review_handler()
+
+        async def handle_submission_callback(event):
+            await submission_review_handler.handle_callback(event, client)
+
+        client.add_event_handler(
+            handle_submission_callback,
+            CallbackQuery(
+                func=lambda e: (
+                    e.data
+                    and (
+                        e.data.startswith(b"submission_aiopt_")
+                        or e.data.startswith(b"submission_approve_")
+                        or e.data.startswith(b"submission_reject_")
+                        or e.data.startswith(b"submission_restore_")
+                    )
+                )
+            ),
+        )
+        self.logger.info("投稿审核回调处理器已注册")

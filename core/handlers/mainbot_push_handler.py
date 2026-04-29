@@ -170,6 +170,9 @@ class MainBotPushHandler:
                         message = self._format_request_result(content)
                     elif notification_type == "summary_push":
                         message = self._format_summary_push(content)
+                    elif notification_type.startswith("submission_"):
+                        # 投稿审核结果通知
+                        message = content.get("message", "您有新的投稿通知")
                     else:
                         message = "您有新的通知"
 

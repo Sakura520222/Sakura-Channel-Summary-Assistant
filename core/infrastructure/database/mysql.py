@@ -72,7 +72,7 @@ class MySQLManager(DatabaseManagerBase):
 
         self.pool = None
         self._db_type = "mysql"
-        self._db_version = 4
+        self._db_version = 6
 
         logger.info(
             f"MySQL管理器初始化: {self.user}@{self.host}:{self.port}/{self.database} "
@@ -345,11 +345,58 @@ class MySQLManager(DatabaseManagerBase):
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """)
 
+                # 14. 创建投稿表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS submissions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    submitter_id BIGINT NOT NULL,
+                    submitter_name VARCHAR(255),
+                    title VARCHAR(500) NOT NULL,
+                    content TEXT,
+                    media_files JSON,
+                    target_channel VARCHAR(500),
+                    status VARCHAR(20) DEFAULT 'pending',
+                    ai_optimized_content TEXT,
+                    ai_optimized_title VARCHAR(500),
+                    review_message_id INT,
+                    reviewed_by BIGINT,
+                    reviewed_at DATETIME,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_submissions_status (status, created_at),
+                    INDEX idx_submissions_submitter (submitter_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
+
+                # 如果表已存在，尝试添加新列（幂等操作）
+                try:
+                    await cursor.execute(
+                        "ALTER TABLE submissions ADD COLUMN target_channel VARCHAR(500) "
+                        "AFTER media_files"
+                    )
+                    logger.info("投稿表新增 target_channel 列成功")
+                except Exception as alter_err:
+                    if "Duplicate column name" in str(alter_err):
+                        logger.debug("target_channel 列已存在，跳过")
+                    else:
+                        logger.warning(f"添加 target_channel 列时出错: {alter_err}")
+
+                try:
+                    await cursor.execute(
+                        "ALTER TABLE submissions ADD COLUMN ai_optimized_title VARCHAR(500) "
+                        "AFTER ai_optimized_content"
+                    )
+                    logger.info("投稿表新增 ai_optimized_title 列成功")
+                except Exception as alter_err:
+                    if "Duplicate column name" in str(alter_err):
+                        logger.debug("ai_optimized_title 列已存在，跳过")
+                    else:
+                        logger.warning(f"添加 ai_optimized_title 列时出错: {alter_err}")
+
                 # 插入或更新版本号
                 await cursor.execute("""
                     INSERT INTO db_version (version, upgraded_at)
-                    VALUES (4, NOW())
-                    ON DUPLICATE KEY UPDATE version = 4, upgraded_at = NOW()
+                    VALUES (6, NOW())
+                    ON DUPLICATE KEY UPDATE version = 6, upgraded_at = NOW()
                 """)
 
         finally:
