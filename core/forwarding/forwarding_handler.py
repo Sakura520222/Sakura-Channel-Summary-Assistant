@@ -559,7 +559,7 @@ class ForwardingHandler:
 
             # 内存转发（小文件或纯图片）- 使用 Bot 发送
             if rule.get("copy_mode", False):
-                # 复制模式：逐条发送（保持原始顺序）
+                # 复制模式：尝试内存发送，失败则回退到下载转发
                 captions = []
                 files = []
 
@@ -572,6 +572,10 @@ class ForwardingHandler:
                         else:
                             captions.append("")
 
+                if not files:
+                    logger.warning(f"媒体组 {group_key} 没有有效的媒体文件，跳过")
+                    return False
+
                 # 生成底栏
                 footer = await self._generate_footer(
                     media_group_messages[0], source_channel, target_channel, rule
@@ -582,13 +586,23 @@ class ForwardingHandler:
                 if footer:
                     caption = f"{caption}\n\n{footer}" if caption else footer
 
-                # 批量发送媒体组
-                await self.sending_client.send_file(
-                    entity=target_channel,
-                    file=files,
-                    caption=caption if caption else None,
-                    link_preview=False,  # 禁用链接预览
-                )
+                try:
+                    # 尝试批量发送媒体组（直接重发 media 对象）
+                    await self.sending_client.send_file(
+                        entity=target_channel,
+                        file=files,
+                        caption=caption if caption else None,
+                        link_preview=False,  # 禁用链接预览
+                    )
+                except Exception as send_err:
+                    # 内存发送失败（如 MediaEmptyError），回退到下载转发
+                    logger.warning(
+                        f"媒体组内存发送失败 ({type(send_err).__name__}: {send_err})，"
+                        f"回退到下载转发模式"
+                    )
+                    return await self._forward_media_group_with_download(
+                        media_group_messages, group_key, target_channel, source_channel, rule
+                    )
             else:
                 # 转发模式：使用forward_messages批量转发
                 await self.sending_client.forward_messages(

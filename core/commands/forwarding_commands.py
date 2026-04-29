@@ -596,6 +596,24 @@ def _find_rule(config: dict, source_channel: str, target_channel: str) -> dict |
     return None
 
 
+def _persist_forwarding_config(handler_config: dict):
+    """
+    将内存中的转发配置持久化到配置文件
+
+    由于规则命令直接修改 handler.config 中的 rule 字典（内存引用），
+    需要将完整的配置写回磁盘以确保重启后生效。
+
+    Args:
+        handler_config: handler.config 转发配置字典（已被修改的内存引用）
+    """
+    from core.config import load_config, save_config
+
+    config = load_config()
+    config["forwarding"] = handler_config
+    save_config(config)
+    logger.info("转发配置已持久化到配置文件")
+
+
 def _validate_regex(pattern: str) -> tuple[bool, str]:
     """
     验证正则表达式语法
@@ -685,6 +703,7 @@ async def cmd_forwarding_keywords(
         # 清空关键词
         if action == "clear":
             rule["keywords"] = []
+            _persist_forwarding_config(handler.config)
             await message.reply(
                 t("forwarding.keywords.cleared", source=source_channel, target=target_channel)
             )
@@ -704,6 +723,7 @@ async def cmd_forwarding_keywords(
             # 去重
             rule["keywords"] = list(set(rule["keywords"]))
 
+            _persist_forwarding_config(handler.config)
             keywords_str = "\n".join(f"🏷️ {kw}" for kw in new_keywords)
             await message.reply(
                 t(
@@ -733,6 +753,7 @@ async def cmd_forwarding_keywords(
                     removed.append(kw)
 
             if removed:
+                _persist_forwarding_config(handler.config)
                 removed_str = "\n".join(f"🏷️ {kw}" for kw in removed)
                 await message.reply(
                     t(
@@ -812,6 +833,7 @@ async def cmd_forwarding_blacklist(
         # 清空黑名单
         if action == "clear":
             rule["blacklist"] = []
+            _persist_forwarding_config(handler.config)
             await message.reply(
                 t("forwarding.blacklist.cleared", source=source_channel, target=target_channel)
             )
@@ -831,6 +853,7 @@ async def cmd_forwarding_blacklist(
             # 去重
             rule["blacklist"] = list(set(rule["blacklist"]))
 
+            _persist_forwarding_config(handler.config)
             keywords_str = "\n".join(f"🚫 {kw}" for kw in new_keywords)
             await message.reply(
                 t(
@@ -860,6 +883,7 @@ async def cmd_forwarding_blacklist(
                     removed.append(kw)
 
             if removed:
+                _persist_forwarding_config(handler.config)
                 removed_str = "\n".join(f"🚫 {kw}" for kw in removed)
                 await message.reply(
                     t(
@@ -939,6 +963,7 @@ async def cmd_forwarding_patterns(
         # 清空正则
         if action == "clear":
             rule["patterns"] = []
+            _persist_forwarding_config(handler.config)
             await message.reply(
                 t("forwarding.patterns.cleared", source=source_channel, target=target_channel)
             )
@@ -974,6 +999,7 @@ async def cmd_forwarding_patterns(
             # 去重
             rule["patterns"] = list(set(rule["patterns"]))
 
+            _persist_forwarding_config(handler.config)
             patterns_str = "\n".join(f"🔍 {p}" for p in new_patterns)
             await message.reply(
                 t(
@@ -1005,6 +1031,7 @@ async def cmd_forwarding_patterns(
                     removed.append(pattern)
 
             if removed:
+                _persist_forwarding_config(handler.config)
                 removed_str = "\n".join(f"🔍 {p}" for p in removed)
                 await message.reply(
                     t(
@@ -1084,6 +1111,7 @@ async def cmd_forwarding_blacklist_patterns(
         # 清空正则
         if action == "clear":
             rule["blacklist_patterns"] = []
+            _persist_forwarding_config(handler.config)
             await message.reply(
                 t(
                     "forwarding.blacklist_patterns.cleared",
@@ -1123,6 +1151,7 @@ async def cmd_forwarding_blacklist_patterns(
             # 去重
             rule["blacklist_patterns"] = list(set(rule["blacklist_patterns"]))
 
+            _persist_forwarding_config(handler.config)
             patterns_str = "\n".join(f"🚫 {p}" for p in new_patterns)
             await message.reply(
                 t(
@@ -1154,6 +1183,7 @@ async def cmd_forwarding_blacklist_patterns(
                     removed.append(pattern)
 
             if removed:
+                _persist_forwarding_config(handler.config)
                 removed_str = "\n".join(f"🚫 {p}" for p in removed)
                 await message.reply(
                     t(
@@ -1236,6 +1266,7 @@ async def cmd_forwarding_copy_mode(
         # 启用复制模式
         if action in ["on", "true", "1", "yes", "enable"]:
             rule["copy_mode"] = True
+            _persist_forwarding_config(handler.config)
             await message.reply(
                 t("forwarding.copy_mode.enabled", source=source_channel, target=target_channel)
             )
@@ -1245,6 +1276,7 @@ async def cmd_forwarding_copy_mode(
         # 禁用复制模式
         if action in ["off", "false", "0", "no", "disable"]:
             rule["copy_mode"] = False
+            _persist_forwarding_config(handler.config)
             await message.reply(
                 t("forwarding.copy_mode.disabled", source=source_channel, target=target_channel)
             )
@@ -1318,6 +1350,7 @@ async def cmd_forwarding_original_only(
         # 启用只转发原创
         if action in ["on", "true", "1", "yes", "enable"]:
             rule["forward_original_only"] = True
+            _persist_forwarding_config(handler.config)
             await message.reply(
                 t(
                     "forwarding.original_only.enabled",
@@ -1331,6 +1364,7 @@ async def cmd_forwarding_original_only(
         # 禁用只转发原创
         if action in ["off", "false", "0", "no", "disable"]:
             rule["forward_original_only"] = False
+            _persist_forwarding_config(handler.config)
             await message.reply(
                 t(
                     "forwarding.original_only.disabled",

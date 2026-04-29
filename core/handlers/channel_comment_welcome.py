@@ -311,6 +311,62 @@ class CommentWelcomeHandler:
             logger.warning(f"获取频道实体失败 (id={channel_id}): {e}")
         return str(channel_id)
 
+    async def _collect_media_group_text(self, source_channel_id: int, channel_post_id: int) -> str:
+        """从源频道获取媒体组的完整文本。
+
+        讨论组中的媒体组消息去重后仅处理一条，但该消息可能没有 caption。
+        通过获取源频道原始帖子及其相邻消息，收集整个媒体组的文本内容。
+
+        Args:
+            source_channel_id: 源频道数字ID
+            channel_post_id: 源频道帖子ID
+
+        Returns:
+            合并后的文本内容，失败时返回空字符串
+        """
+        try:
+            # 获取原始帖子消息
+            original_msg = await self.client.get_messages(source_channel_id, ids=channel_post_id)
+            if not original_msg:
+                return ""
+
+            # 如果原始消息本身有文本，直接返回
+            original_text = original_msg.text or ""
+            if original_text.strip():
+                return original_text
+
+            # 原始消息无文本，尝试获取附近消息（同一媒体组）
+            grouped_id = getattr(original_msg, "grouped_id", None)
+            if not grouped_id:
+                return ""
+
+            # 获取前后各5条消息，寻找同组的有文本消息
+            nearby_ids = list(range(max(1, channel_post_id - 5), channel_post_id + 6))
+            nearby_msgs = await self.client.get_messages(source_channel_id, ids=nearby_ids)
+            if not nearby_msgs:
+                return ""
+
+            # 确保 nearby_msgs 是列表（单个消息时 get_messages 可能返回单个对象）
+            if not isinstance(nearby_msgs, list):
+                nearby_msgs = [nearby_msgs]
+
+            # 收集同组消息中的文本
+            texts = []
+            for m in nearby_msgs:
+                if m and getattr(m, "grouped_id", None) == grouped_id:
+                    m_text = m.text or ""
+                    if m_text.strip():
+                        texts.append(m_text.strip())
+
+            return "\n".join(texts)
+
+        except Exception as e:
+            logger.debug(
+                f"获取媒体组文本失败: channel={source_channel_id}, "
+                f"post={channel_post_id}, error={type(e).__name__}: {e}"
+            )
+            return ""
+
     async def handle_discussion_message(self, event: events.NewMessage.Event):
         """
         处理讨论组新消息事件（异步）
@@ -453,6 +509,33 @@ class CommentWelcomeHandler:
                     logger.warning("趣味投票处理器未运行，跳过入队")
                 else:
                     message_text = msg.text or ""
+
+                    # 媒体组消息：讨论组中仅处理一条（去重），但该消息可能没有 caption。
+                    # 此时从源频道获取原始帖子的完整文本（遍历同组所有消息）。
+                    if (
+                        not message_text.strip()
+                        and hasattr(msg, "grouped_id")
+                        and msg.grouped_id
+                        and source_channel_id
+                        and channel_post_id
+                    ):
+                        try:
+                            full_text = await self._collect_media_group_text(
+                                source_channel_id, channel_post_id
+                            )
+                            if full_text:
+                                message_text = full_text
+                                logger.info(
+                                    f"📝 媒体组文本从源频道补充获取: "
+                                    f"channel={source_channel_id}, "
+                                    f"post={channel_post_id}, text_len={len(message_text)}"
+                                )
+                        except Exception as fetch_err:
+                            logger.debug(
+                                f"从源频道获取媒体组文本失败: {type(fetch_err).__name__}: "
+                                f"{fetch_err}"
+                            )
+
                     enqueued = auto_poll_handler.enqueue_poll_task(
                         channel_id=linked_identifier,
                         discussion_id=msg.chat_id,
