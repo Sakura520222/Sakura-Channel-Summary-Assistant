@@ -46,16 +46,12 @@ class MainBotRequestHandler:
             telethon_client: Telethon 客户端实例（可选，用于 Telethon）
         """
         try:
-            # 检查数据库是否已初始化（兼容 MySQL 和 SQLite）
+            # 检查数据库是否已初始化
             is_initialized = False
             if hasattr(self.db, "pool"):
                 # MySQL: 检查连接池
                 is_initialized = self.db.pool is not None
-            elif hasattr(self.db, "db_path"):
-                # SQLite: 检查数据库文件路径
-                is_initialized = self.db.db_path is not None
             else:
-                # 其他情况：假设已初始化
                 is_initialized = True
 
             if not is_initialized:

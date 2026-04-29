@@ -127,7 +127,7 @@ python main.py
 | **🔧 Code Optimization**          | Modularized summary generation process with code reuse and unified management              | ✅      |
 | **📱 Command Menu**               | QA Bot automatically registers command menu for direct access to all available commands    | ✅      |
 | **🗄️ MySQL Database Support**     | New MySQL database support for improved performance and concurrency                        | ✅      |
-| **🔄 Database Migration**         | One-click migration from SQLite to MySQL with automatic backup and validation              | ✅      |
+| **�️ MySQL Database** | MySQL database for high performance and concurrency support | ✅ |
 | **📤 Channel Message Forwarding** | Intelligently forward channel messages to target channels with keyword and regex filtering | ✅      |
 | **⚡ Startup Check**              | Automatically detects old databases and notifies admins with migration suggestions         | ✅      |
 | **📝 Submission Review System**   | Users submit content via QA Bot; admins review and publish to channels                     | ✅      |
@@ -256,15 +256,12 @@ python main.py
 | `/migrate_start`  | `/开始迁移` | Start database migration  | `/migrate_start`  |
 | `/migrate_status` | `/迁移状态` | View migration progress   | `/migrate_status` |
 
-**Migration Notes**:
-- Support one-click migration from SQLite to MySQL database
-- Automatic backup before migration, safe and reliable
-- Suitable for production environments and high-concurrency scenarios
+**Note**: Only MySQL database is supported. Please ensure MySQL is configured.
 
 **MySQL Configuration Example**:
 ```env
 # ===== Database Configuration =====
-DATABASE_TYPE=mysql  # sqlite or mysql
+DATABASE_TYPE=mysql
 
 # MySQL Configuration (required when using MySQL)
 MYSQL_HOST=localhost
@@ -614,7 +611,6 @@ Sakura-Bot/
 | **APScheduler**         | Task scheduling                                 | 3.10+   |
 | **ChromaDB**            | Vector database (RAG system)                    | 0.4+    |
 | **aiomysql**            | Async MySQL database                            | 0.2+    |
-| **aiosqlite**           | Async SQLite database                           | 0.20+   |
 | **Pydantic Settings**   | Configuration management & validation           | 2.0+    |
 | **httpx**               | HTTP client (Reranker calls)                    | 0.27+   |
 | **watchdog**            | File monitoring (config hot-reload)             | 4.0+    |

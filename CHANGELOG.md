@@ -13,6 +13,27 @@
 
 ---
 
+## [1.8.2] - 2026-04-29
+
+### 移除
+- **SQLite 支持完全移除**：项目仅支持 MySQL 数据库，全面清理所有 SQLite 残留代码
+  - 移除 `qa_bot.py` 中 SQLite 回退机制（`_fallback_to_sqlite()` 方法）
+  - 移除 `core/migrations/migrate_forwarding_table_v1.py` 中 SQLite 迁移函数（`_migrate_sqlite()`）
+  - 移除 `core/infrastructure/database/submission_repo.py` 中 SQLite 投稿仓库（`_create_sqlite_submission_repo()`）
+  - 移除 `core/initializers/startup_notifier.py` 中 SQLite 数据库检测逻辑
+  - 移除 `core/handlers/mainbot_request_handler.py` 中 SQLite `db_path` 检查分支
+  - 移除 `core/infrastructure/database/mysql.py` 错误消息中的 SQLite 切换提示
+  - 清理 `core/infrastructure/database/base.py` 和 `core/infrastructure/exceptions.py` 注释中的 SQLite 引用
+  - 删除 `core/i18n/i18n.py` 中 16 个 SQLite 相关国际化键（中英各 8 个）
+
+### 改进
+- **启动数据库检查优化**：`startup_notifier` 从 SQLite 迁移建议改为 MySQL 连接状态检查
+- **QA Bot 数据库初始化**：移除 SQLite 回退，MySQL 失败时直接抛出 `DatabaseError`
+- **测试用例更新**：`test_settings.py` 中数据库类型默认值改为 `mysql`，无效类型测试改为期望 `ValueError`
+- **文档更新**：README（中英）移除 aiosqlite 技术栈、SQLite 迁移说明，项目结构和技术栈全面更新
+
+---
+
 ## [1.8.1] - 2026-04-29
 
 ### 修复
