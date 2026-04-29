@@ -27,9 +27,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, h } from "vue";
-import { NButton, NTag, useMessage } from "naive-ui";
+import { NButton, NTag, NSpace, useMessage } from "naive-ui";
 import type { DataTableColumns } from "naive-ui";
-import { getChannels, addChannel, deleteChannel } from "../api/modules";
+import { getChannels, addChannel, deleteChannel, generateSummary } from "../api/modules";
 
 const message = useMessage();
 const channels = ref<Array<Record<string, unknown>>>([]);
@@ -37,6 +37,7 @@ const showAddModal = ref(false);
 const showDeleteModal = ref(false);
 const newChannel = ref("");
 const deleteTarget = ref("");
+const generatingChannels = ref<Set<string>>(new Set());
 
 const columns: DataTableColumns = [
   { title: "#", key: "index", width: 60, render: (_, i) => i + 1 },
@@ -50,8 +51,23 @@ const columns: DataTableColumns = [
     render: (row) => h(NTag, { type: row.has_poll_settings ? 'success' : 'default', size: 'small' }, () => row.has_poll_settings ? '已配置' : '未配置'),
   },
   {
-    title: "操作", key: "actions", width: 100,
-    render: (row) => h(NButton, { size: 'small', type: 'error', quaternary: true, onClick: () => { deleteTarget.value = String(row.url); showDeleteModal.value = true; } }, () => '删除'),
+    title: "操作", key: "actions", width: 180,
+    render: (row) => {
+      const url = String(row.url);
+      const isGenerating = generatingChannels.value.has(url);
+      return h(NSpace, { size: 'small' }, () => [
+        h(NButton, {
+          size: 'small', type: 'primary', quaternary: true,
+          loading: isGenerating,
+          disabled: isGenerating,
+          onClick: () => handleGenerate(url),
+        }, () => '生成总结'),
+        h(NButton, {
+          size: 'small', type: 'error', quaternary: true,
+          onClick: () => { deleteTarget.value = url; showDeleteModal.value = true; },
+        }, () => '删除'),
+      ]);
+    },
   },
 ];
 
@@ -82,6 +98,23 @@ async function handleAdd() {
     message.error("添加频道失败");
   }
   return true;
+}
+
+async function handleGenerate(channelUrl: string) {
+  generatingChannels.value.add(channelUrl);
+  try {
+    const res = await generateSummary(channelUrl);
+    if (res.success) {
+      message.success(res.message || `总结生成成功`);
+    } else {
+      message.error(res.message || "总结生成失败");
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "生成总结请求失败";
+    message.error(msg);
+  } finally {
+    generatingChannels.value.delete(channelUrl);
+  }
 }
 
 async function handleDelete() {

@@ -32,6 +32,7 @@ from .routes import (
     interaction,
     schedules,
     stats,
+    summaries,
     system,
     userbot,
 )
@@ -72,6 +73,7 @@ def create_app() -> FastAPI:
     app.include_router(system.router, prefix="/api/system", tags=["系统运维"])
     app.include_router(stats.router, prefix="/api/stats", tags=["统计数据"])
     app.include_router(interaction.router, prefix="/api/interaction", tags=["互动设置"])
+    app.include_router(summaries.router, prefix="/api/summaries", tags=["总结生成"])
     app.include_router(userbot.router, prefix="/api/userbot", tags=["UserBot 管理"])
 
     # 注册健康检查端点

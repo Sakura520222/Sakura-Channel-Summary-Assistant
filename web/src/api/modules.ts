@@ -261,6 +261,13 @@ export async function userBotLeaveChannel(channelUrl: string) {
   return res.data;
 }
 
+// ==================== 总结生成 ====================
+
+export async function generateSummary(channel: string) {
+  const res = await apiClient.post(`/summaries/${encodeURIComponent(channel)}/summarize`);
+  return res.data;
+}
+
 // ==================== 仪表板 ====================
 
 export async function getDashboard() {

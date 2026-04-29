@@ -21,6 +21,7 @@ from . import (
     interaction,
     schedules,
     stats,
+    summaries,
     system,
     userbot,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "interaction",
     "schedules",
     "stats",
+    "summaries",
     "system",
     "userbot",
 ]
