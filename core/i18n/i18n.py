@@ -600,6 +600,7 @@ MESSAGE_ZH_CN = {
     "update.deps_error": "❌ 依赖安装失败: {error}",
     # ========== 数据库自动降级 ==========
     "database.fallback.mysql_failed": "❌ MySQL 连接失败",
+    "database.startup_not_connected": "⚠️ **数据库未连接**\n\nMySQL 数据库连接失败，请检查配置。",
     "database.fallback.error": "错误详情",
     "database.fallback.host": "MySQL 主机",
     "database.fallback.port": "端口",
@@ -1345,6 +1346,7 @@ MESSAGE_EN_US = {
     "update.deps_error": "❌ Dependency installation failed: {error}",
     # ========== Database Auto Fallback ==========
     "database.fallback.mysql_failed": "❌ MySQL Connection Failed",
+    "database.startup_not_connected": "⚠️ **Database Not Connected**\n\nMySQL database connection failed. Please check your configuration.",
     "database.fallback.error": "Error Details",
     "database.fallback.host": "MySQL Host",
     "database.fallback.port": "Port",

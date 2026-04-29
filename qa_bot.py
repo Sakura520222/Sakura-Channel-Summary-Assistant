@@ -118,10 +118,6 @@ class QABot:
         elif hasattr(db, "init_database"):
             await db.init_database()
 
-    def _should_init_mysql(self, db) -> bool:
-        """检查是否需要初始化MySQL数据库"""
-        return hasattr(db, "init_database") and hasattr(db, "pool") and db.pool is None
-
     async def _init_mysql_pool(self, db) -> None:
         """初始化MySQL连接池
 

@@ -47,12 +47,7 @@ class MainBotRequestHandler:
         """
         try:
             # 检查数据库是否已初始化
-            is_initialized = False
-            if hasattr(self.db, "pool"):
-                # MySQL: 检查连接池
-                is_initialized = self.db.pool is not None
-            else:
-                is_initialized = True
+            is_initialized = hasattr(self.db, "pool") and self.db.pool is not None
 
             if not is_initialized:
                 logger.debug("数据库未初始化，跳过请求检查")

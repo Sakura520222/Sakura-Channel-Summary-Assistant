@@ -111,7 +111,7 @@ class StartupNotifier:
                     try:
                         await client.send_message(
                             admin_id,
-                            "⚠️ **数据库未连接**\n\nMySQL 数据库连接失败，请检查配置。",
+                            get_text("database.startup_not_connected"),
                             parse_mode="md",
                             link_preview=False,
                         )

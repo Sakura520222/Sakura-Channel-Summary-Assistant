@@ -25,7 +25,9 @@ class SubmissionRepository:
         """初始化投稿仓库
 
         Args:
-            pool: aiomysql 连接池（可选，支持延迟获取）
+            pool: aiomysql 连接池（可选，支持延迟获取）。
+                未传入时，首次访问 pool 属性将自动从全局数据库管理器获取。
+                调用前提：数据库管理器必须已完成初始化。
         """
         self._pool = pool
 
