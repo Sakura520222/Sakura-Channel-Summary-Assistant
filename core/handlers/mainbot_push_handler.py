@@ -176,14 +176,9 @@ class MainBotPushHandler:
                     else:
                         message = "您有新的通知"
 
-                    # 仅 request_result 和 summary_push 使用 Markdown（消息由 _format_* 方法控制）。
-                    # 其他类型（含 submission_* 及未来新增类型）默认使用纯文本，
-                    # 避免动态内容（URL、用户名等）中的 _ * 等字符被 Markdown 误解析。
-                    parse_mode = (
-                        "Markdown"
-                        if notification_type in ("request_result", "summary_push")
-                        else None
-                    )
+                    # submission_* 通知为纯文本（含动态 URL/用户名，其中 _ * 等字符会被 Markdown 误解析）。
+                    # 其他类型默认使用 Markdown（由 _format_* 方法或未来新增格式化方法控制）。
+                    parse_mode = None if notification_type.startswith("submission_") else "Markdown"
                     await self.qa_bot.send_message(
                         chat_id=user_id, text=message, parse_mode=parse_mode
                     )
