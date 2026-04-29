@@ -7,13 +7,13 @@
 
       <n-grid :cols="3" :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
         <n-gi span="0:3 640:1">
-          <n-statistic label="总结总数" :value="stats.total_summaries ?? 0" />
+          <n-statistic label="总结总数" :value="stats.total_count ?? 0" />
         </n-gi>
         <n-gi span="0:3 640:1">
           <n-statistic label="消息总数" :value="stats.total_messages ?? 0" />
         </n-gi>
         <n-gi span="0:3 640:1">
-          <n-statistic label="频道数" :value="stats.total_channels ?? 0" />
+          <n-statistic label="本月总结" :value="stats.month_count ?? 0" />
         </n-gi>
       </n-grid>
     </n-card>
@@ -54,13 +54,14 @@ const channelOptions = computed(() =>
   channels.value.map((ch) => ({ label: ch.replace("https://t.me/", "@"), value: ch }))
 );
 
-function getChannelName(url: string) {
-  return url.replace("https://t.me/", "@");
+function getChannelName(url: string | undefined | null) {
+  if (!url) return "-";
+  return String(url).replace("https://t.me/", "@");
 }
 
 const summaryColumns: DataTableColumns = [
   { title: "#", key: "id", width: 60 },
-  { title: "频道", key: "channel_id", render: (row) => getChannelName(row.channel_id as string || row.channel as string) },
+  { title: "频道", key: "channel_id", render: (row) => getChannelName(row.channel_id as string) },
   { title: "消息数", key: "message_count", width: 80 },
   {
     title: "创建时间", key: "created_at", width: 180,
@@ -81,7 +82,7 @@ const summaryColumns: DataTableColumns = [
 
 const rankingColumns: DataTableColumns = [
   { title: "#", key: "rank", width: 60, render: (_, i) => i + 1 },
-  { title: "频道", key: "channel", render: (row) => getChannelName(row.channel as string) },
+  { title: "频道", key: "channel_id", render: (row) => getChannelName(row.channel_id as string) },
   { title: "总结数", key: "summary_count", width: 100 },
 ];
 
