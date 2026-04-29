@@ -601,3 +601,27 @@ class CommandRegistrar:
             CallbackQuery(func=lambda e: e.data and e.data.startswith(b"req_summary:")),
         )
         self.logger.info("申请周报总结按钮回调处理器已注册")
+
+        # 投稿审核回调
+        from core.handlers.submission_review_handler import get_submission_review_handler
+
+        submission_review_handler = get_submission_review_handler()
+
+        async def handle_submission_callback(event):
+            await submission_review_handler.handle_callback(event, client)
+
+        client.add_event_handler(
+            handle_submission_callback,
+            CallbackQuery(
+                func=lambda e: (
+                    e.data
+                    and (
+                        e.data.startswith(b"submission_aiopt_")
+                        or e.data.startswith(b"submission_approve_")
+                        or e.data.startswith(b"submission_reject_")
+                        or e.data.startswith(b"submission_restore_")
+                    )
+                )
+            ),
+        )
+        self.logger.info("投稿审核回调处理器已注册")

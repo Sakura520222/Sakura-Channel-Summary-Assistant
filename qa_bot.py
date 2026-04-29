@@ -758,6 +758,8 @@ class QABot:
                 BotCommand("unsubscribe", "取消频道订阅"),
                 BotCommand("mysubscriptions", "查看我的订阅列表"),
                 BotCommand("request_summary", "请求生成频道总结"),
+                BotCommand("submit", "投稿"),
+                BotCommand("cancel_submit", "取消投稿"),
             ]
 
             try:
@@ -786,6 +788,16 @@ class QABot:
         self.application.add_handler(
             CommandHandler("request_summary", self.request_summary_command)
         )
+
+        # 投稿处理器（ConversationHandler）
+        try:
+            from core.handlers.submission_handler import get_submission_handler
+
+            submission_handler = get_submission_handler()
+            self.application.add_handler(submission_handler.build_conversation_handler())
+            logger.info("投稿处理器注册成功")
+        except Exception as e:
+            logger.error(f"注册投稿处理器失败: {type(e).__name__}: {e}")
 
         # 消息处理器
         self.application.add_handler(
