@@ -107,9 +107,9 @@ class MainBotRequestHandler:
         # 构建通知消息
         message = f"""📝 **新的总结请求**
 
-**请求ID**: {request_id}
-**频道**: {channel_id}
-**请求者**: {user_name} (ID: {requested_by})
+**请求ID**: `{request_id}`
+**频道**: `{channel_id}`
+**请求者**: {user_name} (ID: `{requested_by}`)
 **时间**: {created_at}
 
 请确认是否为该频道生成总结？"""

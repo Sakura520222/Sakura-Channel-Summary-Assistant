@@ -176,9 +176,14 @@ class MainBotPushHandler:
                     else:
                         message = "您有新的通知"
 
-                    # 发送消息 (使用Markdown格式)
+                    # 投稿通知为纯文本（可能含 URL 中的下划线等特殊字符），不使用 Markdown 解析
+                    parse_mode = (
+                        "Markdown"
+                        if notification_type in ("request_result", "summary_push")
+                        else None
+                    )
                     await self.qa_bot.send_message(
-                        chat_id=user_id, text=message, parse_mode="Markdown"
+                        chat_id=user_id, text=message, parse_mode=parse_mode
                     )
 
                     # 更新状态

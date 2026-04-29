@@ -390,7 +390,7 @@ class QABot:
             else:
                 lines = ["📚 **取消订阅**\n\n请使用频道链接取消订阅：\n"]
                 for sub in subscriptions:
-                    lines.append(f"• {sub.get('channel_name', sub.get('channel_id'))}")
+                    lines.append(f"• `{sub.get('channel_name', sub.get('channel_id'))}`")
                     lines.append(f"  `{sub.get('channel_id')}`")
                     lines.append("")
                 lines.append("使用方法: `/unsubscribe <频道链接>`")
