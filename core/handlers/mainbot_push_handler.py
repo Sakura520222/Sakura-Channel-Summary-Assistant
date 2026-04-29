@@ -176,9 +176,10 @@ class MainBotPushHandler:
                     else:
                         message = "您有新的通知"
 
-                    # submission_* 通知为纯文本（含动态 URL/用户名，其中 _ * 等字符会被 Markdown 误解析）。
-                    # 其他类型默认使用 Markdown（由 _format_* 方法或未来新增格式化方法控制）。
-                    parse_mode = None if notification_type.startswith("submission_") else "Markdown"
+                    # 需使用纯文本的通知类型（含动态 URL/用户名，其中 _ * 等字符会被 Markdown 误解析）。
+                    # 新增纯文本类型时在此集合中添加即可；其他类型默认 Markdown。
+                    _PLAIN_TEXT_TYPES = frozenset({"submission_approved", "submission_rejected"})
+                    parse_mode = None if notification_type in _PLAIN_TEXT_TYPES else "Markdown"
                     await self.qa_bot.send_message(
                         chat_id=user_id, text=message, parse_mode=parse_mode
                     )
