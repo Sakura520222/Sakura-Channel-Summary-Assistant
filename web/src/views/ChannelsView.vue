@@ -1,0 +1,103 @@
+<template>
+  <div>
+    <n-card title="频道列表">
+      <template #header-extra>
+        <n-button type="primary" @click="showAddModal = true">添加频道</n-button>
+      </template>
+
+      <n-data-table :columns="columns" :data="channels" :bordered="false" />
+    </n-card>
+
+    <!-- 添加频道弹窗 -->
+    <n-modal v-model:show="showAddModal" preset="dialog" title="添加频道" positive-text="确认" negative-text="取消"
+      @positive-click="handleAdd">
+      <n-form-item label="频道 URL">
+        <n-input v-model:value="newChannel" placeholder="https://t.me/channel_name" />
+      </n-form-item>
+    </n-modal>
+
+    <!-- 删除确认弹窗 -->
+    <n-modal v-model:show="showDeleteModal" preset="dialog" type="error" title="确认删除"
+      positive-text="删除" negative-text="取消" @positive-click="handleDelete">
+      <p>确定要删除频道 <strong>{{ deleteTarget }}</strong> 吗？</p>
+      <p>相关的定时任务和投票设置也将被清除。</p>
+    </n-modal>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, h } from "vue";
+import { NButton, NTag, useMessage } from "naive-ui";
+import type { DataTableColumns } from "naive-ui";
+import { getChannels, addChannel, deleteChannel } from "../api/modules";
+
+const message = useMessage();
+const channels = ref<Array<Record<string, unknown>>>([]);
+const showAddModal = ref(false);
+const showDeleteModal = ref(false);
+const newChannel = ref("");
+const deleteTarget = ref("");
+
+const columns: DataTableColumns = [
+  { title: "#", key: "index", width: 60, render: (_, i) => i + 1 },
+  { title: "频道", key: "url", render: (row) => String(row.url) },
+  {
+    title: "定时任务", key: "has_schedule", width: 100,
+    render: (row) => h(NTag, { type: row.has_schedule ? 'success' : 'default', size: 'small' }, () => row.has_schedule ? '已配置' : '未配置'),
+  },
+  {
+    title: "投票设置", key: "has_poll_settings", width: 100,
+    render: (row) => h(NTag, { type: row.has_poll_settings ? 'success' : 'default', size: 'small' }, () => row.has_poll_settings ? '已配置' : '未配置'),
+  },
+  {
+    title: "操作", key: "actions", width: 100,
+    render: (row) => h(NButton, { size: 'small', type: 'error', quaternary: true, onClick: () => { deleteTarget.value = String(row.url); showDeleteModal.value = true; } }, () => '删除'),
+  },
+];
+
+async function loadData() {
+  try {
+    const res = await getChannels();
+    if (res.success) channels.value = res.data.channels;
+  } catch {
+    message.error("加载频道列表失败");
+  }
+}
+
+async function handleAdd() {
+  if (!newChannel.value.trim()) {
+    message.warning("请输入频道 URL");
+    return false;
+  }
+  try {
+    const res = await addChannel(newChannel.value.trim());
+    if (res.success) {
+      message.success(res.message);
+      newChannel.value = "";
+      await loadData();
+    } else {
+      message.error(res.message);
+    }
+  } catch {
+    message.error("添加频道失败");
+  }
+  return true;
+}
+
+async function handleDelete() {
+  try {
+    const res = await deleteChannel(deleteTarget.value);
+    if (res.success) {
+      message.success(res.message);
+      showDeleteModal.value = false;
+      await loadData();
+    } else {
+      message.error(res.message);
+    }
+  } catch {
+    message.error("删除频道失败");
+  }
+}
+
+onMounted(loadData);
+</script>

@@ -35,6 +35,10 @@ chromadb>=0.4.0
 # Telegram Bot API (用于QA Bot)
 python-telegram-bot>=20.0
 
+# Web 管理界面 API 框架
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
 # ========== 测试和开发工具 ==========
 
 # 测试框架
