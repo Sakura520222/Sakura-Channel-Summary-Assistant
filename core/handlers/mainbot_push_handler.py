@@ -176,7 +176,9 @@ class MainBotPushHandler:
                     else:
                         message = "您有新的通知"
 
-                    # 投稿通知为纯文本（可能含 URL 中的下划线等特殊字符），不使用 Markdown 解析
+                    # 仅 request_result 和 summary_push 使用 Markdown（消息由 _format_* 方法控制）。
+                    # 其他类型（含 submission_* 及未来新增类型）默认使用纯文本，
+                    # 避免动态内容（URL、用户名等）中的 _ * 等字符被 Markdown 误解析。
                     parse_mode = (
                         "Markdown"
                         if notification_type in ("request_result", "summary_push")
