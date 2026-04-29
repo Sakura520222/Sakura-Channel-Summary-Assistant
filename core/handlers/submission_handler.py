@@ -52,7 +52,9 @@ class SubmissionHandler:
         """清除用户的投稿会话状态"""
         self._user_states.pop(user_id, None)
 
-    async def start_submission(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    async def start_submission(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE, from_deep_link: bool = False
+    ) -> int:
         """处理 /submit 命令，开始投稿流程"""
         user_id = update.effective_user.id
         user_name = (
@@ -61,7 +63,8 @@ class SubmissionHandler:
 
         # 检查是否有进行中的投稿
         if user_id in self._user_states:
-            await update.message.reply_text(
+            target = update.callback_query or update.message
+            await target.reply_text(
                 "⚠️ 您已有一个进行中的投稿。请先完成或取消当前投稿 (/cancel_submit)。"
             )
             return ConversationHandler.END
@@ -433,11 +436,30 @@ class SubmissionHandler:
             logger.error(f"下载媒体文件到内存失败: {type(e).__name__}: {e}")
             return None
 
+    async def start_submission_deep_link(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> int:
+        """处理深链接 /start submit，启动投稿流程"""
+        if context.args and context.args[0] == "submit":
+            # 深链接入口，先注册用户
+            from core.qa_user_system import get_qa_user_system
+
+            user_system = get_qa_user_system()
+            if user_system:
+                await user_system.register_user(
+                    update.effective_user.id,
+                    update.effective_user.username,
+                    update.effective_user.first_name,
+                )
+            return await self.start_submission(update, context, from_deep_link=True)
+        return ConversationHandler.END
+
     def build_conversation_handler(self) -> ConversationHandler:
         """构建 ConversationHandler 实例"""
         return ConversationHandler(
             entry_points=[
                 CommandHandler("submit", self.start_submission),
+                CommandHandler("start", self.start_submission_deep_link),
             ],
             states={
                 WAITING_TITLE: [

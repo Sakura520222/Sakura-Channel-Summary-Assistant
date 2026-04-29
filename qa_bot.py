@@ -771,6 +771,17 @@ class QABot:
         # 将命令注册添加到post_init回调
         self.application.post_init = register_commands
 
+        # 投稿处理器（ConversationHandler）—— 必须在 /start 之前注册，
+        # 以便深链接 /start submit 能被 ConversationHandler 的入口点捕获
+        try:
+            from core.handlers.submission_handler import get_submission_handler
+
+            submission_handler = get_submission_handler()
+            self.application.add_handler(submission_handler.build_conversation_handler())
+            logger.info("投稿处理器注册成功")
+        except Exception as e:
+            logger.error(f"注册投稿处理器失败: {type(e).__name__}: {e}")
+
         # 注册处理器
         self.application.add_handler(CommandHandler("start", self.start))
         self.application.add_handler(CommandHandler("help", self.help_command))
@@ -788,16 +799,6 @@ class QABot:
         self.application.add_handler(
             CommandHandler("request_summary", self.request_summary_command)
         )
-
-        # 投稿处理器（ConversationHandler）
-        try:
-            from core.handlers.submission_handler import get_submission_handler
-
-            submission_handler = get_submission_handler()
-            self.application.add_handler(submission_handler.build_conversation_handler())
-            logger.info("投稿处理器注册成功")
-        except Exception as e:
-            logger.error(f"注册投稿处理器失败: {type(e).__name__}: {e}")
 
         # 消息处理器
         self.application.add_handler(

@@ -640,7 +640,7 @@ MESSAGE_ZH_CN = {
     # ========== 底栏管理 ==========
     "forwarding.footer.updated": "✅ 已更新转发规则的自定义底栏\n\n源频道：{source}\n目标频道：{target}\n\n底栏内容：\n{footer}",
     "forwarding.footer.cleared": "✅ 已清除转发规则的自定义底栏\n\n源频道：{source}\n目标频道：{target}\n\n将使用默认底栏格式",
-    "forwarding.footer.default_enabled": "✅ 已启用默认底栏\n\n未设置自定义底栏的转发规则将使用默认格式：\n[Source](链接) @频道 🌸助推 | 助手BOT",
+    "forwarding.footer.default_enabled": "✅ 已启用默认底栏\n\n未设置自定义底栏的转发规则将使用默认格式：\n[Source](链接) @频道\n🌸助推 | 助手BOT | 投稿",
     "forwarding.footer.default_disabled": "❌ 已禁用默认底栏\n\n所有转发规则都不会添加底栏（包括自定义底栏）",
     "forwarding.footer.usage": "用法：\n\n/forwarding_footer <源频道> <目标频道> <底栏内容>\n/forwarding_footer <源频道> <目标频道> clear\n\n示例：\n/forwarding_footer https://t.me/source https://t.me/target 📢 来源: {source_title}\\n🔗 {source_link}\n/forwarding_footer https://t.me/source https://t.me/target clear",
     "forwarding.footer.invalid_params": "❌ 参数无效\n\n用法：/forwarding_footer <源频道> <目标频道> <底栏内容>\n\n或使用 clear 清除底栏",
@@ -1397,7 +1397,7 @@ MESSAGE_EN_US = {
     # ========== Footer Management ==========
     "forwarding.footer.updated": "✅ Custom footer updated for forwarding rule\n\nSource: {source}\nTarget: {target}\n\nFooter content:\n{footer}",
     "forwarding.footer.cleared": "✅ Custom footer cleared for forwarding rule\n\nSource: {source}\nTarget: {target}\n\nWill use default footer format",
-    "forwarding.footer.default_enabled": "✅ Default footer enabled\n\nForwarding rules without custom footer will use default format:\n[Source](link) @channel 🌸Boost | QA Bot",
+    "forwarding.footer.default_enabled": "✅ Default footer enabled\n\nForwarding rules without custom footer will use default format:\n[Source](link) @channel\n🌸Boost | QA Bot | Submit",
     "forwarding.footer.default_disabled": "❌ Default footer disabled\n\nAll forwarding rules will not add footer (including custom footer)",
     "forwarding.footer.usage": "Usage:\n\n/forwarding_footer <source> <target> <footer content>\n/forwarding_footer <source> <target> clear\n\nExample:\n/forwarding_footer https://t.me/source https://t.me/target Source: {source_title}\\n{source_link}\n/forwarding_footer https://t.me/source https://t.me/target clear",
     "forwarding.footer.invalid_params": "❌ Invalid parameters\n\nUsage: /forwarding_footer <source> <target> <footer content>\n\nOr use clear to clear footer",

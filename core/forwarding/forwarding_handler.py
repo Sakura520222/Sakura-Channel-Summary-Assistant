@@ -871,7 +871,7 @@ class ForwardingHandler:
 
         支持三种模式：
         1. 自定义底栏模式：规则设置了 custom_footer 时，使用自定义模板
-        2. 默认底栏模式：未设置自定义底栏时，使用格式 [Source](链接) @频道 🌸助推 | 助手BOT
+        2. 默认底栏模式：未设置自定义底栏时，使用格式 [Source](链接) @频道 🌸助推 | 助手BOT 📝投稿
         3. 隐藏底栏模式：全局配置 show_default_footer=False 时，不添加任何底栏
 
         支持的占位符：
@@ -938,17 +938,18 @@ class ForwardingHandler:
                 return ""
 
             # 模式3：使用默认格式
-            # [Source](链接) @目标频道 🌸助推 | 助手BOT
+            # [Source](链接) @目标频道\n🌸助推 | 助手BOT
             footer_parts = [f"[Source]({source_link})"]
 
             if target_username:
                 footer_parts.append(f"@{target_username}")
-                footer_parts.append(f"🌸[助推](https://t.me/boost/{target_username})")
+                footer_parts.append(f"\n🌸[助推](https://t.me/boost/{target_username})")
             else:
                 footer_parts.append(target_channel)
 
             if QA_BOT_USERNAME:
-                footer_parts.append(f"|[助手BOT](https://t.me/{QA_BOT_USERNAME})")
+                footer_parts.append(f"| [助手BOT](https://t.me/{QA_BOT_USERNAME})")
+                footer_parts.append(f"| [投稿](https://t.me/{QA_BOT_USERNAME}?start=submit)")
 
             return " ".join(footer_parts)
 
