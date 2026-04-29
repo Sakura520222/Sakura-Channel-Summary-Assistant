@@ -559,7 +559,7 @@ class ForwardingHandler:
 
             # 内存转发（小文件或纯图片）- 使用 Bot 发送
             if rule.get("copy_mode", False):
-                # 复制模式：尝试内存发送，失败则回退到下载转发
+                # 复制模式：优先内存发送，捕获异常后回退到下载转发
                 captions = []
                 files = []
 
@@ -573,7 +573,10 @@ class ForwardingHandler:
                             captions.append("")
 
                 if not files:
-                    logger.warning(f"媒体组 {group_key} 没有有效的媒体文件，跳过")
+                    logger.error(
+                        f"媒体组 {group_key} 在复制模式下无有效媒体文件，"
+                        f"消息数={len(media_group_messages)}，跳过转发"
+                    )
                     return False
 
                 # 生成底栏

@@ -17,7 +17,9 @@
 
 import asyncio
 import logging
+from collections import OrderedDict
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from telethon.tl.types import InputMediaPoll, Poll, PollAnswer, TextWithEntities
 
@@ -37,6 +39,8 @@ QUEUE_MAX_SIZE = 500
 
 # 去重缓存 TTL
 _CACHE_TTL = timedelta(hours=1)
+# 去重缓存最大条目数（防止内存无限增长）
+_CACHE_MAX_SIZE = 10000
 
 
 class AutoPollHandler:
@@ -48,15 +52,16 @@ class AutoPollHandler:
         Args:
             client: Telegram客户端实例
         """
-        self._queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=QUEUE_MAX_SIZE)
+        self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=QUEUE_MAX_SIZE)
         self._running = False
+        self._start_stop_lock = asyncio.Lock()  # 保护 start/stop 的并发安全
         self._worker_task: asyncio.Task | None = None
         self._processed_count = 0
         self._failed_count = 0
         self.client = client
 
-        # 去重缓存
-        self._poll_cache: dict[str, datetime] = {}
+        # 去重缓存（OrderedDict 实现 LRU 淘汰）
+        self._poll_cache: OrderedDict[str, datetime] = OrderedDict()
         self._cache_lock = asyncio.Lock()
         self._cleanup_task: asyncio.Task | None = None
 
@@ -64,21 +69,23 @@ class AutoPollHandler:
 
     async def start(self) -> None:
         """启动后台 worker 任务"""
-        if self._running:
-            logger.warning("自动趣味投票处理器已在运行")
-            return
+        async with self._start_stop_lock:
+            if self._running:
+                logger.warning("自动趣味投票处理器已在运行")
+                return
 
-        self._running = True
-        self._worker_task = asyncio.create_task(self._poll_worker())
-        self._cleanup_task = asyncio.create_task(self._periodic_cache_cleanup())
-        logger.info("自动趣味投票处理器已启动")
+            self._running = True
+            self._worker_task = asyncio.create_task(self._poll_worker())
+            self._cleanup_task = asyncio.create_task(self._periodic_cache_cleanup())
+            logger.info("自动趣味投票处理器已启动")
 
     async def stop(self) -> None:
         """停止后台 worker 任务"""
-        if not self._running:
-            return
+        async with self._start_stop_lock:
+            if not self._running:
+                return
 
-        self._running = False
+            self._running = False
 
         # 等待队列清空
         remaining = self._queue.qsize()
@@ -133,11 +140,16 @@ class AutoPollHandler:
             logger.warning("自动趣味投票处理器未运行，无法入队")
             return False
 
-        # 去重检查
+        # 去重检查（同时清理过期条目）
         cache_key = f"{discussion_id}_{forward_msg_id}"
         if cache_key in self._poll_cache:
-            logger.info(f"趣味投票任务 {cache_key} 已在缓存中，跳过")
-            return False
+            cached_time = self._poll_cache[cache_key]
+            # 实时检查是否过期，过期则移除并允许重新入队
+            if datetime.now(UTC) - cached_time < _CACHE_TTL:
+                logger.info(f"趣味投票任务 {cache_key} 已在缓存中，跳过")
+                return False
+            # 过期条目，移除
+            del self._poll_cache[cache_key]
 
         try:
             self._queue.put_nowait(
@@ -149,8 +161,10 @@ class AutoPollHandler:
                     "created_at": datetime.now(UTC).isoformat(),
                 }
             )
-            # 记入去重缓存
+            # 记入去重缓存（LRU 淘汰：超过上限时移除最旧条目）
             self._poll_cache[cache_key] = datetime.now(UTC)
+            while len(self._poll_cache) > _CACHE_MAX_SIZE:
+                self._poll_cache.popitem(last=False)  # FIFO 淘汰最旧
         except asyncio.QueueFull:
             logger.warning(
                 f"趣味投票队列已满({self._queue.maxsize})，丢弃任务: "

@@ -76,7 +76,12 @@ class SubmissionReviewHandler:
         if not file_data_b64:
             return None
 
-        file_bytes = base64.b64decode(file_data_b64)
+        try:
+            file_bytes = base64.b64decode(file_data_b64)
+        except Exception as e:
+            logger.error(f"媒体文件 base64 解码失败 (index={index}): {type(e).__name__}: {e}")
+            return None
+
         file_buf = BytesIO(file_bytes)
         media_type = media.get("type", "document")
         file_name = media.get("file_name")
@@ -394,7 +399,7 @@ class SubmissionReviewHandler:
                 # 发布到目标频道
                 publish_result = await self._publish_to_channel(submission, client)
                 # 通知投稿者
-                await self._notify_submitter(submission, "approved", client, publish_result)
+                await self._notify_submitter(submission, "approved", publish_result)
                 status_msg = f"✅ 投稿已通过\n\n投稿ID: {submission_id}\n审核人: {admin_id}"
                 if publish_result.get("success"):
                     status_msg += f"\n\n📢 已发布到频道: {publish_result.get('channel_name', '')}"
@@ -506,7 +511,7 @@ class SubmissionReviewHandler:
             return {"success": False, "error": str(e)}
 
     async def _notify_submitter(
-        self, submission: dict[str, Any], status: str, client=None, publish_result=None
+        self, submission: dict[str, Any], status: str, publish_result=None
     ) -> None:
         """通过 notification_queue 通知投稿者审核结果"""
         try:

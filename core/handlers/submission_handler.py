@@ -23,6 +23,7 @@ from telegram.ext import (
     filters,
 )
 
+from core.i18n.i18n import get_text
 from core.infrastructure.database.submission_repo import get_submission_repo
 from core.services.submission_service import get_submission_service
 
@@ -88,7 +89,7 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text("⚠️ 会话已过期，请重新发送 /submit。")
+            await update.message.reply_text(get_text("submission.session_expired"))
             return ConversationHandler.END
 
         title = update.message.text.strip()
@@ -111,7 +112,7 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text("⚠️ 会话已过期，请重新发送 /submit。")
+            await update.message.reply_text(get_text("submission.session_expired"))
             return ConversationHandler.END
 
         state["content"] = update.message.text.strip()
@@ -130,7 +131,7 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text("⚠️ 会话已过期，请重新发送 /submit。")
+            await update.message.reply_text(get_text("submission.session_expired"))
             return ConversationHandler.END
 
         message = """📝 已跳过正文。
@@ -147,7 +148,7 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text("⚠️ 会话已过期，请重新发送 /submit。")
+            await update.message.reply_text(get_text("submission.session_expired"))
             return ConversationHandler.END
 
         media_info = self._extract_media_info(update.message)
@@ -209,7 +210,7 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text("⚠️ 会话已过期，请重新发送 /submit。")
+            await update.message.reply_text(get_text("submission.session_expired"))
             return ConversationHandler.END
 
         channels = self._get_channels()
@@ -236,7 +237,7 @@ class SubmissionHandler:
         user_id = query.from_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await query.edit_message_text("⚠️ 会话已过期，请重新发送 /submit。")
+            await query.edit_message_text(get_text("submission.session_expired"))
             return ConversationHandler.END
 
         data = query.data
@@ -286,7 +287,7 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text("⚠️ 会话已过期，请重新发送 /submit。")
+            await update.message.reply_text(get_text("submission.session_expired"))
             return ConversationHandler.END
 
         title = state["title"] or "(未设置)"
@@ -313,7 +314,7 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text("⚠️ 会话已过期，请重新发送 /submit。")
+            await update.message.reply_text(get_text("submission.session_expired"))
             return ConversationHandler.END
 
         user_name = (

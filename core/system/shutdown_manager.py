@@ -152,7 +152,7 @@ class ShutdownManager:
             logger.error(f"❌ 停止问答Bot失败: {type(e).__name__}: {e}")
 
     async def _stop_comment_welcome_with_timeout(self, timeout: int):
-        """停止评论区欢迎消息处理器（带超时）
+        """停止评论区欢迎消息处理器和自动趣味投票处理器（带超时）
 
         Args:
             timeout: 超时时间（秒）
@@ -167,6 +167,18 @@ class ShutdownManager:
             logger.warning(f"⚠️ 停止评论区欢迎消息处理器超时（{timeout}秒），强制继续")
         except Exception as e:
             logger.error(f"❌ 停止评论区欢迎消息处理器失败: {type(e).__name__}: {e}")
+
+        # 停止自动趣味投票处理器
+        logger.info("⏳ 停止自动趣味投票处理器...")
+        try:
+            from core.handlers.auto_poll_handler import shutdown_auto_poll
+
+            await asyncio.wait_for(shutdown_auto_poll(), timeout=timeout)
+            logger.info("✅ 自动趣味投票处理器已停止")
+        except TimeoutError:
+            logger.warning(f"⚠️ 停止自动趣味投票处理器超时（{timeout}秒），强制继续")
+        except Exception as e:
+            logger.error(f"❌ 停止自动趣味投票处理器失败: {type(e).__name__}: {e}")
 
     async def _stop_scheduler_with_timeout(self, timeout: int):
         """停止调度器（带超时）

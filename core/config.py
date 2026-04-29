@@ -375,36 +375,8 @@ if config:
         CHANNELS = config_channels
         logger.info(f"已从配置文件加载频道列表: {CHANNELS}")
 
-    # 从配置文件读取是否将报告发送回源频道的配置
-    SEND_REPORT_TO_SOURCE = config.get("send_report_to_source", SEND_REPORT_TO_SOURCE)
-    logger.info(f"已从配置文件加载发送报告到源频道的配置: {SEND_REPORT_TO_SOURCE}")
-
-    # 从配置文件读取是否启用投票功能的配置
-    ENABLE_POLL = config.get("enable_poll", ENABLE_POLL)
-    logger.info(f"已从配置文件加载投票功能配置: {ENABLE_POLL}")
-
-    # 从配置文件读取投票重新生成请求配置
-    POLL_REGEN_THRESHOLD = config.get("poll_regen_threshold", POLL_REGEN_THRESHOLD)
-    logger.info(f"已从配置文件加载投票重新生成阈值: {POLL_REGEN_THRESHOLD}")
-
-    ENABLE_VOTE_REGEN_REQUEST = config.get("enable_vote_regen_request", ENABLE_VOTE_REGEN_REQUEST)
-    logger.info(f"已从配置文件加载投票重新生成请求功能配置: {ENABLE_VOTE_REGEN_REQUEST}")
-
-    _pv = config.get("public_voters", POLL_PUBLIC_VOTERS)
-    if isinstance(_pv, str):
-        POLL_PUBLIC_VOTERS = _pv.lower() in ("true", "1", "yes")
-    else:
-        POLL_PUBLIC_VOTERS = bool(_pv)
-    logger.info(f"已从配置文件加载投票公开配置: {POLL_PUBLIC_VOTERS}")
-
-    # 从配置文件读取自动趣味投票配置
-    ENABLE_AUTO_POLL = config.get("enable_auto_poll", ENABLE_AUTO_POLL)
-    logger.info(f"已从配置文件加载自动趣味投票配置: {ENABLE_AUTO_POLL}")
-
-    _caps = config.get("channel_auto_poll_settings", {})
-    if isinstance(_caps, dict):
-        CHANNEL_AUTO_POLL_SETTINGS = _caps
-    logger.info(f"已从配置文件加载频道级自动趣味投票配置: {len(CHANNEL_AUTO_POLL_SETTINGS)} 个频道")
+    # 使用统一的模块变量更新函数（避免重复逻辑）
+    update_module_variables(config)
 
     # 从配置文件读取日志级别
     LOG_LEVEL_FROM_CONFIG = config.get("log_level")
