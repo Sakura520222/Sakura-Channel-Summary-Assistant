@@ -87,6 +87,21 @@ class WebAPIInitializer:
         self._task = asyncio.create_task(self._server.serve())
         logger.info(f"🌐 WebUI API 服务器已启动: http://{host}:{port}")
 
+        # 输出管理 Token 信息
+        try:
+            import hashlib
+
+            from core.settings import get_settings
+
+            bot_token = get_settings().telegram.bot_token
+            if bot_token:
+                admin_token = hashlib.sha256(bot_token.encode()).hexdigest()[:16]
+                logger.info(f"🔑 WebUI 管理 Token: {admin_token}")
+            else:
+                logger.warning("⚠️ Bot Token 未配置，WebUI 登录功能不可用")
+        except Exception:
+            pass
+
     async def shutdown(self) -> None:
         """关闭 WebUI API 服务器"""
         if self._server:

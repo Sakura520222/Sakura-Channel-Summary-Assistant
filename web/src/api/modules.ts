@@ -1,5 +1,22 @@
 import apiClient from "./client";
 
+// ==================== 认证 ====================
+
+export async function loginWithToken(token: string) {
+  const res = await apiClient.post("/auth/login", { token });
+  return res.data;
+}
+
+export async function checkAuthStatus() {
+  const res = await apiClient.get("/auth/status");
+  return res.data;
+}
+
+export async function refreshToken() {
+  const res = await apiClient.post("/auth/refresh");
+  return res.data;
+}
+
 // ==================== 频道管理 ====================
 
 export interface ChannelInfo {

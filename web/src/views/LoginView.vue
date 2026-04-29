@@ -7,7 +7,7 @@
             v-model:value="formData.token"
             type="password"
             show-password-on="click"
-            placeholder="请输入管理 Token"
+            placeholder="请输入管理 Token（从启动日志获取）"
             @keyup.enter="handleLogin"
           />
         </n-form-item>
@@ -16,12 +16,12 @@
         </n-button>
       </n-form>
       <n-divider>或者</n-divider>
-      <n-button block quaternary @click="handleDevLogin">
+      <n-button block quaternary :loading="devLoading" @click="handleDevLogin">
         开发模式（跳过认证）
       </n-button>
       <template #footer>
         <n-text depth="3" style="font-size: 12px">
-          Token 可从 Bot 启动日志中获取，或使用 .env 中的 BOT_TOKEN 计算
+          管理 Token 为 Bot Token 的 SHA256 前16位，可在 Bot 启动日志中查看
         </n-text>
       </template>
     </n-card>
@@ -32,11 +32,12 @@
 import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { useMessage } from "naive-ui";
-import apiClient from "../api/client";
+import { loginWithToken } from "../api/modules";
 
 const router = useRouter();
 const message = useMessage();
 const loading = ref(false);
+const devLoading = ref(false);
 
 const formData = reactive({
   token: "",
@@ -49,26 +50,43 @@ async function handleLogin() {
   }
   loading.value = true;
   try {
-    localStorage.setItem("sakura_bot_token", formData.token);
-    const res = await apiClient.get("/health");
-    if (res.data?.status === "ok") {
+    const res = await loginWithToken(formData.token);
+    if (res.success && res.access_token) {
+      localStorage.setItem("sakura_bot_token", res.access_token);
       message.success("登录成功");
       router.push("/");
     } else {
-      throw new Error("认证失败");
+      message.error(res.message || "认证失败");
     }
   } catch {
-    localStorage.removeItem("sakura_bot_token");
-    message.error("Token 无效或服务器不可达");
+    message.error("登录失败，请检查 Token 是否正确");
   } finally {
     loading.value = false;
   }
 }
 
-function handleDevLogin() {
-  localStorage.setItem("sakura_bot_token", "dev");
-  message.info("已进入开发模式");
-  router.push("/");
+async function handleDevLogin() {
+  devLoading.value = true;
+  try {
+    const res = await loginWithToken("dev");
+    if (res.success && res.access_token) {
+      localStorage.setItem("sakura_bot_token", res.access_token);
+      message.info("已进入开发模式");
+      router.push("/");
+    } else {
+      // 开发模式 fallback：直接设置 dev token
+      localStorage.setItem("sakura_bot_token", "dev");
+      message.info("已进入开发模式");
+      router.push("/");
+    }
+  } catch {
+    // 后端不可用时，仍然允许进入
+    localStorage.setItem("sakura_bot_token", "dev");
+    message.info("已进入开发模式（后端不可用）");
+    router.push("/");
+  } finally {
+    devLoading.value = false;
+  }
 }
 </script>
 

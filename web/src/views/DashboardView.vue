@@ -1,4 +1,5 @@
 <template>
+  <n-spin :show="loading" description="加载中...">
   <div>
     <n-grid :cols="4" :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
       <n-gi span="0:4 640:2 1024:1">
@@ -66,6 +67,7 @@
       </n-gi>
     </n-grid>
   </div>
+  </n-spin>
 </template>
 
 <script setup lang="ts">
@@ -74,6 +76,7 @@ import { useMessage } from "naive-ui";
 import { getDashboard, getSchedules } from "../api/modules";
 
 const message = useMessage();
+const loading = ref(true);
 const dashboard = ref<Record<string, unknown>>({});
 const schedules = ref<Array<Record<string, unknown>>>([]);
 
@@ -99,12 +102,22 @@ function formatUptime(seconds: number | undefined) {
 }
 
 async function loadData() {
+  loading.value = true;
   try {
-    const [dashRes, schedRes] = await Promise.all([getDashboard(), getSchedules()]);
-    if (dashRes.success) dashboard.value = dashRes.data;
-    if (schedRes.success) schedules.value = schedRes.data.schedules || [];
+    const [dashRes, schedRes] = await Promise.allSettled([
+      getDashboard(),
+      getSchedules(),
+    ]);
+    if (dashRes.status === "fulfilled" && dashRes.value.success) {
+      dashboard.value = dashRes.value.data;
+    }
+    if (schedRes.status === "fulfilled" && schedRes.value.success) {
+      schedules.value = schedRes.value.data.schedules || [];
+    }
   } catch {
     message.error("加载仪表板数据失败");
+  } finally {
+    loading.value = false;
   }
 }
 

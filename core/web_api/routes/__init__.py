@@ -14,6 +14,7 @@ API 路由模块
 
 from . import (
     ai_config,
+    auth,
     channels,
     dashboard,
     forwarding,
@@ -26,6 +27,7 @@ from . import (
 
 __all__ = [
     "ai_config",
+    "auth",
     "channels",
     "dashboard",
     "forwarding",

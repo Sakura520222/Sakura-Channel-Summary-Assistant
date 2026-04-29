@@ -17,12 +17,15 @@ FastAPI 应用工厂
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .middleware import AuthMiddleware
 from .routes import (
     ai_config,
+    auth,
     channels,
     dashboard,
     forwarding,
@@ -56,7 +59,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # JWT 认证中间件（在 CORS 之后，路由之前）
+    app.add_middleware(AuthMiddleware)
+
     # 注册 API 路由
+    app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
     app.include_router(dashboard.router, prefix="/api", tags=["仪表板"])
     app.include_router(channels.router, prefix="/api/channels", tags=["频道管理"])
     app.include_router(ai_config.router, prefix="/api/ai", tags=["AI 配置"])
@@ -72,14 +79,40 @@ def create_app() -> FastAPI:
     async def health_check():
         return {"status": "ok", "service": "sakura-bot-webui"}
 
-    # 挂载静态文件（前端构建产物）
+    # ==================== 前端静态文件 + SPA 路由回退 ====================
     static_dir = Path(__file__).parent.parent.parent / "web" / "dist"
     if static_dir.exists():
-        app.mount(
-            "/",
-            StaticFiles(directory=str(static_dir), html=True),
-            name="static",
-        )
+        # 1. 挂载 /assets 等静态资源（精确匹配）
+        assets_dir = static_dir / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        # 2. SPA 路由回退：所有非 /api、非静态资源的 GET 请求返回 index.html
+        index_html = static_dir / "index.html"
+
+        @app.get("/favicon.svg", include_in_schema=False)
+        async def favicon():
+            favicon_path = static_dir / "favicon.svg"
+            if favicon_path.exists():
+                return FileResponse(str(favicon_path))
+            return FileResponse(str(index_html))
+
+        @app.get("/{path:path}", include_in_schema=False)
+        async def spa_fallback(request: Request, path: str):
+            """SPA 路由回退处理
+
+            对于前端路由（如 /login、/channels 等），返回 index.html
+            让 Vue Router 处理客户端路由。
+            """
+            # 如果请求的是静态文件（有扩展名且文件存在），直接返回文件
+            if path and "." in path.split("/")[-1]:
+                file_path = static_dir / path
+                if file_path.exists() and file_path.is_file():
+                    return FileResponse(str(file_path))
+
+            # 其余所有路径回退到 index.html（SPA 路由）
+            return FileResponse(str(index_html))
+
         logger.info(f"已挂载前端静态文件: {static_dir}")
     else:
         logger.debug(f"前端静态文件目录不存在: {static_dir}，跳过挂载")

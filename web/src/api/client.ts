@@ -8,11 +8,11 @@ const apiClient = axios.create({
   },
 });
 
-// 请求拦截器 - 添加 Token
+// 请求拦截器 - 添加 Bearer Token
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("sakura_bot_token");
   if (token) {
-    config.params = { ...config.params, token };
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
@@ -23,7 +23,10 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem("sakura_bot_token");
-      window.location.href = "/login";
+      // 避免在登录页面循环跳转
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

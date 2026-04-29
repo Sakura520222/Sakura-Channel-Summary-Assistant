@@ -32,10 +32,11 @@
         <div style="font-size: 16px; font-weight: 500">
           {{ pageTitle }}
         </div>
-        <n-space>
+        <n-space align="center">
           <n-tag :type="botOnline ? 'success' : 'error'" size="small" round>
             {{ botOnline ? '运行中' : '已停止' }}
           </n-tag>
+          <n-button size="small" quaternary @click="handleLogout">退出登录</n-button>
         </n-space>
       </n-layout-header>
 
@@ -58,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, h } from "vue";
+import { computed, ref, h, onMounted, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { NIcon } from "naive-ui";
 import type { MenuOption } from "naive-ui";
@@ -77,7 +78,7 @@ import {
 const router = useRouter();
 const route = useRoute();
 const collapsed = ref(false);
-const botOnline = ref(true);
+const botOnline = ref(false);
 
 const currentRoute = computed(() => route.path || "/");
 
@@ -115,6 +116,31 @@ const menuOptions: MenuOption[] = [
 function handleMenuSelect(key: string) {
   router.push(key);
 }
+
+function handleLogout() {
+  localStorage.removeItem("sakura_bot_token");
+  router.push("/login");
+}
+
+// 定期检查 Bot 在线状态
+async function checkBotStatus() {
+  try {
+    const res = await fetch("/api/health");
+    if (res.ok) {
+      const data = await res.json();
+      botOnline.value = data.status === "ok";
+    }
+  } catch {
+    botOnline.value = false;
+  }
+}
+
+onMounted(() => {
+  checkBotStatus();
+  // 每 30 秒检查一次
+  const timer = setInterval(checkBotStatus, 30000);
+  onUnmounted(() => clearInterval(timer));
+});
 </script>
 
 <style scoped>

@@ -7,6 +7,7 @@ const router = createRouter({
       path: "/login",
       name: "Login",
       component: () => import("../views/LoginView.vue"),
+      meta: { public: true },
     },
     {
       path: "/",
@@ -60,6 +61,16 @@ const router = createRouter({
       ],
     },
   ],
+});
+
+// 路由守卫 - 检查认证
+router.beforeEach((to, _from, next) => {
+  const token = localStorage.getItem("sakura_bot_token");
+  if (to.meta.public || token) {
+    next();
+  } else {
+    next("/login");
+  }
 });
 
 export default router;

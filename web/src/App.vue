@@ -1,9 +1,17 @@
 <template>
-  <router-view />
+  <n-config-provider>
+    <n-message-provider>
+      <n-dialog-provider>
+        <n-notification-provider>
+          <router-view />
+        </n-notification-provider>
+      </n-dialog-provider>
+    </n-message-provider>
+  </n-config-provider>
 </template>
 
 <script setup lang="ts">
-// Root App component - just renders the current route view
+// Root App component - provides Naive UI context providers
 </script>
 
 <style>
