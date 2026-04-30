@@ -256,6 +256,7 @@ MESSAGE_ZH_CN = {
     "auto_poll.enabled_channel": "✅ 频道 {channel} 的自动趣味投票已启用",
     "auto_poll.disabled_channel": "✅ 频道 {channel} 的自动趣味投票已禁用",
     "auto_poll.deleted_channel": "✅ 频道 {channel} 的自动趣味投票配置已删除，将使用全局配置",
+    "auto_poll.global_required": "❌ 请先开启全局自动趣味投票，再配置频道级开关",
     "auto_poll.set_failed": "❌ 设置自动趣味投票配置时出错",
     "auto_poll.query_failed": "❌ 查询自动趣味投票配置失败：{error}",
     # ========== 报告发送配置 ==========
@@ -1004,6 +1005,7 @@ MESSAGE_EN_US = {
     "auto_poll.enabled_channel": "✅ Auto poll enabled for channel {channel}",
     "auto_poll.disabled_channel": "✅ Auto poll disabled for channel {channel}",
     "auto_poll.deleted_channel": "✅ Auto poll config deleted for channel {channel}, using global config",
+    "auto_poll.global_required": "❌ Enable global auto poll before configuring channel overrides",
     "auto_poll.set_failed": "❌ Failed to set auto poll config",
     "auto_poll.query_failed": "❌ Failed to query auto poll config: {error}",
     # ========== Report Send Configuration ==========

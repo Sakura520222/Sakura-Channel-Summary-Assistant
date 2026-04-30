@@ -26,11 +26,11 @@
       <n-space vertical>
         <n-h5>频道操作</n-h5>
         <n-input-group>
-          <n-input v-model:value="channelUrl" placeholder="https://t.me/channel_name" class="w-md" />
+          <n-input v-model:value="channelUrl" placeholder="channel_name 或 @channel_name" class="w-md" />
           <n-button type="primary" @click="handleJoin" :loading="actionLoading">加入频道</n-button>
           <n-button type="error" @click="handleLeave" :loading="actionLoading">离开频道</n-button>
         </n-input-group>
-        <n-text depth="3" class="font-xs">让 UserBot 加入或离开指定频道</n-text>
+        <n-text depth="3" class="font-xs">让 UserBot 加入或离开指定频道，也支持完整 t.me 链接</n-text>
       </n-space>
     </n-card>
   </div>
@@ -69,7 +69,7 @@ async function loadStatus() {
 
 async function handleJoin() {
   if (!channelUrl.value.trim()) {
-    message.warning("请输入频道 URL");
+    message.warning("请输入频道名或链接");
     return;
   }
   dialog.info({
@@ -93,7 +93,7 @@ async function handleJoin() {
 
 async function handleLeave() {
   if (!channelUrl.value.trim()) {
-    message.warning("请输入频道 URL");
+    message.warning("请输入频道名或链接");
     return;
   }
   dialog.warning({

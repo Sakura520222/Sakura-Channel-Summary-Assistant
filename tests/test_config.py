@@ -70,6 +70,25 @@ class TestConfigModule:
         assert "minute" in trigger
         assert trigger["minute"] == 30
 
+    @pytest.mark.parametrize(
+        ("channel_input", "expected"),
+        [
+            ("jffnekjdnfn", "https://t.me/jffnekjdnfn"),
+            ("@jffnekjdnfn", "https://t.me/jffnekjdnfn"),
+            ("https://t.me/jffnekjdnfn", "https://t.me/jffnekjdnfn"),
+            ("https://t.me/jffnekjdnfn/", "https://t.me/jffnekjdnfn"),
+            ("t.me/jffnekjdnfn", "https://t.me/jffnekjdnfn"),
+            ("www.t.me/jffnekjdnfn", "https://t.me/jffnekjdnfn"),
+            ("https://telegram.me/jffnekjdnfn", "https://t.me/jffnekjdnfn"),
+            ("telegram.me/jffnekjdnfn", "https://t.me/jffnekjdnfn"),
+        ],
+    )
+    def test_normalize_channel_id(self, channel_input, expected):
+        """测试频道 ID 标准化支持裸频道名和省略协议的 t.me 链接"""
+        from core.config import normalize_channel_id
+
+        assert normalize_channel_id(channel_input) == expected
+
 
 @pytest.mark.unit
 class TestSettingsModule:

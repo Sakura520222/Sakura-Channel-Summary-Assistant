@@ -182,6 +182,9 @@ async def update_channel_auto_poll(channel: str, request: AutoPollSettingsUpdate
         channel = normalize_channel_id(channel)
         config = get_config()
 
+        if not config.get("enable_auto_poll", False):
+            raise HTTPException(status_code=400, detail="请先开启全局自动趣味投票")
+
         auto_poll_settings = config.get("channel_auto_poll_settings", {})
         auto_poll_settings[channel] = {"enabled": request.enabled}
         config["channel_auto_poll_settings"] = auto_poll_settings
@@ -190,6 +193,8 @@ async def update_channel_auto_poll(channel: str, request: AutoPollSettingsUpdate
         logger.info(f"已通过 WebUI 更新频道自动投票设置: {channel}")
         return {"success": True, "message": f"频道自动投票设置已更新: {channel}"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"更新频道自动投票设置失败: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -202,6 +207,9 @@ async def delete_channel_auto_poll(channel: str):
         channel = normalize_channel_id(channel)
         config = get_config()
 
+        if not config.get("enable_auto_poll", False):
+            raise HTTPException(status_code=400, detail="请先开启全局自动趣味投票")
+
         auto_poll_settings = config.get("channel_auto_poll_settings", {})
         if channel in auto_poll_settings:
             del auto_poll_settings[channel]
@@ -211,6 +219,8 @@ async def delete_channel_auto_poll(channel: str):
             return {"success": True, "message": f"频道自动投票配置已删除: {channel}"}
         return {"success": True, "message": "该频道无自动投票配置"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"删除频道自动投票配置失败: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e

@@ -76,6 +76,7 @@ get_log_level = _old_config.get_log_level
 get_poll_regeneration = _old_config.get_poll_regeneration
 get_qa_bot_persona = _old_config.get_qa_bot_persona
 get_scheduler_instance = _old_config.get_scheduler_instance
+is_auto_poll_enabled_for_channel = _old_config.is_auto_poll_enabled_for_channel
 load_config = _old_config.load_config
 load_poll_regenerations = _old_config.load_poll_regenerations
 logger = _old_config.logger
@@ -210,6 +211,7 @@ __all__ = [
     "get_scheduler_instance",
     "get_vote_count",
     "increment_vote_count",
+    "is_auto_poll_enabled_for_channel",
     "load_config",
     "load_poll_regenerations",
     "logger",
