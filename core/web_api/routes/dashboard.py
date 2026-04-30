@@ -49,7 +49,7 @@ async def get_dashboard():
             db = _get_db()
             if db:
                 stats_data = await db.get_statistics()
-                total_summaries = stats_data.get("total_summaries", 0) if stats_data else 0
+                total_summaries = stats_data.get("total_count", 0) if stats_data else 0
         except Exception as e:
             logger.debug(f"获取数据库统计失败: {e}")
 
