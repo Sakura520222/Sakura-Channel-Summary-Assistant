@@ -20,13 +20,12 @@ from typing import Any
 
 import aiofiles
 
+import core.config as config_module
 from core.ai.ai_client import analyze_with_ai
 from core.ai.vector_store import get_vector_store
 from core.config import (
     ADMIN_LIST,
-    CHANNELS,
     LAST_SUMMARY_FILE,
-    SEND_REPORT_TO_SOURCE,
     get_channel_schedule,
     logger,
 )
@@ -213,7 +212,7 @@ async def generate_channel_summary(
             # 保存失败不影响报告发送
 
         # 9. 根据配置决定是否向源频道发送总结
-        if SEND_REPORT_TO_SOURCE:
+        if config_module.SEND_REPORT_TO_SOURCE:
             sent_report_ids = await send_report(
                 report_text,
                 channel_id,
@@ -311,7 +310,7 @@ async def handle_manual_summary(event):
             # 验证指定的频道是否在配置中
             valid_channels = []
             for channel in specified_channels:
-                if channel in CHANNELS:
+                if channel in config_module.CHANNELS:
                     valid_channels.append(channel)
                 else:
                     await event.reply(get_text("channel.will_skip", channel=channel))
@@ -323,7 +322,7 @@ async def handle_manual_summary(event):
             channels_to_process = valid_channels
         else:
             # 没有指定频道，处理所有配置的频道
-            channels_to_process = CHANNELS
+            channels_to_process = config_module.CHANNELS
 
         # 按频道分别处理
         for channel in channels_to_process:
@@ -485,7 +484,7 @@ async def handle_manual_summary(event):
                 # 根据配置决定是否向源频道发送总结，传递现有客户端实例避免数据库锁定
                 # 如果请求者是管理员，跳过向管理员发送报告，避免重复发送
                 skip_admins = sender_id in ADMIN_LIST or ADMIN_LIST == ["me"]
-                if SEND_REPORT_TO_SOURCE:
+                if config_module.SEND_REPORT_TO_SOURCE:
                     sent_report_ids = await send_report(
                         report_text,
                         channel,

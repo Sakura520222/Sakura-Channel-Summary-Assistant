@@ -23,7 +23,7 @@ from telethon import events
 if TYPE_CHECKING:
     from telethon import TelegramClient
 
-from core.config import CHANNELS
+import core.config as config_module
 from core.handlers.realtime_rag_handler import get_realtime_rag_handler
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,9 @@ class RealtimeRAGInitializer:
             # 注册事件监听器
             self._register_listeners(monitoring_client, rag_handler)
 
-            self.logger.info(f"实时RAG功能初始化完成，监听 {len(CHANNELS)} 个频道的消息")
+            self.logger.info(
+                f"实时RAG功能初始化完成，监听 {len(config_module.CHANNELS)} 个频道的消息"
+            )
 
         except Exception as e:
             self.logger.error(f"初始化实时RAG功能失败: {type(e).__name__}: {e}", exc_info=True)
@@ -204,7 +206,7 @@ class RealtimeRAGInitializer:
         chat_id = str(chat.id)
         username = getattr(chat, "username", None)
 
-        for ch in CHANNELS:
+        for ch in config_module.CHANNELS:
             normalized = self._extract_channel_identifier(ch)
             if normalized == username or normalized == chat_id:
                 return True
@@ -221,7 +223,7 @@ class RealtimeRAGInitializer:
         Returns:
             是否在白名单中
         """
-        for ch in CHANNELS:
+        for ch in config_module.CHANNELS:
             normalized = self._extract_channel_identifier(ch)
             if normalized == chat_id:
                 return True

@@ -12,11 +12,9 @@
 AI配置管理命令处理
 """
 
+import core.config as config_module
 from core.config import (
     ADMIN_LIST,
-    LLM_API_KEY,
-    LLM_BASE_URL,
-    LLM_MODEL,
     logger,
     save_config,
 )
@@ -38,15 +36,13 @@ async def handle_show_ai_config(event):
 
     # 显示当前配置
     config_info = f"{get_text('aicfg.title')}\n\n"
-    if LLM_API_KEY:
-        api_key_display = (
-            f"{LLM_API_KEY[:10]}...{LLM_API_KEY[-10:] if len(LLM_API_KEY) > 20 else LLM_API_KEY}"
-        )
+    if config_module.LLM_API_KEY:
+        api_key_display = f"{config_module.LLM_API_KEY[:10]}...{config_module.LLM_API_KEY[-10:] if len(config_module.LLM_API_KEY) > 20 else config_module.LLM_API_KEY}"
         config_info += get_text("aicfg.api_key", value=api_key_display) + "\n"
     else:
         config_info += get_text("aicfg.api_key", value=get_text("aicfg.not_set")) + "\n"
-    config_info += get_text("aicfg.base_url", value=LLM_BASE_URL) + "\n"
-    config_info += get_text("aicfg.model", value=LLM_MODEL) + "\n"
+    config_info += get_text("aicfg.base_url", value=config_module.LLM_BASE_URL) + "\n"
+    config_info += get_text("aicfg.model", value=config_module.LLM_MODEL) + "\n"
 
     logger.info(f"执行命令 {command} 成功")
     await event.reply(config_info)
@@ -126,7 +122,7 @@ async def handle_ai_config_input(event):
             )
         else:
             # 使用当前值
-            user_context.update_ai_config(sender_id, "api_key", LLM_API_KEY)
+            user_context.update_ai_config(sender_id, "api_key", config_module.LLM_API_KEY)
 
         current_ai_config = user_context.get_ai_config(sender_id)
         api_key_display = current_ai_config["api_key"]
@@ -143,7 +139,7 @@ async def handle_ai_config_input(event):
             logger.debug(f"用户 {sender_id} 设置了新的Base URL: {input_text.strip()}")
         else:
             # 使用当前值
-            user_context.update_ai_config(sender_id, "base_url", LLM_BASE_URL)
+            user_context.update_ai_config(sender_id, "base_url", config_module.LLM_BASE_URL)
 
         current_ai_config = user_context.get_ai_config(sender_id)
         await event.reply(get_text("aicfg.base_url_set", value=current_ai_config["base_url"]))
@@ -155,7 +151,7 @@ async def handle_ai_config_input(event):
             logger.debug(f"用户 {sender_id} 设置了新的Model: {input_text.strip()}")
         else:
             # 使用当前值
-            user_context.update_ai_config(sender_id, "model", LLM_MODEL)
+            user_context.update_ai_config(sender_id, "model", config_module.LLM_MODEL)
 
         # 获取最终配置
         final_config = user_context.get_ai_config(sender_id)

@@ -34,6 +34,11 @@ async def get_channel_comment_welcome_config(channel_url: str) -> dict[str, Any]
     """
     获取指定频道的评论区欢迎配置（异步）
 
+    配置读取优先级：
+    1. channel_comment_welcome[channel_url] — 频道级配置
+    2. comment_welcome.default — 用户自定义默认配置
+    3. DEFAULT_COMMENT_WELCOME_CONFIG — 代码内置默认配置
+
     Args:
         channel_url: 频道URL
 
@@ -41,16 +46,23 @@ async def get_channel_comment_welcome_config(channel_url: str) -> dict[str, Any]
         dict: 频道配置，如果未配置则返回默认配置
     """
     config = await asyncio.to_thread(load_config)
-    settings = config.get("channel_comment_welcome_settings", {})
 
-    if channel_url in settings:
-        # 合并配置和默认值（优先使用频道配置）
-        channel_config = DEFAULT_COMMENT_WELCOME_CONFIG.copy()
-        channel_config.update(settings[channel_url])
-        return channel_config
+    # 读取用户自定义默认配置（comment_welcome.default）
+    comment_welcome = config.get("comment_welcome", {})
+    user_default = comment_welcome.get("default", {})
 
-    # 返回默认配置
-    return DEFAULT_COMMENT_WELCOME_CONFIG.copy()
+    # 构建基础配置：代码默认 → 用户默认覆盖
+    base_config = DEFAULT_COMMENT_WELCOME_CONFIG.copy()
+    if user_default:
+        base_config.update(user_default)
+
+    # 读取频道级配置（channel_comment_welcome）
+    channel_settings = config.get("channel_comment_welcome", {})
+    if channel_url in channel_settings:
+        # 频道配置覆盖默认配置
+        base_config.update(channel_settings[channel_url])
+
+    return base_config
 
 
 async def get_all_comment_welcome_configs() -> dict[str, dict[str, Any]]:
@@ -61,7 +73,7 @@ async def get_all_comment_welcome_configs() -> dict[str, dict[str, Any]]:
         dict: 所有频道配置的字典
     """
     config = await asyncio.to_thread(load_config)
-    return config.get("channel_comment_welcome_settings", {})
+    return config.get("channel_comment_welcome", {})
 
 
 async def set_channel_comment_welcome_config(
@@ -89,11 +101,11 @@ async def set_channel_comment_welcome_config(
     """
     config = await asyncio.to_thread(load_config)
 
-    # 确保 channel_comment_welcome_settings 存在
-    if "channel_comment_welcome_settings" not in config:
-        config["channel_comment_welcome_settings"] = {}
+    # 确保 channel_comment_welcome 存在
+    if "channel_comment_welcome" not in config:
+        config["channel_comment_welcome"] = {}
 
-    settings = config["channel_comment_welcome_settings"]
+    settings = config["channel_comment_welcome"]
 
     # 获取现有配置或使用默认值
     if channel_url in settings:
@@ -142,11 +154,11 @@ async def delete_channel_comment_welcome_config(channel_url: str) -> bool:
         bool: 是否成功删除
     """
     config = await asyncio.to_thread(load_config)
-    settings = config.get("channel_comment_welcome_settings", {})
+    settings = config.get("channel_comment_welcome", {})
 
     if channel_url in settings:
         del settings[channel_url]
-        config["channel_comment_welcome_settings"] = settings
+        config["channel_comment_welcome"] = settings
         await asyncio.to_thread(save_config, config)
         logger.info(f"已删除频道 {channel_url} 的评论区欢迎配置")
         return True
@@ -182,7 +194,17 @@ def get_default_comment_welcome_config() -> dict[str, Any]:
     """
     获取默认的评论区欢迎配置
 
+    读取 config.json 中的 comment_welcome.default 并与代码默认值合并。
+
     Returns:
         dict: 默认配置
     """
-    return DEFAULT_COMMENT_WELCOME_CONFIG.copy()
+    config = load_config()
+    comment_welcome = config.get("comment_welcome", {})
+    user_default = comment_welcome.get("default", {})
+
+    base_config = DEFAULT_COMMENT_WELCOME_CONFIG.copy()
+    if user_default:
+        base_config.update(user_default)
+
+    return base_config

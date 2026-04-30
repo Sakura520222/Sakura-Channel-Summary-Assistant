@@ -9,12 +9,11 @@ import logging
 from telethon import Button, events
 from telethon.tl.types import InputMediaPoll, Poll, PollAnswer, TextWithEntities
 
+import core.config as config_module
 from core.ai.ai_client import generate_poll_from_summary
 from core.config import (
     ENABLE_POLL,
-    ENABLE_VOTE_REGEN_REQUEST,
     POLL_PUBLIC_VOTERS,
-    POLL_REGEN_THRESHOLD,
     get_channel_poll_config,
 )
 from core.i18n.i18n import get_text
@@ -55,14 +54,14 @@ def _build_poll_and_buttons(poll_data, channel, summary_message_id):
     )
 
     button_markup = []
-    if ENABLE_VOTE_REGEN_REQUEST:
+    if config_module.ENABLE_VOTE_REGEN_REQUEST:
         button_markup.append(
             [
                 Button.inline(
                     get_text(
                         "poll_regen.request_button",
                         count=0,
-                        threshold=POLL_REGEN_THRESHOLD,
+                        threshold=config_module.POLL_REGEN_THRESHOLD,
                     ),
                     data=f"request_regen_{summary_message_id}".encode(),
                 )

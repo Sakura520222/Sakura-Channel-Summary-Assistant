@@ -412,6 +412,8 @@ async def send_report(
             # 向所有管理员发送消息（除非跳过）
             # 收集管理员消息ID，用于数据库记录
             admin_message_ids = []
+            # 跟踪源频道的消息ID（用于置顶和投票回复）
+            source_channel_message_ids = []
             if not skip_admins:
                 for admin_id in ADMIN_LIST:
                     try:
@@ -448,6 +450,7 @@ async def send_report(
 
             # 如果提供了源频道且配置允许，向源频道发送报告
             if source_channel and SEND_REPORT_TO_SOURCE:
+                source_channel_message_ids = []
                 try:
                     logger.info(f"正在向源频道 {source_channel} 发送报告")
 
@@ -472,6 +475,7 @@ async def send_report(
                         msg = await use_client.send_message(
                             source_channel, summary_text_for_source, link_preview=False
                         )
+                        source_channel_message_ids.append(msg.id)
                         report_message_ids.append(msg.id)
                     else:
                         # 长消息分段发送，收集每个分段的消息ID
@@ -522,6 +526,7 @@ async def send_report(
                                 msg = await use_client.send_message(
                                     source_channel, part_text, link_preview=False
                                 )
+                                source_channel_message_ids.append(msg.id)
                                 report_message_ids.append(msg.id)
                                 logger.debug(
                                     f"成功发送第 {i + 1}/{len(parts)} 段，消息ID: {msg.id}"
@@ -534,6 +539,7 @@ async def send_report(
                                     msg = await use_client.send_message(
                                         source_channel, plain_text, link_preview=False
                                     )
+                                    source_channel_message_ids.append(msg.id)
                                     report_message_ids.append(msg.id)
                                     logger.info(
                                         f"已成功发送第 {i + 1} 段（移除格式后），消息ID: {msg.id}"
@@ -560,23 +566,27 @@ async def send_report(
                             except Exception as e:
                                 logger.debug(f"发送频道成功通知到管理员失败: {e}")
 
-                    # 自动置顶第一条消息
-                    if report_message_ids:
+                    # 自动置顶第一条消息（必须使用频道中的消息ID）
+                    if source_channel_message_ids:
                         try:
-                            first_message_id = report_message_ids[0]
-                            await use_client.pin_message(source_channel, first_message_id)
-                            logger.info(f"已成功置顶消息ID: {first_message_id}")
+                            first_channel_message_id = source_channel_message_ids[0]
+                            await use_client.pin_message(source_channel, first_channel_message_id)
+                            logger.info(f"已成功置顶消息ID: {first_channel_message_id}")
                         except Exception as e:
                             logger.warning(f"置顶消息失败，可能需要管理员权限: {e}")
 
                     # 如果启用了投票功能，根据频道配置发送投票
-                    if report_message_ids:
-                        logger.info(f"开始处理投票发送，总结消息ID: {report_message_ids[0]}")
-                        # 使用第一个消息ID作为投票回复目标
+                    # 投票回复目标使用频道中的消息ID
+                    pin_target_id = (
+                        source_channel_message_ids[0] if source_channel_message_ids else None
+                    )
+                    if pin_target_id:
+                        logger.info(f"开始处理投票发送，总结消息ID: {pin_target_id}")
+                        # 使用频道消息ID作为投票回复目标
                         poll_result = await send_poll(
                             use_client,
                             source_channel,
-                            report_message_ids[0],
+                            pin_target_id,
                             summary_text_for_source,
                         )
                         if poll_result and poll_result.get("poll_msg_id"):

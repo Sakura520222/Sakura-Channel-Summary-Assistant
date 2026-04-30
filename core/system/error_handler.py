@@ -363,15 +363,17 @@ async def check_ai_api():
     """检查AI API连接"""
     from openai import OpenAI
 
-    from core.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+    import core.config as config_module
 
     try:
-        client = OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+        client = OpenAI(api_key=config_module.LLM_API_KEY, base_url=config_module.LLM_BASE_URL)
         # 发送一个简单的测试请求
         client.chat.completions.create(
-            model=LLM_MODEL, messages=[{"role": "user", "content": "Hello"}], max_tokens=5
+            model=config_module.LLM_MODEL,
+            messages=[{"role": "user", "content": "Hello"}],
+            max_tokens=5,
         )
-        return f"AI API连接正常，模型: {LLM_MODEL}"
+        return f"AI API连接正常，模型: {config_module.LLM_MODEL}"
     except Exception as e:
         raise Exception(f"AI API连接失败: {e}") from e
 

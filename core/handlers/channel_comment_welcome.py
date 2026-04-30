@@ -457,12 +457,12 @@ class CommentWelcomeHandler:
 
             # 白名单检查：验证讨论组所属的频道是否在 CHANNELS 配置中
             # 这样可以确保只在配置的目标频道的讨论组中发送欢迎消息
-            from core.config import CHANNELS
+            import core.config as config_module
 
             # linked_chat_id 已通过上方守卫保证非 None
             linked_identifier = await self._get_channel_identifier(linked_chat_id)
 
-            if not is_channel_in_whitelist(linked_identifier, CHANNELS):
+            if not is_channel_in_whitelist(linked_identifier, config_module.CHANNELS):
                 logger.debug(f"关联频道 {linked_identifier} 不在白名单中，忽略")
                 return
 

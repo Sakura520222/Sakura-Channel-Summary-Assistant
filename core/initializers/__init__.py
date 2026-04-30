@@ -23,6 +23,7 @@ from .realtime_rag_initializer import RealtimeRAGInitializer
 from .scheduler_initializer import SchedulerInitializer
 from .startup_notifier import StartupNotifier
 from .userbot_initializer import UserBotInitializer
+from .web_api_initializer import WebAPIInitializer
 
 __all__ = [
     "CommandRegistrar",
@@ -34,4 +35,5 @@ __all__ = [
     "CommunicationInitializer",
     "RealtimeRAGInitializer",
     "StartupNotifier",
+    "WebAPIInitializer",
 ]

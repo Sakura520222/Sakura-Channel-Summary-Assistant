@@ -12,7 +12,8 @@
 评论区欢迎配置命令处理
 """
 
-from core.config import ADMIN_LIST, CHANNELS, logger
+import core.config as config_module
+from core.config import ADMIN_LIST, logger
 from core.handlers.channel_comment_welcome_config import (
     delete_channel_comment_welcome_config,
     get_all_comment_welcome_configs,
@@ -60,7 +61,7 @@ async def handle_show_comment_welcome(event):
 async def _show_single_channel_config(event, channel: str):
     """显示单个频道的配置"""
     # 检查频道是否在监控列表中
-    if channel not in CHANNELS:
+    if channel not in config_module.CHANNELS:
         await event.reply(get_text("error.channel_not_found", channel=channel))
         return
 
@@ -99,13 +100,13 @@ async def _show_all_channels_config(event):
     """显示所有频道的配置"""
     all_configs = await get_all_comment_welcome_configs()
 
-    if not CHANNELS:
+    if not config_module.CHANNELS:
         await event.reply(get_text("error.no_channels"))
         return
 
     message = f"{get_text('comment_welcome.config.all_title')}\n\n"
 
-    for channel in CHANNELS:
+    for channel in config_module.CHANNELS:
         config = await get_channel_comment_welcome_config(channel)
         is_custom = channel in all_configs
 
@@ -181,20 +182,18 @@ async def handle_set_comment_welcome(event):
             )
 
             # 为每个已配置的频道生成示例
-            if CHANNELS:
+            if config_module.CHANNELS:
                 help_text += "• 启用（使用默认消息）：\n"
-                for channel in CHANNELS[:3]:  # 最多显示3个频道
+                for channel in config_module.CHANNELS[:3]:  # 最多显示3个频道
                     help_text += f"  `/setcommentwelcome {channel} true`\n"
 
                 help_text += "\n• 禁用：\n"
-                for channel in CHANNELS[:2]:  # 最多显示2个频道
+                for channel in config_module.CHANNELS[:2]:  # 最多显示2个频道
                     help_text += f"  `/setcommentwelcome {channel} false`\n"
 
                 help_text += "\n• 自定义消息和按钮：\n"
-                if CHANNELS:
-                    help_text += (
-                        f'  `/setcommentwelcome {CHANNELS[0]} true "欢迎来到评论区" "申请总结"`\n'
-                    )
+                if config_module.CHANNELS:
+                    help_text += f'  `/setcommentwelcome {config_module.CHANNELS[0]} true "欢迎来到评论区" "申请总结"`\n'
             else:
                 help_text += "  `/setcommentwelcome your_channel true`\n"
                 help_text += '  `/setcommentwelcome your_channel true "欢迎" "申请总结"`\n'
@@ -219,7 +218,7 @@ async def handle_set_comment_welcome(event):
         enabled_str = tokens[2].strip()
 
         # 检查频道是否在监控列表中
-        if channel not in CHANNELS:
+        if channel not in config_module.CHANNELS:
             await event.reply(get_text("error.channel_not_found", channel=channel))
             return
 
@@ -311,7 +310,7 @@ async def handle_delete_comment_welcome(event):
         channel = parts[1].strip()
 
         # 检查频道是否在监控列表中
-        if channel not in CHANNELS:
+        if channel not in config_module.CHANNELS:
             await event.reply(get_text("error.channel_not_found", channel=channel))
             return
 

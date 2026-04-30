@@ -36,6 +36,7 @@ from core.initializers import (
     SchedulerInitializer,
     StartupNotifier,
     UserBotInitializer,
+    WebAPIInitializer,
 )
 from core.settings import get_api_hash, get_api_id, get_bot_token, validate_required_settings
 from core.system.error_handler import initialize_error_handling
@@ -45,7 +46,7 @@ from core.telegram.client import set_active_client
 class AppBootstrap:
     """应用引导程序 - 协调所有初始化器的工作"""
 
-    def __init__(self, version: str = "1.8.2", config_manager=None):
+    def __init__(self, version: str = "1.8.3", config_manager=None):
         self.logger = logging.getLogger(__name__)
         self.version = version
         self.client: TelegramClient | None = None
@@ -73,6 +74,7 @@ class AppBootstrap:
         self.startup_notifier = StartupNotifier(
             version=version, system_config_manager=self.system_config_manager
         )
+        self.web_api_initializer = WebAPIInitializer()
 
     async def run(self) -> None:
         """运行应用引导流程
@@ -118,10 +120,13 @@ class AppBootstrap:
             # 第11.5步：初始化实时RAG功能
             await self._initialize_realtime_rag()
 
-            # 第12步：发送启动通知
+            # 第12步：启动 WebUI API 服务器
+            await self._initialize_web_api()
+
+            # 第13步：发送启动通知
             await self._send_startup_notifications()
 
-            # 第13步：保持Bot运行
+            # 第14步：保持Bot运行
             await self._keep_running()
 
         except KeyboardInterrupt:
@@ -204,6 +209,10 @@ class AppBootstrap:
             userbot_client=self.userbot_client,
         )
 
+    async def _initialize_web_api(self) -> None:
+        """初始化 WebUI API 服务器"""
+        await self.web_api_initializer.initialize()
+
     async def _register_bot_commands(self) -> None:
         """注册机器人命令菜单"""
         from core.bot_commands import register_commands
@@ -240,7 +249,13 @@ class AppBootstrap:
         """清理资源"""
         self.logger.info("正在清理资源...")
 
-        # 0. 停止实时RAG处理器
+        # 0. 停止 WebUI API 服务器
+        try:
+            await self.web_api_initializer.shutdown()
+        except Exception as e:
+            self.logger.error(f"关闭 WebUI API 服务器时出错: {type(e).__name__}: {e}")
+
+        # 1. 停止实时RAG处理器
         try:
             from core.handlers.realtime_rag_handler import get_realtime_rag_handler
 

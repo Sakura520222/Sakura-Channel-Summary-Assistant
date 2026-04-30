@@ -220,6 +220,24 @@ class UserBotSettings(BaseSettings):
     model_config = {"extra": "ignore"}
 
 
+class WebUISettings(BaseSettings):
+    """WebUI 管理界面配置"""
+
+    enabled: bool = Field(default=False, alias="WEBUI_ENABLED")
+    host: str = Field(default="0.0.0.0", alias="WEBUI_HOST")
+    port: int = Field(default=8080, alias="WEBUI_PORT")
+    dev_mode: bool = Field(default=False, alias="WEBUI_DEV_MODE")
+
+    @field_validator("port")
+    @classmethod
+    def validate_port(cls, v: int) -> int:
+        if not 1 <= v <= 65535:
+            raise ValueError("端口号必须在 1-65535 之间")
+        return v
+
+    model_config = {"extra": "ignore"}
+
+
 class Settings:
     """主配置类，聚合所有子配置"""
 
@@ -233,6 +251,7 @@ class Settings:
         self.poll = PollSettings()
         self.database = DatabaseSettings()
         self.userbot = UserBotSettings()
+        self.webui = WebUISettings()
 
         # 其他配置
         self.send_report_to_source = True

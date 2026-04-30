@@ -1678,6 +1678,72 @@ def get_qa_bot_persona():
 
 # ==================== 配置热重载支持 ====================
 
+
+# 调度器热重载辅助函数
+async def _reschedule_summary_jobs(event):
+    """重新调度所有频道总结任务（热重载调度时间）
+
+    当 summary_schedules 配置变更时，移除旧的调度任务并用新配置重新创建。
+
+    Args:
+        event: ConfigChangedEvent 实例
+    """
+    try:
+        scheduler = get_scheduler_instance()
+        if not scheduler:
+            logger.warning("调度器实例未设置，跳过调度任务热重载")
+            return
+
+        # 获取当前频道列表
+        channels = event.config.get("channels", [])
+        if not channels:
+            logger.info("频道列表为空，移除所有调度任务")
+            return
+
+        # 延迟导入，避免循环依赖
+        from core.system.scheduler import main_job
+
+        rescheduled = 0
+        for channel in channels:
+            schedule = get_channel_schedule(channel)
+            trigger_params = build_cron_trigger(schedule)
+            job_id = f"summary_job_{channel}"
+
+            try:
+                # 使用 replace_existing=True 原子性更新任务
+                scheduler.add_job(
+                    main_job,
+                    "cron",
+                    **trigger_params,
+                    args=[channel],
+                    id=job_id,
+                    replace_existing=True,
+                )
+                rescheduled += 1
+            except Exception as e:
+                logger.error(f"重新调度频道 {channel} 任务失败: {type(e).__name__}: {e}")
+
+        # 移除已不在频道列表中的旧任务
+        try:
+            existing_jobs = scheduler.get_jobs()
+            removed = 0
+            for job in existing_jobs:
+                if job.id.startswith("summary_job_"):
+                    # 提取频道 URL
+                    job_channel = job.id[len("summary_job_") :]
+                    if job_channel not in channels:
+                        scheduler.remove_job(job.id)
+                        removed += 1
+            if removed > 0:
+                logger.info(f"已移除 {removed} 个无效频道调度任务")
+        except Exception as e:
+            logger.error(f"清理无效调度任务失败: {type(e).__name__}: {e}")
+
+        logger.info(f"✅ 调度任务已热重载: 共 {rescheduled} 个频道")
+    except Exception as e:
+        logger.error(f"❌ 调度任务热重载失败: {type(e).__name__}: {e}", exc_info=True)
+
+
 _config_reload_subscribed = False
 
 
@@ -1696,7 +1762,7 @@ async def setup_config_reload(event_bus):
     from core.config.events import ConfigChangedEvent
 
     async def on_config_changed(event: ConfigChangedEvent):
-        """配置变更处理"""
+        """配置变更处理 - 全量配置热重载"""
         try:
             config = event.config
             global \
@@ -1706,9 +1772,17 @@ async def setup_config_reload(event_bus):
                 POLL_REGEN_THRESHOLD, \
                 ENABLE_VOTE_REGEN_REQUEST, \
                 SUMMARY_SCHEDULES, \
-                CHANNEL_POLL_SETTINGS
+                CHANNEL_POLL_SETTINGS, \
+                ENABLE_AUTO_POLL, \
+                CHANNEL_AUTO_POLL_SETTINGS, \
+                POLL_PUBLIC_VOTERS, \
+                LLM_API_KEY, \
+                LLM_BASE_URL, \
+                LLM_MODEL
 
             changes = []
+
+            # ==================== 基础配置 ====================
 
             # 更新频道列表
             if "channels" in event.changed_fields or not event.changed_fields:
@@ -1722,35 +1796,17 @@ async def setup_config_reload(event_bus):
             if "send_report_to_source" in event.changed_fields or not event.changed_fields:
                 if "send_report_to_source" in config:
                     old_value = SEND_REPORT_TO_SOURCE
-                    SEND_REPORT_TO_SOURCE = config["send_report_to_source"]
+                    SEND_REPORT_TO_SOURCE = _parse_bool(config["send_report_to_source"])
                     changes.append(f"send_report_to_source: {old_value} → {SEND_REPORT_TO_SOURCE}")
+
+            # ==================== 投票配置 ====================
 
             # 更新是否启用投票功能的配置
             if "enable_poll" in event.changed_fields or not event.changed_fields:
                 if "enable_poll" in config:
                     old_value = ENABLE_POLL
-                    ENABLE_POLL = config["enable_poll"]
+                    ENABLE_POLL = _parse_bool(config["enable_poll"])
                     changes.append(f"enable_poll: {old_value} → {ENABLE_POLL}")
-
-            # 更新频道级时间配置
-            if "summary_schedules" in str(event.changed_fields) or not event.changed_fields:
-                summary_schedules_config = config.get("summary_schedules", {})
-                if isinstance(summary_schedules_config, dict):
-                    old_count = len(SUMMARY_SCHEDULES)
-                    SUMMARY_SCHEDULES = summary_schedules_config
-                    changes.append(
-                        f"summary_schedules: {old_count} → {len(SUMMARY_SCHEDULES)} 个频道"
-                    )
-
-            # 更新频道级投票配置
-            if "channel_poll_settings" in str(event.changed_fields) or not event.changed_fields:
-                channel_poll_config = config.get("channel_poll_settings", {})
-                if isinstance(channel_poll_config, dict):
-                    old_count = len(CHANNEL_POLL_SETTINGS)
-                    CHANNEL_POLL_SETTINGS = channel_poll_config
-                    changes.append(
-                        f"channel_poll_settings: {old_count} → {len(CHANNEL_POLL_SETTINGS)} 个频道"
-                    )
 
             # 更新投票重新生成请求配置
             if "poll_regen_threshold" in event.changed_fields or not event.changed_fields:
@@ -1762,10 +1818,136 @@ async def setup_config_reload(event_bus):
             if "enable_vote_regen_request" in event.changed_fields or not event.changed_fields:
                 if "enable_vote_regen_request" in config:
                     old_value = ENABLE_VOTE_REGEN_REQUEST
-                    ENABLE_VOTE_REGEN_REQUEST = config["enable_vote_regen_request"]
+                    ENABLE_VOTE_REGEN_REQUEST = _parse_bool(config["enable_vote_regen_request"])
                     changes.append(
                         f"enable_vote_regen_request: {old_value} → {ENABLE_VOTE_REGEN_REQUEST}"
                     )
+
+            # 更新投票公开配置
+            if "public_voters" in event.changed_fields or not event.changed_fields:
+                if "public_voters" in config:
+                    old_value = POLL_PUBLIC_VOTERS
+                    POLL_PUBLIC_VOTERS = _parse_bool(config["public_voters"])
+                    changes.append(f"public_voters: {old_value} → {POLL_PUBLIC_VOTERS}")
+
+            # ==================== 调度配置 ====================
+
+            # 更新频道级时间配置
+            if "summary_schedules" in str(event.changed_fields) or not event.changed_fields:
+                summary_schedules_config = config.get("summary_schedules", {})
+                if isinstance(summary_schedules_config, dict):
+                    old_count = len(SUMMARY_SCHEDULES)
+                    SUMMARY_SCHEDULES = summary_schedules_config
+                    changes.append(
+                        f"summary_schedules: {old_count} → {len(SUMMARY_SCHEDULES)} 个频道"
+                    )
+
+                    # 重新初始化调度器任务（热重载调度时间）
+                    await _reschedule_summary_jobs(event)
+
+            # ==================== 投票频道配置 ====================
+
+            # 更新频道级投票配置
+            if "channel_poll_settings" in str(event.changed_fields) or not event.changed_fields:
+                channel_poll_config = config.get("channel_poll_settings", {})
+                if isinstance(channel_poll_config, dict):
+                    old_count = len(CHANNEL_POLL_SETTINGS)
+                    CHANNEL_POLL_SETTINGS = channel_poll_config
+                    changes.append(
+                        f"channel_poll_settings: {old_count} → {len(CHANNEL_POLL_SETTINGS)} 个频道"
+                    )
+
+            # ==================== 自动趣味投票配置 ====================
+
+            # 更新自动趣味投票全局开关
+            if "enable_auto_poll" in event.changed_fields or not event.changed_fields:
+                if "enable_auto_poll" in config:
+                    old_value = ENABLE_AUTO_POLL
+                    ENABLE_AUTO_POLL = _parse_bool(config["enable_auto_poll"])
+                    changes.append(f"enable_auto_poll: {old_value} → {ENABLE_AUTO_POLL}")
+
+            # 更新频道级自动趣味投票配置
+            if (
+                "channel_auto_poll_settings" in str(event.changed_fields)
+                or not event.changed_fields
+            ):
+                auto_poll_config = config.get("channel_auto_poll_settings", {})
+                if isinstance(auto_poll_config, dict):
+                    old_count = len(CHANNEL_AUTO_POLL_SETTINGS)
+                    CHANNEL_AUTO_POLL_SETTINGS = auto_poll_config
+                    changes.append(
+                        f"channel_auto_poll_settings: {old_count} → "
+                        f"{len(CHANNEL_AUTO_POLL_SETTINGS)} 个频道"
+                    )
+
+            # ==================== 日志级别 ====================
+            # 日志级别热重载由 SystemConfigManager.on_config_updated() 统一处理
+            # （更新根 logger + 恢复第三方库抑制），此处仅记录变更
+
+            if "log_level" in event.changed_fields or not event.changed_fields:
+                if "log_level" in config:
+                    new_level_str = config["log_level"]
+                    new_level = get_log_level(new_level_str)
+                    old_level = logging.getLogger().level
+                    changes.append(
+                        f"log_level: {logging.getLevelName(old_level)} → "
+                        f"{logging.getLevelName(new_level)}"
+                    )
+
+            # ==================== 语言配置 ====================
+
+            if "language" in event.changed_fields or not event.changed_fields:
+                if "language" in config:
+                    new_lang = config["language"]
+                    old_lang = i18n.get_language()
+                    if new_lang != old_lang:
+                        i18n.set_language(new_lang)
+                        changes.append(f"language: {old_lang} → {new_lang}")
+
+            # ==================== AI 配置 ====================
+
+            if "api_key" in event.changed_fields or not event.changed_fields:
+                new_key = config.get("api_key")
+                if new_key:
+                    LLM_API_KEY = new_key
+                    changes.append("api_key: 已更新")
+
+            if "base_url" in event.changed_fields or not event.changed_fields:
+                new_url = config.get("base_url")
+                if new_url:
+                    LLM_BASE_URL = new_url
+                    changes.append(f"base_url: → {new_url}")
+
+            if "model" in event.changed_fields or not event.changed_fields:
+                new_model = config.get("model")
+                if new_model:
+                    LLM_MODEL = new_model
+                    changes.append(f"model: → {new_model}")
+
+            # AI 配置变更时，重建 AI 客户端实例
+            ai_fields = {"api_key", "base_url"}
+            if ai_fields & (event.changed_fields or set()) or not event.changed_fields:
+                current_key = config.get("api_key") or LLM_API_KEY
+                current_url = config.get("base_url") or LLM_BASE_URL
+                if current_key and current_url:
+                    try:
+                        from core.ai.ai_client import reinitialize_ai_clients
+
+                        reinitialize_ai_clients(current_key, current_url)
+                        changes.append("ai_client: 已重新初始化")
+                    except Exception as e:
+                        logger.error(f"AI 客户端热重载失败: {type(e).__name__}: {e}")
+
+            # ==================== 评论区欢迎配置 ====================
+            # comment_welcome 和 channel_comment_welcome 配置通过
+            # channel_comment_welcome_config.py 的 get_channel_comment_welcome_config()
+            # 每次调用时从 load_config() 读取最新配置，无需额外处理。
+            # 仅记录变更日志。
+            if any(
+                f.startswith("comment_welcome") or f.startswith("channel_comment_welcome")
+                for f in (event.changed_fields or [])
+            ):
+                changes.append("comment_welcome: 配置已变更，将在下次触发时生效")
 
             if changes:
                 logger.info(f"✅ 全局配置变量已热重载: 版本={event.version}, {', '.join(changes)}")

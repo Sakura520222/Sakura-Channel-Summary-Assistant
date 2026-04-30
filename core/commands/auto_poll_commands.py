@@ -12,10 +12,9 @@
 自动趣味投票配置命令处理
 """
 
+import core.config as config_module
 from core.config import (
     ADMIN_LIST,
-    CHANNELS,
-    ENABLE_AUTO_POLL,
     delete_channel_auto_poll_config,
     get_channel_auto_poll_config,
     load_config,
@@ -59,7 +58,7 @@ async def handle_show_auto_poll(event):
 
 async def _show_single_channel_auto_poll(event, channel: str):
     """显示单个频道的自动趣味投票配置"""
-    if channel not in CHANNELS:
+    if channel not in config_module.CHANNELS:
         await event.reply(get_text("error.channel_not_found", channel=channel))
         return
 
@@ -69,7 +68,7 @@ async def _show_single_channel_auto_poll(event, channel: str):
 
     if enabled is None:
         # 使用全局配置
-        if ENABLE_AUTO_POLL:
+        if config_module.ENABLE_AUTO_POLL:
             status_text = get_text("auto_poll.status_global_enabled")
         else:
             status_text = get_text("auto_poll.status_global_disabled")
@@ -92,19 +91,19 @@ async def _show_single_channel_auto_poll(event, channel: str):
 
 async def _show_all_channels_auto_poll(event):
     """显示所有频道的自动趣味投票配置"""
-    if not CHANNELS:
+    if not config_module.CHANNELS:
         await event.reply(get_text("error.no_channels"))
         return
 
     global_status = (
         get_text("auto_poll.status_enabled")
-        if ENABLE_AUTO_POLL
+        if config_module.ENABLE_AUTO_POLL
         else get_text("auto_poll.status_disabled")
     )
 
     info = get_text("auto_poll.all_title", global_status=global_status) + "\n\n"
 
-    for i, ch in enumerate(CHANNELS, 1):
+    for i, ch in enumerate(config_module.CHANNELS, 1):
         auto_poll_config = get_channel_auto_poll_config(ch)
         channel_name = ch.split("/")[-1]
         enabled = auto_poll_config["enabled"]
@@ -112,7 +111,7 @@ async def _show_all_channels_auto_poll(event):
         if enabled is None:
             status_text = (
                 get_text("auto_poll.status_global_enabled")
-                if ENABLE_AUTO_POLL
+                if config_module.ENABLE_AUTO_POLL
                 else get_text("auto_poll.status_global_disabled")
             )
         else:
@@ -182,7 +181,7 @@ async def handle_set_auto_poll(event):
         else:
             channel = f"https://t.me/{channel_part}"
 
-        if channel not in CHANNELS:
+        if channel not in config_module.CHANNELS:
             await event.reply(get_text("error.channel_not_found", channel=channel))
             return
 
@@ -240,7 +239,7 @@ async def handle_delete_auto_poll(event):
         else:
             channel = f"https://t.me/{channel_part}"
 
-        if channel not in CHANNELS:
+        if channel not in config_module.CHANNELS:
             await event.reply(get_text("error.channel_not_found", channel=channel))
             return
 
