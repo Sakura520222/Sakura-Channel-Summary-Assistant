@@ -172,6 +172,34 @@ export interface BotStatus {
   forwarding_enabled: boolean;
   qa_bot_running: boolean;
   userbot_connected: boolean;
+  uptime_seconds?: number;
+  qa_bot?: Record<string, unknown>;
+  database?: Record<string, unknown>;
+  cache?: Record<string, unknown>;
+  logs?: Record<string, unknown>;
+  audit?: Record<string, unknown>;
+}
+
+export interface CleanupRequest {
+  days: number;
+}
+
+export interface RecentLogsParams {
+  lines?: number;
+  level?: string | null;
+  keyword?: string | null;
+}
+
+export interface AuditLogItem {
+  id: number;
+  action: string;
+  actor: string;
+  target: string;
+  params_summary: string;
+  success: boolean;
+  message: string;
+  duration_ms: number;
+  created_at: string;
 }
 
 export async function getSystemStatus() {
@@ -196,6 +224,73 @@ export async function updateLogLevel(level: string) {
 
 export async function restartBot() {
   const res = await apiClient.post("/system/restart");
+  return res.data;
+}
+
+export async function startQABot() {
+  const res = await apiClient.post("/system/qa-bot/start");
+  return res.data;
+}
+
+export async function stopQABot() {
+  const res = await apiClient.post("/system/qa-bot/stop");
+  return res.data;
+}
+
+export async function restartQABot() {
+  const res = await apiClient.post("/system/qa-bot/restart");
+  return res.data;
+}
+
+export async function checkQABotHealth() {
+  const res = await apiClient.post("/system/qa-bot/health");
+  return res.data;
+}
+
+export async function reloadSystemConfig() {
+  const res = await apiClient.post("/system/config/reload");
+  return res.data;
+}
+
+export async function getDiscussionCacheStatus() {
+  const res = await apiClient.get("/system/cache/discussion");
+  return res.data;
+}
+
+export async function clearDiscussionCache(channel?: string) {
+  const res = await apiClient.delete("/system/cache/discussion", {
+    params: channel ? { channel } : undefined,
+  });
+  return res.data;
+}
+
+export async function getDatabaseStatus() {
+  const res = await apiClient.get("/system/database/status");
+  return res.data;
+}
+
+export async function cleanupForwardedMessages(data: CleanupRequest) {
+  const res = await apiClient.post("/system/database/cleanup/forwarded-messages", data);
+  return res.data;
+}
+
+export async function cleanupPollRegenerations(data: CleanupRequest) {
+  const res = await apiClient.post("/system/database/cleanup/poll-regenerations", data);
+  return res.data;
+}
+
+export async function cleanupAuditLogs(data: CleanupRequest) {
+  const res = await apiClient.post("/system/database/cleanup/audit-logs", data);
+  return res.data;
+}
+
+export async function getRecentLogs(params: RecentLogsParams = {}) {
+  const res = await apiClient.get("/system/logs/recent", { params });
+  return res.data;
+}
+
+export async function getAuditLogs(limit = 50) {
+  const res = await apiClient.get("/system/audit-logs", { params: { limit } });
   return res.data;
 }
 

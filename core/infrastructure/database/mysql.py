@@ -392,6 +392,24 @@ class MySQLManager(DatabaseManagerBase):
                     else:
                         logger.warning(f"添加 ai_optimized_title 列时出错: {alter_err}")
 
+                # 15. 创建 WebUI 系统运维审计表
+                await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS system_audit_logs (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    action VARCHAR(100) NOT NULL,
+                    actor VARCHAR(100) NOT NULL,
+                    target VARCHAR(500),
+                    params_summary TEXT,
+                    success BOOLEAN DEFAULT TRUE,
+                    message TEXT,
+                    duration_ms INT DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_system_audit_created (created_at DESC),
+                    INDEX idx_system_audit_action (action),
+                    INDEX idx_system_audit_actor (actor)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
+
                 # 插入或更新版本号
                 await cursor.execute("""
                     INSERT INTO db_version (version, upgraded_at)
@@ -2728,4 +2746,84 @@ class MySQLManager(DatabaseManagerBase):
 
         except Exception as e:
             logger.error(f"清理旧投票重新生成记录失败: {type(e).__name__}: {e}", exc_info=True)
+            return 0
+
+    # ============ WebUI 系统运维审计 ============
+
+    async def add_system_audit_log(
+        self,
+        action: str,
+        actor: str,
+        target: str = "",
+        params_summary: str = "{}",
+        success: bool = True,
+        message: str = "",
+        duration_ms: int = 0,
+    ) -> bool:
+        """添加 WebUI 系统运维审计记录"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        """
+                        INSERT INTO system_audit_logs
+                        (action, actor, target, params_summary, success, message, duration_ms)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                        (
+                            action,
+                            actor,
+                            target,
+                            params_summary,
+                            success,
+                            message,
+                            duration_ms,
+                        ),
+                    )
+                    await conn.commit()
+                    return True
+        except Exception as e:
+            logger.error(f"添加系统审计记录失败: {type(e).__name__}: {e}", exc_info=True)
+            return False
+
+    async def get_system_audit_logs(self, limit: int = 50) -> list[dict[str, Any]]:
+        """获取最近 WebUI 系统运维审计记录"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(
+                        """
+                        SELECT id, action, actor, target, params_summary, success,
+                               message, duration_ms, created_at
+                        FROM system_audit_logs
+                        ORDER BY created_at DESC, id DESC
+                        LIMIT %s
+                    """,
+                        (limit,),
+                    )
+                    return list(await cursor.fetchall())
+        except Exception as e:
+            logger.error(f"获取系统审计记录失败: {type(e).__name__}: {e}", exc_info=True)
+            return []
+
+    async def cleanup_old_system_audit_logs(self, days: int = 90) -> int:
+        """清理旧 WebUI 系统运维审计记录"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    cutoff_time = datetime.now(UTC) - timedelta(days=days)
+                    await cursor.execute(
+                        """
+                        DELETE FROM system_audit_logs
+                        WHERE created_at < %s
+                    """,
+                        (cutoff_time,),
+                    )
+                    deleted_count = cursor.rowcount
+                    await conn.commit()
+                    if deleted_count > 0:
+                        logger.info(f"已清理 {deleted_count} 条超过 {days} 天的系统审计记录")
+                    return deleted_count
+        except Exception as e:
+            logger.error(f"清理系统审计记录失败: {type(e).__name__}: {e}", exc_info=True)
             return 0
