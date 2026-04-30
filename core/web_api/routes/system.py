@@ -143,14 +143,20 @@ async def update_log_level(request: LogLevelUpdate):
 
 @router.post("/restart")
 async def restart_bot():
-    """请求重启 Bot（设置重启标记）"""
+    """立即重启 Bot（优雅关闭后用 os.execv 替换当前进程）"""
     try:
-        # 创建重启标记文件
+        # 写入重启标记（webui_restart 区别于 Telegram 命令的标记）
         async with aiofiles.open(RESTART_FLAG_FILE, "w") as f:
-            await f.write("restart_requested")
+            await f.write("webui_restart")
 
         logger.info("已通过 WebUI 请求重启 Bot")
-        return {"success": True, "message": "重启请求已发送，Bot 将在下次检查时重启"}
+
+        # 立即触发优雅关闭流程
+        from core.config import trigger_shutdown
+
+        trigger_shutdown()
+
+        return {"success": True, "message": "正在重启 Bot..."}
 
     except Exception as e:
         logger.error(f"请求重启失败: {type(e).__name__}: {e}", exc_info=True)

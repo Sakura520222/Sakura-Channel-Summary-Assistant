@@ -26,6 +26,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from core.bootstrap.app_bootstrap import AppBootstrap
 from core.config import (
+    RESTART_FLAG_FILE,
     AsyncIOEventBus,
     ConfigErrorNotifier,
     ConfigManager,
@@ -244,11 +245,36 @@ if __name__ == "__main__":
                         await event_bus.shutdown()
                     logger.info("配置热重载系统已关闭")
 
-                # 退出程序（使用 os._exit 确保立即退出并关闭控制台）
+                # 退出程序（检查是否为 WebUI 触发的重启）
                 from core.system.shutdown_manager import get_shutdown_manager
 
                 shutdown_manager = get_shutdown_manager()
-                shutdown_manager.perform_exit(0)
+
+                # 检查是否为 WebUI 触发的重启（使用 os.execv 替换进程，不新开控制台）
+                is_webui_restart = False
+                try:
+
+                    def _read_restart_flag() -> str | None:
+                        if os.path.exists(RESTART_FLAG_FILE):
+                            with open(RESTART_FLAG_FILE) as _f:
+                                return _f.read().strip()
+                        return None
+
+                    flag_content = await asyncio.to_thread(_read_restart_flag)
+                    is_webui_restart = flag_content == "webui_restart"
+                except Exception:
+                    pass
+
+                if is_webui_restart:
+                    logger.info("🔄 WebUI 重启：使用 os.execv 替换当前进程...")
+                    try:
+                        os.remove(RESTART_FLAG_FILE)
+                    except Exception:
+                        pass
+                    # os.execv 替换当前进程映像，不会新开控制台
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+                else:
+                    shutdown_manager.perform_exit(0)
 
                 # 这行代码不会被执行到，因为 perform_exit 会立即终止进程
                 loop.stop()

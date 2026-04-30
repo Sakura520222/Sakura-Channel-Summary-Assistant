@@ -60,7 +60,7 @@
 
             <!-- 重启 -->
             <n-button type="error" @click="handleRestart">请求重启</n-button>
-            <n-text depth="3" class="font-xs">重启请求将设置标记，Bot 在下次检查时执行重启</n-text>
+            <n-text depth="3" class="font-xs">Bot 将优雅关闭所有资源后自动重启，不会新开控制台</n-text>
           </n-space>
         </n-card>
       </n-gi>
@@ -152,12 +152,35 @@ async function handleLogLevelChange() {
 function handleRestart() {
   dialog.error({
     title: "确认重启",
-    content: "确定要请求重启 Bot 吗？",
+    content: "Bot 将立即重启（优雅关闭后自动重启），确定继续吗？",
     positiveText: "确认重启",
     negativeText: "取消",
     onPositiveClick: async () => {
-      const res = await restartBot();
-      message[res.success ? "success" : "error"](res.message);
+      try {
+        const res = await restartBot();
+        if (res.success) {
+          message.success("Bot 正在重启，请稍候...");
+          // 等待重启完成后自动重连
+          setTimeout(() => {
+            const checkInterval = setInterval(async () => {
+              try {
+                const r = await fetch("/api/health");
+                if (r.ok) {
+                  clearInterval(checkInterval);
+                  message.success("Bot 已重启完成");
+                  await loadStatus();
+                }
+              } catch {
+                // 还在重启中
+              }
+            }, 3000);
+          }, 5000);
+        } else {
+          message.error(res.message);
+        }
+      } catch {
+        message.error("重启请求失败");
+      }
     },
   });
 }
