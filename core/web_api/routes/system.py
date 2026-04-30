@@ -60,7 +60,7 @@ async def get_system_status():
             "success": True,
             "data": BotStatusResponse(
                 status=get_bot_state(),
-                version="1.8.2",
+                version="1.8.3",
                 log_level=logging.getLevelName(logging.getLogger().level),
                 channel_count=len(channels),
                 forwarding_enabled=forwarding.get("enabled", False),
