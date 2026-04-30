@@ -32,10 +32,8 @@ async def get_system_status():
     """获取 Bot 运行状态"""
     try:
         from core.config import load_config
-        from core.settings import get_settings
 
         config = load_config()
-        settings = get_settings()
         channels = config.get("channels", [])
         forwarding = config.get("forwarding", {})
 
@@ -63,7 +61,7 @@ async def get_system_status():
             "data": BotStatusResponse(
                 status=get_bot_state(),
                 version="1.8.2",
-                log_level=settings.log.log_level,
+                log_level=logging.getLevelName(logging.getLogger().level),
                 channel_count=len(channels),
                 forwarding_enabled=forwarding.get("enabled", False),
                 qa_bot_running=qa_bot_running,
@@ -121,10 +119,12 @@ async def update_log_level(request: LogLevelUpdate):
     try:
         import logging as logging_module
 
-        # 更新根 logger 级别
+        # 更新根 logger 和所有 handler 的级别
         root_logger = logging_module.getLogger()
         level = getattr(logging_module, request.level)
         root_logger.setLevel(level)
+        for handler in root_logger.handlers:
+            handler.setLevel(level)
 
         # 更新配置
         from core.config import load_config, save_config

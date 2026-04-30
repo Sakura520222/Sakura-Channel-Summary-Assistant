@@ -1881,25 +1881,18 @@ async def setup_config_reload(event_bus):
                     )
 
             # ==================== 日志级别 ====================
+            # 日志级别热重载由 SystemConfigManager.on_config_updated() 统一处理
+            # （更新根 logger + 恢复第三方库抑制），此处仅记录变更
 
             if "log_level" in event.changed_fields or not event.changed_fields:
                 if "log_level" in config:
                     new_level_str = config["log_level"]
                     new_level = get_log_level(new_level_str)
-                    root = logging.getLogger()
-                    old_level = root.getEffectiveLevel()
-                    if old_level != new_level:
-                        root.setLevel(new_level)
-                        # 同步更新所有已有 logger
-                        updated_count = 0
-                        for _, logger_obj in logging.Logger.manager.loggerDict.items():
-                            if isinstance(logger_obj, logging.Logger):
-                                logger_obj.setLevel(new_level)
-                                updated_count += 1
-                        changes.append(
-                            f"log_level: {logging.getLevelName(old_level)} → "
-                            f"{logging.getLevelName(new_level)} (已更新 {updated_count} 个 logger)"
-                        )
+                    old_level = logging.getLogger().level
+                    changes.append(
+                        f"log_level: {logging.getLevelName(old_level)} → "
+                        f"{logging.getLevelName(new_level)}"
+                    )
 
             # ==================== 语言配置 ====================
 

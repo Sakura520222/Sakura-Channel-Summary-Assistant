@@ -1,4 +1,5 @@
 # core/config/telegram_notifier.py
+import asyncio
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -12,16 +13,19 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Telegram 发送超时（秒），防止通知发送阻塞事件链
+_SEND_TIMEOUT = 10.0
+
 
 class ConfigErrorNotifier:
-    """配置通知器 - 支持错误和变更通知"""
+    """配置通知器 - 支持错误和变更通知（非阻塞）"""
 
     def __init__(self, bot_token: str, admin_chat_id: str):
         self._bot_token = bot_token
         self._admin_chat_id = admin_chat_id
 
     async def on_config_validation_error(self, event: ConfigValidationErrorEvent):
-        """处理配置验证失败事件（支持回滚通知）"""
+        """处理配置验证失败事件（非阻塞发送通知）"""
         try:
             bot = Bot(token=self._bot_token)
 
@@ -41,19 +45,14 @@ class ConfigErrorNotifier:
 ⚠️ *警告*：配置回滚失败，系统仍使用旧配置运行
 📝 *建议*：请立即检查并手动修复配置文件"""
 
-            await bot.send_message(
-                chat_id=self._admin_chat_id,
-                text=message,
-                parse_mode="Markdown",
-            )
-
-            logger.info("已发送配置回滚通知到Telegram")
+            # 非阻塞发送：作为后台任务启动，不阻塞事件链
+            asyncio.create_task(self._safe_send(bot, self._admin_chat_id, message))
 
         except Exception as e:
-            logger.error(f"发送Telegram回滚通知失败: {e}", exc_info=True)
+            logger.error(f"创建配置回滚通知任务失败: {e}", exc_info=True)
 
     async def on_config_changed(self, event: ConfigChangedEvent):
-        """处理配置变更成功事件 - 发送 Telegram 通知"""
+        """处理配置变更成功事件 - 非阻塞发送 Telegram 通知"""
         try:
             bot = Bot(token=self._bot_token)
 
@@ -69,18 +68,36 @@ class ConfigErrorNotifier:
 
 {self._format_grouped_changes(grouped)}
 
-💡 提示: 部分配置可能需要重启相关功能才能完全生效"""
+💡 提示: 配置已即时生效，无需重启"""
 
-            await bot.send_message(
-                chat_id=self._admin_chat_id,
-                text=message,
-                parse_mode="Markdown",
-            )
-
-            logger.info("已发送配置重载成功通知到Telegram")
+            # 非阻塞发送：作为后台任务启动，不阻塞事件链
+            asyncio.create_task(self._safe_send(bot, self._admin_chat_id, message))
 
         except Exception as e:
-            logger.error(f"发送配置变更通知失败: {e}", exc_info=True)
+            logger.error(f"创建配置变更通知任务失败: {e}", exc_info=True)
+
+    async def _safe_send(self, bot: Bot, chat_id: str, text: str):
+        """安全发送消息（带超时保护，不阻塞调用者）
+
+        Args:
+            bot: Telegram Bot 实例
+            chat_id: 目标聊天 ID
+            text: 消息文本
+        """
+        try:
+            await asyncio.wait_for(
+                bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    parse_mode="Markdown",
+                ),
+                timeout=_SEND_TIMEOUT,
+            )
+            logger.info("已发送配置通知到Telegram")
+        except TimeoutError:
+            logger.warning(f"发送配置通知超时（{_SEND_TIMEOUT}s），跳过通知")
+        except Exception as e:
+            logger.error(f"发送配置通知失败: {type(e).__name__}: {e}")
 
     def _group_changes(self, changed_fields: set[str]) -> dict:
         """将变更字段按配置区域分组"""

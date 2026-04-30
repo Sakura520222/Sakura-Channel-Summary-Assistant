@@ -162,8 +162,20 @@ class SystemConfigManager:
             logger.error(f"❌ 处理系统配置更新失败: {type(e).__name__}: {e}", exc_info=True)
             # 保持现有配置不变
 
+    # 第三方库日志抑制列表：这些 logger 在热重载时应保持固定级别，不受用户 log_level 影响
+    _SUPPRESSED_LOGGERS = {
+        "httpx": logging.WARNING,
+        "apscheduler": logging.WARNING,
+        "telethon.network.connection.connection": logging.ERROR,
+        "telethon.network.mtprotosender": logging.WARNING,
+    }
+
     def _apply_log_level(self):
-        """应用日志级别配置 - 更新所有已存在的 logger"""
+        """应用日志级别配置
+
+        更新根 logger 和所有 handler 的级别，确保日志输出真正生效。
+        然后恢复第三方库的日志抑制，防止被根 logger 级别覆盖。
+        """
         try:
             import logging
 
@@ -173,19 +185,22 @@ class SystemConfigManager:
             root_logger = logging.getLogger()
             root_logger.setLevel(level)
 
-            # 更新所有已存在的 logger
-            logger_dict = logging.Logger.manager.loggerDict
-            updated_count = 0
+            # 同步更新所有 handler 的级别（根 logger 的 handler 决定最终输出）
+            for handler in root_logger.handlers:
+                handler.setLevel(level)
 
-            for _, logger_obj in logger_dict.items():
-                if isinstance(logger_obj, logging.Logger):
-                    # 只更新有效的 logger (不是 PlaceHolder)
-                    logger_obj.setLevel(level)
-                    updated_count += 1
+            # 恢复第三方库的日志抑制
+            self.apply_suppressed_loggers()
 
-            logger.info(f"日志级别已设置为: {self._log_level} (已更新 {updated_count} 个 logger)")
+            logger.info(f"日志级别已设置为: {self._log_level}")
         except Exception as e:
             logger.error(f"设置日志级别失败: {e}", exc_info=True)
+
+    @staticmethod
+    def apply_suppressed_loggers():
+        """应用第三方库日志抑制（防止被热重载覆盖）"""
+        for logger_name, level in SystemConfigManager._SUPPRESSED_LOGGERS.items():
+            logging.getLogger(logger_name).setLevel(level)
 
     def _apply_language(self):
         """应用语言配置 - 更新 i18n 模块"""
