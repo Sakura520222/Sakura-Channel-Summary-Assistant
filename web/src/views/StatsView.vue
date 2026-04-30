@@ -19,19 +19,20 @@
       </n-grid>
     </n-card>
 
-    <n-card title="历史总结" style="margin-top: 16px">
+    <n-card title="历史总结" class="mt-md">
       <template #header-extra>
         <n-space>
           <n-select v-model:value="filterChannel" :options="channelOptions" placeholder="全部频道" clearable
-            style="width: 200px" @update:value="loadSummaries" />
+            class="w-sm" @update:value="() => { pagination.page = 1; loadSummaries(); }" />
         </n-space>
       </template>
 
       <n-data-table :columns="summaryColumns" :data="summaries" :bordered="false" :loading="loadingSummaries"
-        :pagination="{ pageSize: 15 }" />
+        :remote="true" :pagination="pagination" :row-count="totalSummaries"
+        @update:page="handlePageChange" />
     </n-card>
 
-    <n-card title="频道排名" style="margin-top: 16px">
+    <n-card title="频道排名" class="mt-md">
       <n-data-table :columns="rankingColumns" :data="ranking" :bordered="false" />
     </n-card>
   </div>
@@ -53,6 +54,8 @@ const ranking = ref<Array<Record<string, unknown>>>([]);
 const channels = ref<string[]>([]);
 const filterChannel = ref<string | null>(null);
 const loadingSummaries = ref(false);
+const totalSummaries = ref(0);
+const pagination = ref({ page: 1, pageSize: 15 });
 
 const channelOptions = computed(() =>
   channels.value.map((ch) => ({ label: getChannelName(ch), value: ch }))
@@ -102,11 +105,20 @@ async function loadData() {
   }
 }
 
+function handlePageChange(page: number) {
+  pagination.value.page = page;
+  loadSummaries();
+}
+
 async function loadSummaries() {
   loadingSummaries.value = true;
   try {
-    const res = await getSummaries(filterChannel.value || undefined, 50);
-    if (res.success) summaries.value = res.data.summaries || [];
+    const offset = (pagination.value.page - 1) * pagination.value.pageSize;
+    const res = await getSummaries(filterChannel.value || undefined, pagination.value.pageSize, offset);
+    if (res.success) {
+      summaries.value = res.data.summaries || [];
+      totalSummaries.value = res.data.total || summaries.value.length;
+    }
   } catch {
     message.error("加载总结列表失败");
   } finally {

@@ -50,8 +50,8 @@
 
             <!-- 日志级别 -->
             <n-form-item label="日志级别" label-placement="left" label-width="80">
-              <n-select v-model:value="logLevel" :options="logLevelOptions" style="width: 150px" />
-              <n-button type="primary" style="margin-left: 12px" @click="handleLogLevelChange">
+              <n-select v-model:value="logLevel" :options="logLevelOptions" class="w-sm" />
+              <n-button type="primary" class="ml-sm" @click="handleLogLevelChange">
                 应用
               </n-button>
             </n-form-item>
@@ -60,7 +60,7 @@
 
             <!-- 重启 -->
             <n-button type="error" @click="handleRestart">请求重启</n-button>
-            <n-text depth="3" style="font-size: 12px">重启请求将设置标记，Bot 在下次检查时执行重启</n-text>
+            <n-text depth="3" class="font-xs">重启请求将设置标记，Bot 在下次检查时执行重启</n-text>
           </n-space>
         </n-card>
       </n-gi>

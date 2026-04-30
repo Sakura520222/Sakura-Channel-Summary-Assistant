@@ -5,21 +5,21 @@
       <n-gi span="0:4 640:2 1024:1">
         <n-card>
           <n-statistic label="监控频道" :value="dashboard.channel_count ?? 0">
-            <template #prefix><span style="font-size: 20px">📺</span></template>
+            <template #prefix><span class="font-icon">📺</span></template>
           </n-statistic>
         </n-card>
       </n-gi>
       <n-gi span="0:4 640:2 1024:1">
         <n-card>
           <n-statistic label="总结总数" :value="dashboard.total_summaries ?? 0">
-            <template #prefix><span style="font-size: 20px">📊</span></template>
+            <template #prefix><span class="font-icon">📊</span></template>
           </n-statistic>
         </n-card>
       </n-gi>
       <n-gi span="0:4 640:2 1024:1">
         <n-card>
           <n-statistic label="转发规则" :value="dashboard.forwarding_rule_count ?? 0">
-            <template #prefix><span style="font-size: 20px">📡</span></template>
+            <template #prefix><span class="font-icon">📡</span></template>
           </n-statistic>
         </n-card>
       </n-gi>
@@ -32,7 +32,7 @@
       </n-gi>
     </n-grid>
 
-    <n-grid :cols="2" :x-gap="16" :y-gap="16" style="margin-top: 16px" responsive="screen" item-responsive>
+    <n-grid :cols="2" :x-gap="16" :y-gap="16" class="mt-md" responsive="screen" item-responsive>
       <n-gi span="0:2 1024:1">
         <n-card title="系统信息">
           <n-descriptions bordered :column="1" label-placement="left" size="small">

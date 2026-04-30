@@ -26,11 +26,11 @@
       <n-space vertical>
         <n-h5>频道操作</n-h5>
         <n-input-group>
-          <n-input v-model:value="channelUrl" placeholder="https://t.me/channel_name" style="width: 300px" />
+          <n-input v-model:value="channelUrl" placeholder="https://t.me/channel_name" class="w-md" />
           <n-button type="primary" @click="handleJoin" :loading="actionLoading">加入频道</n-button>
           <n-button type="error" @click="handleLeave" :loading="actionLoading">离开频道</n-button>
         </n-input-group>
-        <n-text depth="3" style="font-size: 12px">让 UserBot 加入或离开指定频道</n-text>
+        <n-text depth="3" class="font-xs">让 UserBot 加入或离开指定频道</n-text>
       </n-space>
     </n-card>
   </div>

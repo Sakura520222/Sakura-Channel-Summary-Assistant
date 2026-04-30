@@ -13,7 +13,7 @@
       <n-divider v-if="unscheduled.length" />
       <n-alert v-if="unscheduled.length" type="info" title="未配置定时任务的频道">
         <n-space>
-          <n-tag v-for="ch in unscheduled" :key="ch" size="small" style="cursor: pointer"
+          <n-tag v-for="ch in unscheduled" :key="ch" size="small" class="cursor-pointer"
             @click="setupScheduleFor(ch)">
             {{ getChannelName(ch) }}
           </n-tag>

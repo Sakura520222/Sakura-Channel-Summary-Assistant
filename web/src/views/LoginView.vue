@@ -20,7 +20,7 @@
         开发模式（跳过认证）
       </n-button>
       <template #footer>
-        <n-text depth="3" style="font-size: 12px">
+        <n-text depth="3" class="font-xs">
           管理 Token 为 Bot Token 的 SHA256 前16位，可在 Bot 启动日志中查看
         </n-text>
       </template>

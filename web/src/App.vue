@@ -50,4 +50,14 @@ html.dark body {
 .modal-responsive {
   width: min(600px, 90vw) !important;
 }
+
+/* 工具类 */
+.mt-md { margin-top: 16px; }
+.mt-sm { margin-top: 12px; }
+.ml-sm { margin-left: 12px; }
+.font-icon { font-size: 20px; }
+.font-xs { font-size: 12px; }
+.w-sm { width: 200px; }
+.w-md { width: 300px; }
+.cursor-pointer { cursor: pointer; }
 </style>

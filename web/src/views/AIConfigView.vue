@@ -31,7 +31,7 @@
               :tab="promptLabels[p.prompt_type] || p.prompt_type">
               <n-input v-model:value="p.content" type="textarea" :rows="10"
                 placeholder="输入提示词内容..." />
-              <n-space style="margin-top: 12px">
+              <n-space class="mt-sm">
                 <n-button type="primary" size="small" @click="savePrompt(p)">保存</n-button>
                 <n-button size="small" @click="resetPromptContent(p)">重置为默认</n-button>
                 <n-tag v-if="p.is_default" type="info" size="small">默认</n-tag>
