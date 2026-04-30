@@ -229,7 +229,7 @@ async def main_job(channel=None):
                             logger.info(f"定时任务总结已保存到数据库，记录ID: {summary_id}")
 
                             # ✅ 新增：生成并保存向量
-                            from .vector_store import get_vector_store
+                            from core.ai.vector_store import get_vector_store
 
                             vector_store = get_vector_store()
 
@@ -268,7 +268,7 @@ async def main_job(channel=None):
 
                     # 通知订阅用户（跨Bot推送）
                     try:
-                        from .mainbot_push_handler import get_mainbot_push_handler
+                        from core.handlers.mainbot_push_handler import get_mainbot_push_handler
 
                         push_handler = get_mainbot_push_handler()
 
