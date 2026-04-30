@@ -41,6 +41,26 @@ async_client_llm = AsyncOpenAI(api_key=api_key, base_url=base_url)
 logger.info("异步AI客户端初始化完成")
 
 
+def reinitialize_ai_clients(new_api_key: str, new_base_url: str) -> None:
+    """热重载 AI 客户端（使用新的 API Key 和 Base URL 重新创建客户端实例）
+
+    Args:
+        new_api_key: 新的 API Key
+        new_base_url: 新的 Base URL
+    """
+    global client_llm, async_client_llm
+
+    try:
+        client_llm = OpenAI(api_key=new_api_key, base_url=new_base_url)
+        async_client_llm = AsyncOpenAI(api_key=new_api_key, base_url=new_base_url)
+        logger.info(
+            f"✅ AI 客户端已热重载: Base URL={new_base_url}, "
+            f"API Key={'***' if new_api_key else '未设置'}"
+        )
+    except Exception as e:
+        logger.error(f"❌ AI 客户端热重载失败: {type(e).__name__}: {e}", exc_info=True)
+
+
 @retry_with_backoff(
     max_retries=3,
     base_delay=1.0,

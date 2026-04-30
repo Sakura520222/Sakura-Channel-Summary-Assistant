@@ -136,6 +136,7 @@ class SystemConfigManager:
                 self._apply_log_level()
             if old_language != self._language:
                 changes.append(f"语言: {old_language} → {self._language}")
+                self._apply_language()
             if old_send_report != self._send_report_to_source:
                 changes.append(f"报告来源: {old_send_report} → {self._send_report_to_source}")
             if old_poll_threshold != self._poll_regen_threshold:
@@ -185,6 +186,16 @@ class SystemConfigManager:
             logger.info(f"日志级别已设置为: {self._log_level} (已更新 {updated_count} 个 logger)")
         except Exception as e:
             logger.error(f"设置日志级别失败: {e}", exc_info=True)
+
+    def _apply_language(self):
+        """应用语言配置 - 更新 i18n 模块"""
+        try:
+            from core import i18n
+
+            i18n.set_language(self._language)
+            logger.info(f"i18n 语言已设置为: {self._language}")
+        except Exception as e:
+            logger.error(f"设置语言失败: {e}", exc_info=True)
 
     @property
     def channels(self) -> list:
