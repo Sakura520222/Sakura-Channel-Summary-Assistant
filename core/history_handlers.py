@@ -16,7 +16,8 @@ import inspect
 import os
 from datetime import UTC, datetime, timedelta
 
-from core.config import ADMIN_LIST, CHANNELS, logger
+import core.config as config_module
+from core.config import ADMIN_LIST, logger
 from core.i18n.i18n import get_text
 from core.infrastructure.database import get_db_manager
 from core.telegram.client import send_long_message
@@ -49,7 +50,7 @@ async def handle_history(event):
                 channel_id = f"https://t.me/{channel_part}"
 
             # 验证频道是否存在
-            if channel_id not in CHANNELS:
+            if channel_id not in config_module.CHANNELS:
                 await event.reply(get_text("error.channel_not_found", channel=channel_id))
                 return
 
@@ -183,7 +184,7 @@ async def handle_export(event):
                 output_format = second_param
 
         # 如果指定了频道，验证是否存在
-        if channel_id and channel_id not in CHANNELS:
+        if channel_id and channel_id not in config_module.CHANNELS:
             await event.reply(get_text("error.channel_not_found", channel=channel_id))
             return
 
@@ -246,7 +247,7 @@ async def handle_stats(event):
                 channel_id = f"https://t.me/{channel_part}"
 
             # 验证频道是否存在
-            if channel_id not in CHANNELS:
+            if channel_id not in config_module.CHANNELS:
                 await event.reply(get_text("error.channel_not_found", channel=channel_id))
                 return
 

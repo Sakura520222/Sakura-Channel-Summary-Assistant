@@ -21,6 +21,7 @@ sys.modules["core._old_config"] = _old_config
 spec.loader.exec_module(_old_config)
 
 # Export everything from the old config module for backward compatibility
+# Immutable constants and functions are assigned directly (never change)
 ADMIN_LIST = _old_config.ADMIN_LIST
 API_HASH = _old_config.API_HASH
 API_ID = _old_config.API_ID
@@ -28,9 +29,6 @@ BOT_STATE_PAUSED = _old_config.BOT_STATE_PAUSED
 BOT_STATE_RUNNING = _old_config.BOT_STATE_RUNNING
 BOT_STATE_SHUTTING_DOWN = _old_config.BOT_STATE_SHUTTING_DOWN
 BOT_TOKEN = _old_config.BOT_TOKEN
-CHANNELS = _old_config.CHANNELS
-CHANNEL_POLL_SETTINGS = _old_config.CHANNEL_POLL_SETTINGS
-CHANNEL_AUTO_POLL_SETTINGS = _old_config.CHANNEL_AUTO_POLL_SETTINGS
 CONFIG_FILE = _old_config.CONFIG_FILE
 DEFAULT_LOG_LEVEL = _old_config.DEFAULT_LOG_LEVEL
 DEFAULT_POLL_PROMPT = _old_config.DEFAULT_POLL_PROMPT
@@ -39,29 +37,21 @@ DEFAULT_QA_PERSONA = _old_config.DEFAULT_QA_PERSONA
 DEFAULT_SUMMARY_DAY = _old_config.DEFAULT_SUMMARY_DAY
 DEFAULT_SUMMARY_HOUR = _old_config.DEFAULT_SUMMARY_HOUR
 DEFAULT_SUMMARY_MINUTE = _old_config.DEFAULT_SUMMARY_MINUTE
-ENABLE_POLL = _old_config.ENABLE_POLL
-ENABLE_AUTO_POLL = _old_config.ENABLE_AUTO_POLL
-ENABLE_VOTE_REGEN_REQUEST = _old_config.ENABLE_VOTE_REGEN_REQUEST
 LANGUAGE_FROM_CONFIG = _old_config.LANGUAGE_FROM_CONFIG
 LANGUAGE_FROM_ENV = _old_config.LANGUAGE_FROM_ENV
 LAST_SUMMARY_FILE = _old_config.LAST_SUMMARY_FILE
 LINKED_CHAT_CACHE = _old_config.LINKED_CHAT_CACHE
-LLM_API_KEY = _old_config.LLM_API_KEY
-LLM_BASE_URL = _old_config.LLM_BASE_URL
-LLM_MODEL = _old_config.LLM_MODEL
 LOG_LEVEL_FROM_ENV = _old_config.LOG_LEVEL_FROM_ENV
 LOG_LEVEL_MAP = _old_config.LOG_LEVEL_MAP
 POLL_PROMPT_FILE = _old_config.POLL_PROMPT_FILE
-POLL_REGEN_THRESHOLD = _old_config.POLL_REGEN_THRESHOLD
-POLL_PUBLIC_VOTERS = _old_config.POLL_PUBLIC_VOTERS
 PROMPT_FILE = _old_config.PROMPT_FILE
 QA_BOT_USERNAME = _old_config.QA_BOT_USERNAME
 QA_PERSONA_FILE = _old_config.QA_PERSONA_FILE
 RESTART_FLAG_FILE = _old_config.RESTART_FLAG_FILE
 REPORT_ADMIN_IDS = _old_config.REPORT_ADMIN_IDS
-SEND_REPORT_TO_SOURCE = _old_config.SEND_REPORT_TO_SOURCE
-SUMMARY_SCHEDULES = _old_config.SUMMARY_SCHEDULES
 TARGET_CHANNEL = _old_config.TARGET_CHANNEL
+
+# Functions are assigned directly (they read fresh values internally)
 add_forwarding_rule = _old_config.add_forwarding_rule
 add_poll_regeneration = _old_config.add_poll_regeneration
 build_cron_trigger = _old_config.build_cron_trigger
@@ -112,6 +102,35 @@ validate_schedule = _old_config.validate_schedule
 validate_schedule_v2 = _old_config.validate_schedule_v2
 increment_vote_count = _old_config.increment_vote_count
 get_vote_count = _old_config.get_vote_count
+
+# Mutable config variables are NOT assigned here — they are dynamically
+# forwarded via __getattr__ to _old_config so that `import core.config as m; m.X`
+# always returns the latest hot-reloaded value instead of a stale snapshot.
+_MUTABLE_CONFIG_NAMES = frozenset(
+    {
+        "CHANNELS",
+        "CHANNEL_POLL_SETTINGS",
+        "CHANNEL_AUTO_POLL_SETTINGS",
+        "ENABLE_POLL",
+        "ENABLE_AUTO_POLL",
+        "ENABLE_VOTE_REGEN_REQUEST",
+        "LLM_API_KEY",
+        "LLM_BASE_URL",
+        "LLM_MODEL",
+        "POLL_REGEN_THRESHOLD",
+        "POLL_PUBLIC_VOTERS",
+        "SEND_REPORT_TO_SOURCE",
+        "SUMMARY_SCHEDULES",
+    }
+)
+
+
+def __getattr__(name: str):
+    """动态转发可变配置变量到 _old_config，确保热重载后始终返回最新值"""
+    if name in _MUTABLE_CONFIG_NAMES:
+        return getattr(_old_config, name)
+    raise AttributeError(f"module 'core.config' has no attribute {name!r}")
+
 
 __all__ = [
     # New modular system exports

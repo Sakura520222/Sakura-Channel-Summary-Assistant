@@ -204,9 +204,9 @@ class SubmissionHandler:
 
     def _get_channels(self) -> list[str]:
         """获取可用频道列表"""
-        from core.config import CHANNELS
+        import core.config as config_module
 
-        return CHANNELS if CHANNELS else []
+        return config_module.CHANNELS if config_module.CHANNELS else []
 
     async def _go_to_confirm(self, update: Update) -> int:
         """进入频道选择阶段（媒体完成后先选频道）"""

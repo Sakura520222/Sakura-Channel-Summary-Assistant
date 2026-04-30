@@ -23,10 +23,9 @@ from typing import Any
 
 from telethon.tl.types import InputMediaPoll, Poll, PollAnswer, TextWithEntities
 
+import core.config as config_module
 from core.ai.ai_client import generate_poll_from_summary
 from core.config import (
-    ENABLE_AUTO_POLL,
-    POLL_PUBLIC_VOTERS,
     get_channel_auto_poll_config,
 )
 from core.i18n.i18n import get_text
@@ -230,7 +229,7 @@ class AutoPollHandler:
 
             if enabled is None:
                 # 没有频道级配置，使用全局配置
-                enabled = ENABLE_AUTO_POLL
+                enabled = config_module.ENABLE_AUTO_POLL
 
             if not enabled:
                 logger.info(f"频道 {channel_id} 的自动趣味投票已禁用，跳过")
@@ -277,7 +276,7 @@ class AutoPollHandler:
                 question=TextWithEntities(question_text, entities=[]),
                 answers=poll_answers,
                 closed=False,
-                public_voters=POLL_PUBLIC_VOTERS,
+                public_voters=config_module.POLL_PUBLIC_VOTERS,
                 multiple_choice=False,
                 quiz=False,
             )

@@ -32,7 +32,8 @@ def mock_config(monkeypatch):
     """
     # 使用可变 dict 作为"配置文件"的单一真相源
     config_store = {
-        "channel_comment_welcome_settings": {},
+        "channel_comment_welcome": {},
+        "comment_welcome": {},
     }
 
     def fake_load_config():
@@ -58,12 +59,12 @@ def mock_config(monkeypatch):
 
     # 同时也需要打桩 channel_comment_welcome_config 模块中的引用
     monkeypatch.setattr(
-        "core.channel_comment_welcome_config.load_config",
+        "core.handlers.channel_comment_welcome_config.load_config",
         fake_load_config,
         raising=False,
     )
     monkeypatch.setattr(
-        "core.channel_comment_welcome_config.save_config",
+        "core.handlers.channel_comment_welcome_config.save_config",
         fake_save_config,
         raising=False,
     )

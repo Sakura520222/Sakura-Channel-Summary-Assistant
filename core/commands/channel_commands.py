@@ -12,7 +12,8 @@
 频道管理命令处理
 """
 
-from core.config import ADMIN_LIST, CHANNELS, load_config, logger, save_config
+import core.config as config_module
+from core.config import ADMIN_LIST, load_config, logger, save_config
 from core.i18n.i18n import get_text
 
 
@@ -30,13 +31,13 @@ async def handle_show_channels(event):
 
     logger.info(f"执行命令 {command} 成功")
 
-    if not CHANNELS:
+    if not config_module.CHANNELS:
         await event.reply(get_text("error.no_channels"))
         return
 
     # 构建频道列表消息
     channels_msg = f"{get_text('channel.list_title')}\n\n"
-    for i, channel in enumerate(CHANNELS, 1):
+    for i, channel in enumerate(config_module.CHANNELS, 1):
         channels_msg += f"{i}. {channel}\n"
 
     await event.reply(channels_msg)
@@ -63,20 +64,22 @@ async def handle_add_channel(event):
             return
 
         # 检查频道是否已存在
-        if channel_url in CHANNELS:
+        if channel_url in config_module.CHANNELS:
             await event.reply(get_text("error.channel_exists", channel=channel_url))
             return
 
         # 添加频道到列表
-        CHANNELS.append(channel_url)
+        config_module.CHANNELS.append(channel_url)
 
         # 更新配置文件
         config = load_config()
-        config["channels"] = CHANNELS
+        config["channels"] = config_module.CHANNELS
         save_config(config)
 
         logger.info(f"已添加频道 {channel_url} 到列表")
-        await event.reply(get_text("channel.add_success", channel=channel_url, count=len(CHANNELS)))
+        await event.reply(
+            get_text("channel.add_success", channel=channel_url, count=len(config_module.CHANNELS))
+        )
 
     except ValueError:
         # 没有提供频道URL
@@ -107,21 +110,23 @@ async def handle_delete_channel(event):
             return
 
         # 检查频道是否存在
-        if channel_url not in CHANNELS:
+        if channel_url not in config_module.CHANNELS:
             await event.reply(get_text("error.channel_not_in_list", channel=channel_url))
             return
 
         # 从列表中删除频道
-        CHANNELS.remove(channel_url)
+        config_module.CHANNELS.remove(channel_url)
 
         # 更新配置文件
         config = load_config()
-        config["channels"] = CHANNELS
+        config["channels"] = config_module.CHANNELS
         save_config(config)
 
         logger.info(f"已从列表中删除频道 {channel_url}")
         await event.reply(
-            get_text("channel.delete_success", channel=channel_url, count=len(CHANNELS))
+            get_text(
+                "channel.delete_success", channel=channel_url, count=len(config_module.CHANNELS)
+            )
         )
 
     except ValueError:

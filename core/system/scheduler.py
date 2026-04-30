@@ -10,8 +10,9 @@
 
 from datetime import UTC, datetime, timedelta
 
+import core.config as config_module
 from core.ai.ai_client import analyze_with_ai
-from core.config import CHANNELS, LLM_MODEL, SEND_REPORT_TO_SOURCE, logger
+from core.config import logger
 from core.i18n.i18n import get_text
 from core.infrastructure.config.prompt_manager import load_prompt
 from core.summary_time_manager import load_last_summary_time, save_last_summary_time
@@ -52,7 +53,7 @@ async def main_job(channel=None):
         logger.info(
             f"定时任务启动（全频道模式）: {start_time.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}"
         )
-        channels_to_process = CHANNELS
+        channels_to_process = config_module.CHANNELS
 
     try:
         results = []
@@ -183,7 +184,7 @@ async def main_job(channel=None):
                 # 发送报告给管理员，并根据配置决定是否发送回源频道
                 report_result = None
 
-                if SEND_REPORT_TO_SOURCE:
+                if config_module.SEND_REPORT_TO_SOURCE:
                     report_result = await send_report(
                         report_text, channel, client=active_client, message_count=len(messages)
                     )
@@ -221,7 +222,7 @@ async def main_job(channel=None):
                             summary_message_ids=summary_ids,
                             poll_message_id=poll_id,
                             button_message_id=button_id,
-                            ai_model=LLM_MODEL,
+                            ai_model=config_module.LLM_MODEL,
                             summary_type=frequency,  # 'daily' 或 'weekly'
                         )
 

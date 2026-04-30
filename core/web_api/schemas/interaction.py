@@ -16,11 +16,20 @@ from pydantic import BaseModel, Field
 
 
 class PollSettingsUpdate(BaseModel):
-    """投票设置更新请求"""
+    """投票设置更新请求（频道级）"""
 
     enabled: bool | None = Field(default=None, description="是否启用投票")
     send_to_channel: bool | None = Field(default=None, description="是否发送到频道")
     public_voters: bool | None = Field(default=None, description="是否公开投票者")
+
+
+class GlobalPollSettingsUpdate(BaseModel):
+    """全局投票设置更新请求"""
+
+    enable_poll: bool | None = Field(default=None, description="全局启用/禁用投票")
+    poll_regen_threshold: int | None = Field(default=None, description="重新生成阈值")
+    public_voters: bool | None = Field(default=None, description="是否公开投票者")
+    enable_vote_regen_request: bool | None = Field(default=None, description="启用投票重新生成请求")
 
 
 class AutoPollSettingsUpdate(BaseModel):

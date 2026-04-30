@@ -227,8 +227,18 @@ export async function getPollSettings() {
   return res.data;
 }
 
+export async function updateGlobalPollSettings(data: Record<string, unknown>) {
+  const res = await apiClient.put("/interaction/poll-settings/global", data);
+  return res.data;
+}
+
 export async function updatePollSettings(channel: string, data: Record<string, unknown>) {
   const res = await apiClient.put(`/interaction/poll-settings/${encodeURIComponent(channel)}`, data);
+  return res.data;
+}
+
+export async function deletePollSettings(channel: string) {
+  const res = await apiClient.delete(`/interaction/poll-settings/${encodeURIComponent(channel)}`);
   return res.data;
 }
 
@@ -239,6 +249,21 @@ export async function getAutoPollSettings() {
 
 export async function updateAutoPoll(enabled: boolean) {
   const res = await apiClient.put("/interaction/auto-poll", { enabled });
+  return res.data;
+}
+
+export async function updateChannelAutoPoll(channel: string, enabled: boolean) {
+  const res = await apiClient.put(`/interaction/auto-poll/${encodeURIComponent(channel)}`, { enabled });
+  return res.data;
+}
+
+export async function deleteChannelAutoPoll(channel: string) {
+  const res = await apiClient.delete(`/interaction/auto-poll/${encodeURIComponent(channel)}`);
+  return res.data;
+}
+
+export async function getInteractionChannels() {
+  const res = await apiClient.get("/interaction/channels");
   return res.data;
 }
 

@@ -16,10 +16,9 @@ import logging
 
 from telethon import Button
 
+import core.config as config_module
 from core.config import (
     ADMIN_LIST,
-    ENABLE_VOTE_REGEN_REQUEST,
-    POLL_REGEN_THRESHOLD,
     get_poll_regeneration,
     increment_vote_count,
     load_poll_regenerations,
@@ -42,7 +41,7 @@ async def handle_vote_regen_request_callback(event):
     logger.info(f"收到投票重新生成请求: {callback_data}, 来自用户: {sender_id}")
 
     # 检查是否启用该功能
-    if not ENABLE_VOTE_REGEN_REQUEST:
+    if not config_module.ENABLE_VOTE_REGEN_REQUEST:
         logger.info("投票重新生成请求功能已禁用")
         await event.answer(get_text("poll_regen.feature_disabled"), alert=True)
         return
@@ -84,7 +83,11 @@ async def handle_vote_regen_request_callback(event):
     if already_voted:
         # 用户已经投过票了
         await event.answer(
-            get_text("poll_regen.already_voted", count=count, threshold=POLL_REGEN_THRESHOLD),
+            get_text(
+                "poll_regen.already_voted",
+                count=count,
+                threshold=config_module.POLL_REGEN_THRESHOLD,
+            ),
             alert=True,
         )
         return
@@ -92,12 +95,12 @@ async def handle_vote_regen_request_callback(event):
     # 更新按钮文本显示进度
     try:
         new_button_text = get_text(
-            "poll_regen.request_button", count=count, threshold=POLL_REGEN_THRESHOLD
+            "poll_regen.request_button", count=count, threshold=config_module.POLL_REGEN_THRESHOLD
         )
 
         button_markup = []
         # 如果启用投票重新生成请求功能，添加请求按钮
-        if ENABLE_VOTE_REGEN_REQUEST:
+        if config_module.ENABLE_VOTE_REGEN_REQUEST:
             button_markup.append(
                 [Button.inline(new_button_text, data=f"request_regen_{summary_msg_id}".encode())]
             )
@@ -122,12 +125,16 @@ async def handle_vote_regen_request_callback(event):
 
     # 用户个人提示
     await event.answer(
-        get_text("poll_regen.vote_success", count=count, threshold=POLL_REGEN_THRESHOLD)
+        get_text(
+            "poll_regen.vote_success", count=count, threshold=config_module.POLL_REGEN_THRESHOLD
+        )
     )
 
     # 检查是否达到阈值
-    if count >= POLL_REGEN_THRESHOLD:
-        logger.info(f"🎉 投票数达到阈值: {count}/{POLL_REGEN_THRESHOLD}, 开始自动重新生成投票")
+    if count >= config_module.POLL_REGEN_THRESHOLD:
+        logger.info(
+            f"🎉 投票数达到阈值: {count}/{config_module.POLL_REGEN_THRESHOLD}, 开始自动重新生成投票"
+        )
 
         # 自动触发投票重新生成
         regen_data = get_poll_regeneration(target_channel, summary_msg_id)
@@ -153,7 +160,11 @@ async def handle_vote_regen_request_callback(event):
             logger.error("❌ 未找到投票重新生成数据")
     else:
         logger.info(
-            get_text("poll_regen.current_progress", count=count, threshold=POLL_REGEN_THRESHOLD)
+            get_text(
+                "poll_regen.current_progress",
+                count=count,
+                threshold=config_module.POLL_REGEN_THRESHOLD,
+            )
         )
 
 

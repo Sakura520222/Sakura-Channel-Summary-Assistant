@@ -23,6 +23,7 @@ from core.web_api.deps import get_config, write_config
 from core.web_api.schemas.interaction import (
     AutoPollSettingsUpdate,
     CommentWelcomeUpdate,
+    GlobalPollSettingsUpdate,
     PollSettingsUpdate,
 )
 
@@ -47,11 +48,42 @@ async def get_poll_settings():
                 "settings": poll_settings,
                 "enable_poll": config.get("enable_poll", True),
                 "poll_regen_threshold": config.get("poll_regen_threshold", 5),
+                "enable_vote_regen_request": config.get("enable_vote_regen_request", True),
+                "public_voters": config.get("public_voters", True),
             },
         }
 
     except Exception as e:
         logger.error(f"获取投票设置失败: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.put("/poll-settings/global")
+async def update_global_poll_settings(request: GlobalPollSettingsUpdate):
+    """更新全局投票设置"""
+    try:
+        config = get_config()
+
+        if request.enable_poll is not None:
+            config["enable_poll"] = request.enable_poll
+        if request.poll_regen_threshold is not None:
+            if request.poll_regen_threshold < 1:
+                raise HTTPException(status_code=400, detail="重新生成阈值必须 >= 1")
+            config["poll_regen_threshold"] = request.poll_regen_threshold
+        if request.public_voters is not None:
+            config["public_voters"] = request.public_voters
+        if request.enable_vote_regen_request is not None:
+            config["enable_vote_regen_request"] = request.enable_vote_regen_request
+
+        write_config(config)
+
+        logger.info("已通过 WebUI 更新全局投票设置")
+        return {"success": True, "message": "全局投票设置已更新"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新全局投票设置失败: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -81,6 +113,27 @@ async def update_poll_settings(channel: str, request: PollSettingsUpdate):
 
     except Exception as e:
         logger.error(f"更新投票设置失败: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.delete("/poll-settings/{channel:path}")
+async def delete_channel_poll_settings(channel: str):
+    """删除指定频道的投票配置（回退到全局默认）"""
+    try:
+        channel = normalize_channel_id(channel)
+        config = get_config()
+
+        poll_settings = config.get("channel_poll_settings", {})
+        if channel in poll_settings:
+            del poll_settings[channel]
+            config["channel_poll_settings"] = poll_settings
+            write_config(config)
+            logger.info(f"已通过 WebUI 删除频道投票配置: {channel}")
+            return {"success": True, "message": f"频道投票配置已删除: {channel}"}
+        return {"success": True, "message": "该频道无投票配置"}
+
+    except Exception as e:
+        logger.error(f"删除频道投票配置失败: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -139,6 +192,40 @@ async def update_channel_auto_poll(channel: str, request: AutoPollSettingsUpdate
 
     except Exception as e:
         logger.error(f"更新频道自动投票设置失败: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.delete("/auto-poll/{channel:path}")
+async def delete_channel_auto_poll(channel: str):
+    """删除指定频道的自动投票配置"""
+    try:
+        channel = normalize_channel_id(channel)
+        config = get_config()
+
+        auto_poll_settings = config.get("channel_auto_poll_settings", {})
+        if channel in auto_poll_settings:
+            del auto_poll_settings[channel]
+            config["channel_auto_poll_settings"] = auto_poll_settings
+            write_config(config)
+            logger.info(f"已通过 WebUI 删除频道自动投票配置: {channel}")
+            return {"success": True, "message": f"频道自动投票配置已删除: {channel}"}
+        return {"success": True, "message": "该频道无自动投票配置"}
+
+    except Exception as e:
+        logger.error(f"删除频道自动投票配置失败: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/channels")
+async def get_channels_for_interaction():
+    """获取所有频道列表（用于互动设置配置）"""
+    try:
+        config = get_config()
+        channels = config.get("channels", [])
+        return {"success": True, "data": {"channels": channels}}
+
+    except Exception as e:
+        logger.error(f"获取频道列表失败: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 

@@ -19,17 +19,15 @@ import sys
 
 import aiofiles
 
+import core.config as config_module
 from core.config import (
     ADMIN_LIST,
     BOT_STATE_PAUSED,
     BOT_STATE_RUNNING,
     BOT_STATE_SHUTTING_DOWN,
-    CHANNELS,
-    ENABLE_POLL,
     LINKED_CHAT_CACHE,
     LOG_LEVEL_MAP,
     RESTART_FLAG_FILE,
-    SEND_REPORT_TO_SOURCE,
     clear_discussion_group_cache,
     delete_channel_poll_config,
     delete_channel_schedule,
@@ -337,16 +335,16 @@ async def handle_show_channel_schedule(event):
             else:
                 channel = f"https://t.me/{channel_part}"
 
-            if channel not in CHANNELS:
+            if channel not in config_module.CHANNELS:
                 await event.reply(get_text("error.channel_not_found", channel=channel))
                 return
         else:
-            if not CHANNELS:
+            if not config_module.CHANNELS:
                 await event.reply(get_text("error.no_channels"))
                 return
 
             schedule_msg = get_text("schedule.all_title") + "\n\n"
-            for i, ch in enumerate(CHANNELS, 1):
+            for i, ch in enumerate(config_module.CHANNELS, 1):
                 schedule = get_channel_schedule(ch)
                 schedule_msg += format_schedule_info(ch, schedule, i)
 
@@ -393,7 +391,7 @@ async def handle_set_channel_schedule(event):
         else:
             channel = f"https://t.me/{channel_part}"
 
-        if channel not in CHANNELS:
+        if channel not in config_module.CHANNELS:
             await event.reply(get_text("error.channel_not_found", channel=channel))
             return
 
@@ -544,7 +542,7 @@ async def handle_delete_channel_schedule(event):
         else:
             channel = f"https://t.me/{channel_part}"
 
-        if channel not in CHANNELS:
+        if channel not in config_module.CHANNELS:
             await event.reply(get_text("error.channel_not_found", channel=channel))
             return
 
@@ -584,7 +582,7 @@ async def handle_show_channel_poll(event):
             else:
                 channel = f"https://t.me/{channel_part}"
 
-            if channel not in CHANNELS:
+            if channel not in config_module.CHANNELS:
                 await event.reply(get_text("error.channel_not_found", channel=channel))
                 return
 
@@ -615,12 +613,12 @@ async def handle_show_channel_poll(event):
             logger.info(f"执行命令 {command} 成功")
             await event.reply(poll_info)
         else:
-            if not CHANNELS:
+            if not config_module.CHANNELS:
                 await event.reply(get_text("error.no_channels"))
                 return
 
             poll_info = get_text("poll.all_title") + "\n\n"
-            for i, ch in enumerate(CHANNELS, 1):
+            for i, ch in enumerate(config_module.CHANNELS, 1):
                 poll_config = get_channel_poll_config(ch)
                 channel_name = ch.split("/")[-1]
 
@@ -674,7 +672,7 @@ async def handle_set_channel_poll(event):
         else:
             channel = f"https://t.me/{channel_part}"
 
-        if channel not in CHANNELS:
+        if channel not in config_module.CHANNELS:
             await event.reply(get_text("error.channel_not_found", channel=channel))
             return
 
@@ -755,7 +753,7 @@ async def handle_delete_channel_poll(event):
         else:
             channel = f"https://t.me/{channel_part}"
 
-        if channel not in CHANNELS:
+        if channel not in config_module.CHANNELS:
             await event.reply(get_text("error.channel_not_found", channel=channel))
             return
 
@@ -764,7 +762,9 @@ async def handle_delete_channel_poll(event):
         if success:
             channel_name = channel.split("/")[-1]
             global_enabled = (
-                get_text("poll.status_enabled") if ENABLE_POLL else get_text("poll.status_disabled")
+                get_text("poll.status_enabled")
+                if config_module.ENABLE_POLL
+                else get_text("poll.status_disabled")
             )
 
             logger.info(f"已删除频道 {channel} 的投票配置")
@@ -817,7 +817,9 @@ async def handle_set_send_to_source(event):
         await event.reply(get_text("report.set_success", value=new_value, status=status))
 
     except ValueError:
-        current_value = load_config().get("send_report_to_source", SEND_REPORT_TO_SOURCE)
+        current_value = load_config().get(
+            "send_report_to_source", config_module.SEND_REPORT_TO_SOURCE
+        )
         status = get_text("status.enabled") if current_value else get_text("status.disabled")
         await event.reply(get_text("report.current_status", value=current_value, status=status))
     except Exception as e:
