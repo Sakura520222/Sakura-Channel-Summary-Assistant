@@ -67,6 +67,13 @@ def generate_token(user_id: str) -> str:
     return jwt.encode(payload, secret, algorithm="HS256")
 
 
+def _is_dev_mode_enabled() -> bool:
+    """检查 WebUI 开发模式是否在 .env 中启用"""
+    from core.settings import get_settings
+
+    return get_settings().webui.dev_mode
+
+
 def verify_token(token: str) -> WebUIUser | None:
     """验证 JWT Token
 
@@ -79,9 +86,11 @@ def verify_token(token: str) -> WebUIUser | None:
     if not token:
         return None
 
-    # 开发模式
+    # 开发模式（仅在 .env 中 WEBUI_DEV_MODE=true 时允许）
     if token == DEV_TOKEN:
-        return WebUIUser(user_id="dev", is_dev=True)
+        if _is_dev_mode_enabled():
+            return WebUIUser(user_id="dev", is_dev=True)
+        return None
 
     try:
         secret = _get_jwt_secret()

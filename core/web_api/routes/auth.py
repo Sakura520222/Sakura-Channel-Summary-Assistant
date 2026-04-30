@@ -46,6 +46,7 @@ class AuthStatusResponse(BaseModel):
 
     authenticated: bool
     user_id: str = ""
+    dev_mode: bool = False
 
 
 @router.post("/login", response_model=TokenLoginResponse)
@@ -61,6 +62,15 @@ async def token_login(request: TokenLoginRequest):
 
         if request.token != expected and request.token != "dev":
             return TokenLoginResponse(success=False, message="Token 无效")
+
+        # 开发模式登录需要 .env 中启用 WEBUI_DEV_MODE
+        if request.token == "dev":
+            from core.settings import get_settings
+
+            if not get_settings().webui.dev_mode:
+                return TokenLoginResponse(
+                    success=False, message="开发模式未启用，请在 .env 中设置 WEBUI_DEV_MODE=true"
+                )
 
         # 生成 JWT
         user_id = "dev" if request.token == "dev" else "admin"
@@ -116,14 +126,18 @@ async def telegram_oauth_callback(request: Request):
 @router.get("/status", response_model=AuthStatusResponse)
 async def auth_status(request: Request):
     """检查当前认证状态"""
+    from core.settings import get_settings
+
+    dev_mode = get_settings().webui.dev_mode
+
     token = _extract_token(request)
     if not token:
-        return AuthStatusResponse(authenticated=False)
+        return AuthStatusResponse(authenticated=False, dev_mode=dev_mode)
 
     user = verify_token(token)
     if user:
-        return AuthStatusResponse(authenticated=True, user_id=user.user_id)
-    return AuthStatusResponse(authenticated=False)
+        return AuthStatusResponse(authenticated=True, user_id=user.user_id, dev_mode=dev_mode)
+    return AuthStatusResponse(authenticated=False, dev_mode=dev_mode)
 
 
 @router.post("/refresh")

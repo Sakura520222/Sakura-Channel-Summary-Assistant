@@ -226,6 +226,7 @@ class WebUISettings(BaseSettings):
     enabled: bool = Field(default=False, alias="WEBUI_ENABLED")
     host: str = Field(default="0.0.0.0", alias="WEBUI_HOST")
     port: int = Field(default=8080, alias="WEBUI_PORT")
+    dev_mode: bool = Field(default=False, alias="WEBUI_DEV_MODE")
 
     @field_validator("port")
     @classmethod

@@ -15,8 +15,8 @@
           登 录
         </n-button>
       </n-form>
-      <n-divider>或者</n-divider>
-      <n-button block quaternary :loading="devLoading" @click="handleDevLogin">
+      <n-divider v-if="devModeAvailable">或者</n-divider>
+      <n-button v-if="devModeAvailable" block quaternary :loading="devLoading" @click="handleDevLogin">
         开发模式（跳过认证）
       </n-button>
       <template #footer>
@@ -29,15 +29,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useMessage } from "naive-ui";
-import { loginWithToken } from "@/api/modules";
+import { loginWithToken, checkAuthStatus } from "@/api/modules";
 
 const router = useRouter();
 const message = useMessage();
 const loading = ref(false);
 const devLoading = ref(false);
+const devModeAvailable = ref(false);
 
 const formData = reactive({
   token: "",
@@ -77,8 +78,8 @@ async function handleDevLogin() {
       message.error(res.message || "开发模式认证失败");
     }
   } catch {
-    // 仅开发环境允许 fallback
-    if (import.meta.env.DEV) {
+    // 仅开发模式允许 fallback
+    if (devModeAvailable.value) {
       localStorage.setItem("sakura_bot_token", "dev");
       message.info("已进入开发模式（后端不可用）");
       router.push("/");
@@ -89,6 +90,16 @@ async function handleDevLogin() {
     devLoading.value = false;
   }
 }
+
+onMounted(async () => {
+  try {
+    const res = await checkAuthStatus();
+    devModeAvailable.value = !!res.dev_mode;
+  } catch {
+    // 后端不可用时，开发环境仍显示按钮
+    devModeAvailable.value = !!import.meta.env.DEV;
+  }
+});
 </script>
 
 <style scoped>
