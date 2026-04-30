@@ -12,7 +12,7 @@
       class="app-sider"
     >
       <div class="sider-header">
-        <div class="logo-mark">S</div>
+        <div class="logo-mark" aria-hidden="true">🌸</div>
         <div class="brand-copy" v-if="!collapsed">
           <span class="title">Sakura-Bot</span>
           <span class="subtitle">Control Center</span>
@@ -193,6 +193,7 @@ onUnmounted(() => {
   flex: 0 0 auto;
   border-radius: 8px;
   color: #fff;
+  font-size: 18px;
   font-weight: 800;
   background: linear-gradient(135deg, #e84a7a 0%, #2b8ef0 100%);
   box-shadow: 0 12px 24px rgba(232, 74, 122, 0.22);

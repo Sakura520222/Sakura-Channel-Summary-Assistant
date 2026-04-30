@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <section class="login-hero" aria-label="Sakura-Bot">
-      <div class="brand-mark">S</div>
+      <div class="brand-mark" aria-hidden="true">🌸</div>
       <h1>Sakura-Bot</h1>
       <p>频道、AI、转发与定时任务的统一控制台</p>
       <div class="hero-metrics">
