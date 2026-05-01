@@ -218,7 +218,7 @@ class SubmissionRepository:
                         update_fields.append("reviewed_by = %s")
                         params.append(reviewed_by)
                         update_fields.append("reviewed_at = %s")
-                        params.append(datetime.now(UTC))
+                        params.append(datetime.now(UTC).replace(tzinfo=None))
 
                     if ai_optimized_content is not None:
                         update_fields.append("ai_optimized_content = %s")
