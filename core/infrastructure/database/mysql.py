@@ -485,6 +485,7 @@ class MySQLManager(DatabaseManagerBase):
         self,
         channel_id: str | None = None,
         limit: int = 10,
+        offset: int = 0,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
     ) -> list[dict[str, Any]]:
@@ -520,31 +521,76 @@ class MySQLManager(DatabaseManagerBase):
                         SELECT * FROM summaries
                         WHERE {where_clause}
                         ORDER BY created_at DESC
-                        LIMIT %s
+                        LIMIT %s OFFSET %s
                     """
                     params.append(limit)
+                    params.append(offset)
 
                     await cursor.execute(query, params)
                     rows = await cursor.fetchall()
 
-                    # 解析JSON字段
-                    summaries = []
-                    for row in rows:
-                        if row.get("summary_message_ids"):
-                            try:
-                                row["summary_message_ids"] = json.loads(row["summary_message_ids"])
-                            except Exception:
-                                row["summary_message_ids"] = []
-                        else:
-                            row["summary_message_ids"] = []
-                        summaries.append(row)
-
-                    logger.info(f"查询到 {len(summaries)} 条总结记录")
-                    return summaries
+                    return self._parse_summary_rows(rows)
 
         except Exception as e:
             logger.error(f"查询总结记录失败: {type(e).__name__}: {e}", exc_info=True)
             return []
+
+    async def count_summaries(
+        self,
+        channel_id: str | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> int:
+        """统计历史总结总数"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    conditions = []
+                    params = []
+
+                    if channel_id:
+                        conditions.append("channel_id = %s")
+                        params.append(channel_id)
+
+                    if start_date:
+                        conditions.append("created_at >= %s")
+                        if start_date.tzinfo is not None:
+                            start_date = start_date.replace(tzinfo=None)
+                        params.append(start_date)
+
+                    if end_date:
+                        conditions.append("created_at <= %s")
+                        if end_date.tzinfo is not None:
+                            end_date = end_date.replace(tzinfo=None)
+                        params.append(end_date)
+
+                    where_clause = " AND ".join(conditions) if conditions else "1=1"
+                    await cursor.execute(
+                        f"SELECT COUNT(*) FROM summaries WHERE {where_clause}", params
+                    )
+                    row = await cursor.fetchone()
+                    return int(row[0] or 0) if row else 0
+
+        except Exception as e:
+            logger.error(f"统计总结记录失败: {type(e).__name__}: {e}", exc_info=True)
+            return 0
+
+    @staticmethod
+    def _parse_summary_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """解析总结记录中的 JSON 字段"""
+        summaries = []
+        for row in rows:
+            if row.get("summary_message_ids"):
+                try:
+                    row["summary_message_ids"] = json.loads(row["summary_message_ids"])
+                except Exception:
+                    row["summary_message_ids"] = []
+            else:
+                row["summary_message_ids"] = []
+            summaries.append(row)
+
+        logger.info(f"查询到 {len(summaries)} 条总结记录")
+        return summaries
 
     async def get_summary_by_id(self, summary_id: int) -> dict[str, Any] | None:
         """根据ID获取单条总结"""

@@ -100,7 +100,6 @@
           :loading="loadingDocs"
           :remote="true"
           :pagination="docPagination"
-          :row-count="totalDocs"
           :row-key="(row: VectorDocument) => row.id"
           :checked-row-keys="checkedRowKeys"
           @update:page="handleDocPageChange"
@@ -248,7 +247,7 @@ const documents = ref<VectorDocument[]>([]);
 const totalDocs = ref(0);
 const loadingDocs = ref(false);
 const checkedRowKeys = ref<string[]>([]);
-const docPagination = ref({ page: 1, pageSize: 20 });
+const docPagination = ref({ page: 1, pageSize: 20, itemCount: 0 });
 
 const collectionOptions = [
   { label: "总结 (summaries)", value: "summaries" },
@@ -339,6 +338,7 @@ async function loadDocuments() {
     if (res.success) {
       documents.value = res.data.documents || [];
       totalDocs.value = res.data.total || 0;
+      docPagination.value.itemCount = totalDocs.value;
     }
   } catch {
     message.error("加载文档列表失败");

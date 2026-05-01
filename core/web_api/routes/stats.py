@@ -51,12 +51,13 @@ async def list_summaries(
         if not db:
             return {"success": False, "message": "数据库未连接"}
 
-        summaries = await db.get_summaries(channel_id=channel, limit=limit)
+        total = await db.count_summaries(channel_id=channel)
+        summaries = await db.get_summaries(channel_id=channel, limit=limit, offset=offset)
         return {
             "success": True,
             "data": {
                 "summaries": summaries or [],
-                "total": len(summaries) if summaries else 0,
+                "total": total,
                 "limit": limit,
                 "offset": offset,
             },

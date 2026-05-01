@@ -74,14 +74,25 @@ async def list_collection_documents(
         if total == 0:
             return {"success": True, "data": {"documents": [], "total": 0, "available": True}}
 
+        if offset >= total:
+            return {
+                "success": True,
+                "data": {
+                    "documents": [],
+                    "total": total,
+                    "limit": limit,
+                    "offset": offset,
+                    "available": True,
+                },
+            }
+
         # 限制查询范围
-        fetch_limit = min(limit, total)
-        actual_offset = min(offset, max(total - 1, 0))
+        fetch_limit = min(limit, total - offset)
 
         results = collection.get(
             include=["metadatas", "documents"],
             limit=fetch_limit,
-            offset=actual_offset,
+            offset=offset,
         )
 
         documents = []
@@ -100,7 +111,7 @@ async def list_collection_documents(
                 "documents": documents,
                 "total": total,
                 "limit": fetch_limit,
-                "offset": actual_offset,
+                "offset": offset,
                 "available": True,
             },
         }
