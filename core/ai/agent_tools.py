@@ -638,12 +638,13 @@ class ToolExecutor:
 
     def get_all_results(self) -> list[dict[str, Any]]:
         """获取所有累积的搜索结果（完整文本，不截断）。"""
-        all_results = list(self._result_store.values())
-        seen_ids = {id(result) for result in all_results}
-        for result in self._doc_result_store.values():
-            if id(result) not in seen_ids:
+        all_results = []
+        seen_keys = set()
+        for result in [*self._result_store.values(), *self._doc_result_store.values()]:
+            key = (result.get("summary_id"), result.get("doc_id"))
+            if key not in seen_keys:
                 all_results.append(result)
-                seen_ids.add(id(result))
+                seen_keys.add(key)
         return all_results
 
     def get_results_by_ids(self, ids: list[int]) -> list[dict[str, Any]]:

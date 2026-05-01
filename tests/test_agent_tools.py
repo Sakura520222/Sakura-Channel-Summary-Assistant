@@ -110,6 +110,7 @@ def test_get_all_results_includes_doc_results_without_duplicates(executor):
     executor._store_result(summary_result)
     executor._store_result(message_result)
     executor._store_result(duplicated_result)
+    executor._doc_result_store[duplicated_result["doc_id"]] = dict(duplicated_result)
 
     results = executor.get_all_results()
 
