@@ -355,6 +355,7 @@ class MySQLManager(DatabaseManagerBase):
                     content TEXT,
                     media_files JSON,
                     target_channel VARCHAR(500),
+                    is_anonymous BOOLEAN DEFAULT FALSE,
                     status VARCHAR(20) DEFAULT 'pending',
                     ai_optimized_content TEXT,
                     ai_optimized_title VARCHAR(500),
@@ -391,6 +392,18 @@ class MySQLManager(DatabaseManagerBase):
                         logger.debug("ai_optimized_title 列已存在，跳过")
                     else:
                         logger.warning(f"添加 ai_optimized_title 列时出错: {alter_err}")
+
+                try:
+                    await cursor.execute(
+                        "ALTER TABLE submissions ADD COLUMN is_anonymous BOOLEAN DEFAULT FALSE "
+                        "AFTER target_channel"
+                    )
+                    logger.info("投稿表新增 is_anonymous 列成功")
+                except Exception as alter_err:
+                    if "Duplicate column name" in str(alter_err):
+                        logger.debug("is_anonymous 列已存在，跳过")
+                    else:
+                        logger.warning(f"添加 is_anonymous 列时出错: {alter_err}")
 
                 # 15. 创建 WebUI 系统运维审计表
                 await cursor.execute("""

@@ -28,11 +28,27 @@ from telegram.warnings import PTBUserWarning
 from core.i18n.i18n import get_text
 from core.infrastructure.database.submission_repo import get_submission_repo
 from core.services.submission_service import get_submission_service
+from core.telegram.keyboards import (
+    QA_MENU_SUBMIT,
+    SUBMIT_MENU_ANONYMOUS_NO,
+    SUBMIT_MENU_ANONYMOUS_YES,
+    SUBMIT_MENU_CANCEL,
+    SUBMIT_MENU_CONFIRM,
+    SUBMIT_MENU_DONE_MEDIA,
+    SUBMIT_MENU_SKIP_CONTENT,
+    SUBMIT_MENU_SKIP_MEDIA,
+    build_qa_main_menu_keyboard,
+    build_submission_anonymous_keyboard,
+    build_submission_confirm_keyboard,
+    build_submission_content_keyboard,
+    build_submission_media_keyboard,
+    build_submission_title_keyboard,
+)
 
 logger = logging.getLogger(__name__)
 
 # 投稿状态常量
-WAITING_TITLE, WAITING_CONTENT, WAITING_MEDIA, SELECT_CHANNEL, CONFIRM = range(5)
+WAITING_TITLE, WAITING_CONTENT, WAITING_ANONYMOUS, WAITING_MEDIA, SELECT_CHANNEL, CONFIRM = range(6)
 
 # 媒体文件大小限制 (20MB)
 MAX_MEDIA_SIZE = 20 * 1024 * 1024
@@ -67,7 +83,8 @@ class SubmissionHandler:
         if user_id in self._user_states:
             target = update.callback_query or update.message
             await target.reply_text(
-                "⚠️ 您已有一个进行中的投稿。请先完成或取消当前投稿 (/cancel_submit)。"
+                "⚠️ 您已有一个进行中的投稿。请先完成或取消当前投稿 (/cancel_submit)。",
+                reply_markup=build_submission_title_keyboard(),
             )
             return ConversationHandler.END
 
@@ -75,6 +92,7 @@ class SubmissionHandler:
         self._user_states[user_id] = {
             "title": None,
             "content": None,
+            "is_anonymous": False,
             "media_files": [],
         }
 
@@ -85,7 +103,7 @@ class SubmissionHandler:
 💡 提示：
 • 发送 /cancel_submit 可随时取消投稿
 • 标题将作为您投稿的摘要展示"""
-        await update.message.reply_text(message)
+        await update.message.reply_text(message, reply_markup=build_submission_title_keyboard())
         logger.info(f"用户 {user_name} 开始投稿流程")
         return WAITING_TITLE
 
@@ -94,12 +112,18 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text(get_text("submission.session_expired"))
+            await update.message.reply_text(
+                get_text("submission.session_expired"),
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
             return ConversationHandler.END
 
         title = update.message.text.strip()
         if len(title) > 500:
-            await update.message.reply_text("❌ 标题不能超过 500 个字符，请重新输入。")
+            await update.message.reply_text(
+                "❌ 标题不能超过 500 个字符，请重新输入。",
+                reply_markup=build_submission_title_keyboard(),
+            )
             return WAITING_TITLE
 
         state["title"] = title
@@ -109,7 +133,7 @@ class SubmissionHandler:
 现在请发送投稿正文（可选），或使用以下命令：
 • /skip — 跳过正文，直接进入下一步
 • /cancel_submit — 取消投稿"""
-        await update.message.reply_text(message)
+        await update.message.reply_text(message, reply_markup=build_submission_content_keyboard())
         return WAITING_CONTENT
 
     async def receive_content(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -117,35 +141,62 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text(get_text("submission.session_expired"))
+            await update.message.reply_text(
+                get_text("submission.session_expired"),
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
             return ConversationHandler.END
 
         state["content"] = update.message.text.strip()
 
-        message = """📝 正文已记录。
-
-现在请发送媒体文件（图片、视频、文件等），或使用以下命令：
-• /skip — 跳过媒体文件
-• /done — 完成投稿，进入确认
-• /cancel_submit — 取消投稿"""
-        await update.message.reply_text(message)
-        return WAITING_MEDIA
+        return await self._ask_anonymous(update, "📝 正文已记录。")
 
     async def skip_content(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         """跳过正文输入"""
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text(get_text("submission.session_expired"))
+            await update.message.reply_text(
+                get_text("submission.session_expired"),
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
             return ConversationHandler.END
 
-        message = """📝 已跳过正文。
+        return await self._ask_anonymous(update, "📝 已跳过正文。")
+
+    async def _ask_anonymous(self, update: Update, prefix: str) -> int:
+        """询问投稿者是否匿名。"""
+        message = f"""{prefix}
+
+请选择是否匿名投稿：
+• 匿名投稿 — 发布到频道时隐藏您的用户名
+• 署名投稿 — 发布到频道时显示您的用户名
+• /cancel_submit — 取消投稿"""
+        await update.message.reply_text(message, reply_markup=build_submission_anonymous_keyboard())
+        return WAITING_ANONYMOUS
+
+    async def choose_anonymous(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """处理是否匿名投稿选择。"""
+        user_id = update.effective_user.id
+        state = self._user_states.get(user_id)
+        if not state:
+            await update.message.reply_text(
+                get_text("submission.session_expired"),
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
+            return ConversationHandler.END
+
+        text = update.message.text.strip()
+        state["is_anonymous"] = text == SUBMIT_MENU_ANONYMOUS_YES
+        anonymous_text = "匿名投稿" if state["is_anonymous"] else "署名投稿"
+
+        message = f"""✅ 已选择：{anonymous_text}
 
 现在请发送媒体文件（图片、视频、文件等），或使用以下命令：
 • /skip — 跳过媒体文件
 • /done — 完成投稿，进入确认
 • /cancel_submit — 取消投稿"""
-        await update.message.reply_text(message)
+        await update.message.reply_text(message, reply_markup=build_submission_media_keyboard())
         return WAITING_MEDIA
 
     async def receive_media(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -153,13 +204,17 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text(get_text("submission.session_expired"))
+            await update.message.reply_text(
+                get_text("submission.session_expired"),
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
             return ConversationHandler.END
 
         media_info = self._extract_media_info(update.message)
         if not media_info:
             await update.message.reply_text(
-                "❌ 无法识别该媒体类型，请发送图片、视频或文件。\n或使用 /done 完成投稿。"
+                "❌ 无法识别该媒体类型，请发送图片、视频或文件。\n或使用 /done 完成投稿。",
+                reply_markup=build_submission_media_keyboard(),
             )
             return WAITING_MEDIA
 
@@ -167,7 +222,8 @@ class SubmissionHandler:
         file_size = self._get_file_size(update.message)
         if file_size and file_size > MAX_MEDIA_SIZE:
             await update.message.reply_text(
-                f"❌ 文件过大（{file_size / 1024 / 1024:.1f}MB），最大支持 20MB。\n请发送更小的文件。"
+                f"❌ 文件过大（{file_size / 1024 / 1024:.1f}MB），最大支持 20MB。\n请发送更小的文件。",
+                reply_markup=build_submission_media_keyboard(),
             )
             return WAITING_MEDIA
 
@@ -184,14 +240,19 @@ class SubmissionHandler:
                     "继续发送更多文件，或使用以下命令：\n"
                     "• /done — 完成投稿\n"
                     "• /skip — 跳过（如果没有更多媒体）\n"
-                    "• /cancel_submit — 取消投稿"
+                    "• /cancel_submit — 取消投稿",
+                    reply_markup=build_submission_media_keyboard(),
                 )
             else:
-                await update.message.reply_text("❌ 文件下载失败，请重新发送或跳过。")
+                await update.message.reply_text(
+                    "❌ 文件下载失败，请重新发送或跳过。",
+                    reply_markup=build_submission_media_keyboard(),
+                )
         except Exception as e:
             logger.error(f"下载媒体文件失败: {type(e).__name__}: {e}")
             await update.message.reply_text(
-                f"❌ 文件下载失败: {str(e)[:100]}\n请重新发送或使用 /skip 跳过。"
+                f"❌ 文件下载失败: {str(e)[:100]}\n请重新发送或使用 /skip 跳过。",
+                reply_markup=build_submission_media_keyboard(),
             )
 
         return WAITING_MEDIA
@@ -215,7 +276,10 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text(get_text("submission.session_expired"))
+            await update.message.reply_text(
+                get_text("submission.session_expired"),
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
             return ConversationHandler.END
 
         channels = self._get_channels()
@@ -266,6 +330,10 @@ class SubmissionHandler:
         user_id = query.from_user.id
         state = self._user_states.get(user_id)
         if not state:
+            await query.message.reply_text(
+                get_text("submission.session_expired"),
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
             return ConversationHandler.END
 
         title = state["title"] or "(未设置)"
@@ -273,18 +341,20 @@ class SubmissionHandler:
         media_count = len(state["media_files"])
         target_channel = state.get("target_channel", "")
         channel_name = target_channel.rstrip("/").split("/")[-1] if target_channel else "(未选择)"
+        anonymous_text = "是" if state.get("is_anonymous") else "否"
 
         preview = (
             f"📝 投稿预览确认\n\n"
             f"标题：{title}\n"
             f"正文：{content[:200]}{'...' if len(content) > 200 else ''}\n"
             f"媒体文件：{media_count} 个\n"
+            f"匿名投稿：{anonymous_text}\n"
             f"目标频道：{channel_name}\n\n"
             f"请确认是否提交：\n"
             f"• /confirm — 确认提交\n"
             f"• /cancel_submit — 取消投稿"
         )
-        await query.message.reply_text(preview)
+        await query.message.reply_text(preview, reply_markup=build_submission_confirm_keyboard())
         return CONFIRM
 
     async def _show_confirm(self, update: Update) -> int:
@@ -292,7 +362,10 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text(get_text("submission.session_expired"))
+            await update.message.reply_text(
+                get_text("submission.session_expired"),
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
             return ConversationHandler.END
 
         title = state["title"] or "(未设置)"
@@ -300,18 +373,20 @@ class SubmissionHandler:
         media_count = len(state["media_files"])
         target_channel = state.get("target_channel", "")
         channel_name = target_channel.rstrip("/").split("/")[-1] if target_channel else "(未选择)"
+        anonymous_text = "是" if state.get("is_anonymous") else "否"
 
         preview = (
             f"📝 投稿预览确认\n\n"
             f"标题：{title}\n"
             f"正文：{content[:200]}{'...' if len(content) > 200 else ''}\n"
             f"媒体文件：{media_count} 个\n"
+            f"匿名投稿：{anonymous_text}\n"
             f"目标频道：{channel_name}\n\n"
             f"请确认是否提交：\n"
             f"• /confirm — 确认提交\n"
             f"• /cancel_submit — 取消投稿"
         )
-        await update.message.reply_text(preview)
+        await update.message.reply_text(preview, reply_markup=build_submission_confirm_keyboard())
         return CONFIRM
 
     async def confirm_submission(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -319,7 +394,10 @@ class SubmissionHandler:
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:
-            await update.message.reply_text(get_text("submission.session_expired"))
+            await update.message.reply_text(
+                get_text("submission.session_expired"),
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
             return ConversationHandler.END
 
         user_name = (
@@ -334,16 +412,21 @@ class SubmissionHandler:
             content=state["content"],
             media_files=state["media_files"] if state["media_files"] else None,
             target_channel=state.get("target_channel"),
+            is_anonymous=bool(state.get("is_anonymous")),
         )
 
         if result["success"]:
             # MainBot 的定时任务会自动检测 pending 投稿并通知管理员
             await update.message.reply_text(
-                f"✅ 投稿已成功提交，请等待管理员审核。\n\n您的投稿ID: {result['submission_id']}"
+                f"✅ 投稿已成功提交，请等待管理员审核。\n\n您的投稿ID: {result['submission_id']}",
+                reply_markup=build_qa_main_menu_keyboard(),
             )
             logger.info(f"用户 {user_name} 投稿提交成功: ID={result['submission_id']}")
         else:
-            await update.message.reply_text(f"❌ {result['message']}")
+            await update.message.reply_text(
+                f"❌ {result['message']}",
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
 
         self.clear_user_state(user_id)
         return ConversationHandler.END
@@ -352,7 +435,10 @@ class SubmissionHandler:
         """取消投稿"""
         user_id = update.effective_user.id
         self.clear_user_state(user_id)
-        await update.message.reply_text("✅ 投稿已取消。")
+        await update.message.reply_text(
+            "✅ 投稿已取消。",
+            reply_markup=build_qa_main_menu_keyboard(),
+        )
         logger.info(f"用户 {update.effective_user.username or user_id} 取消了投稿")
         return ConversationHandler.END
 
@@ -468,18 +554,49 @@ class SubmissionHandler:
                 entry_points=[
                     CommandHandler("submit", self.start_submission),
                     CommandHandler("start", self.start_submission_deep_link),
+                    MessageHandler(filters.Regex(f"^{QA_MENU_SUBMIT}$"), self.start_submission),
                 ],
                 states={
                     WAITING_TITLE: [
+                        MessageHandler(
+                            filters.Regex(f"^{SUBMIT_MENU_CANCEL}$"), self.cancel_submission
+                        ),
                         MessageHandler(filters.TEXT & ~filters.COMMAND, self.receive_title),
                         CommandHandler("cancel_submit", self.cancel_submission),
                     ],
                     WAITING_CONTENT: [
+                        MessageHandler(
+                            filters.Regex(f"^{SUBMIT_MENU_SKIP_CONTENT}$"), self.skip_content
+                        ),
+                        MessageHandler(
+                            filters.Regex(f"^{SUBMIT_MENU_CANCEL}$"), self.cancel_submission
+                        ),
                         MessageHandler(filters.TEXT & ~filters.COMMAND, self.receive_content),
                         CommandHandler("skip", self.skip_content),
                         CommandHandler("cancel_submit", self.cancel_submission),
                     ],
+                    WAITING_ANONYMOUS: [
+                        MessageHandler(
+                            filters.Regex(
+                                f"^({SUBMIT_MENU_ANONYMOUS_YES}|{SUBMIT_MENU_ANONYMOUS_NO})$"
+                            ),
+                            self.choose_anonymous,
+                        ),
+                        MessageHandler(
+                            filters.Regex(f"^{SUBMIT_MENU_CANCEL}$"), self.cancel_submission
+                        ),
+                        CommandHandler("cancel_submit", self.cancel_submission),
+                    ],
                     WAITING_MEDIA: [
+                        MessageHandler(
+                            filters.Regex(f"^{SUBMIT_MENU_SKIP_MEDIA}$"), self.skip_media
+                        ),
+                        MessageHandler(
+                            filters.Regex(f"^{SUBMIT_MENU_DONE_MEDIA}$"), self.done_media
+                        ),
+                        MessageHandler(
+                            filters.Regex(f"^{SUBMIT_MENU_CANCEL}$"), self.cancel_submission
+                        ),
                         MessageHandler(
                             filters.PHOTO | filters.VIDEO | filters.Document.ALL | filters.AUDIO,
                             self.receive_media,
@@ -490,14 +607,28 @@ class SubmissionHandler:
                     ],
                     SELECT_CHANNEL: [
                         CallbackQueryHandler(self.select_channel, pattern=r"^ch_\d+$"),
+                        MessageHandler(
+                            filters.Regex(f"^{SUBMIT_MENU_CANCEL}$"), self.cancel_submission
+                        ),
                         CommandHandler("cancel_submit", self.cancel_submission),
                     ],
                     CONFIRM: [
+                        MessageHandler(
+                            filters.Regex(f"^{SUBMIT_MENU_CONFIRM}$"), self.confirm_submission
+                        ),
+                        MessageHandler(
+                            filters.Regex(f"^{SUBMIT_MENU_CANCEL}$"), self.cancel_submission
+                        ),
                         CommandHandler("confirm", self.confirm_submission),
                         CommandHandler("cancel_submit", self.cancel_submission),
                     ],
                 },
-                fallbacks=[CommandHandler("cancel_submit", self.cancel_submission)],
+                fallbacks=[
+                    CommandHandler("cancel_submit", self.cancel_submission),
+                    MessageHandler(
+                        filters.Regex(f"^{SUBMIT_MENU_CANCEL}$"), self.cancel_submission
+                    ),
+                ],
                 # 投稿流程同时使用文本/命令消息和频道选择按钮；必须保持 per_message=False。
                 # PTB 会对混用 CallbackQueryHandler 给出提示，但本流程按用户维度跟踪即可。
                 per_message=False,

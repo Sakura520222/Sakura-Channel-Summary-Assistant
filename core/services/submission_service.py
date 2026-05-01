@@ -31,6 +31,7 @@ class SubmissionService:
         content: str | None = None,
         media_files: list[dict[str, Any]] | None = None,
         target_channel: str | None = None,
+        is_anonymous: bool = False,
     ) -> dict[str, Any]:
         """提交投稿
 
@@ -41,6 +42,7 @@ class SubmissionService:
             content: 投稿正文
             media_files: 媒体文件信息列表
             target_channel: 目标频道URL
+            is_anonymous: 是否匿名投稿
 
         Returns:
             {"success": bool, "submission_id": int|None, "message": str}
@@ -53,6 +55,7 @@ class SubmissionService:
                 content=content,
                 media_files=media_files,
                 target_channel=target_channel,
+                is_anonymous=is_anonymous,
             )
             if submission_id:
                 logger.info(f"投稿提交成功: ID={submission_id}, 投稿者={submitter_name}")

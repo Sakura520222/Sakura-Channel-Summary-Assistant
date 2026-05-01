@@ -52,6 +52,7 @@ class SubmissionRepository:
         content: str | None = None,
         media_files: list[dict[str, Any]] | None = None,
         target_channel: str | None = None,
+        is_anonymous: bool = False,
     ) -> int | None:
         """创建投稿记录
 
@@ -62,6 +63,7 @@ class SubmissionRepository:
             content: 投稿正文
             media_files: 媒体文件列表
             target_channel: 目标频道
+            is_anonymous: 是否匿名投稿
 
         Returns:
             投稿ID，失败返回None
@@ -74,10 +76,18 @@ class SubmissionRepository:
                         """
                         INSERT INTO submissions
                         (submitter_id, submitter_name, title, content, media_files,
-                         target_channel, status)
-                        VALUES (%s, %s, %s, %s, %s, %s, 'pending')
+                         target_channel, is_anonymous, status)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending')
                         """,
-                        (submitter_id, submitter_name, title, content, media_json, target_channel),
+                        (
+                            submitter_id,
+                            submitter_name,
+                            title,
+                            content,
+                            media_json,
+                            target_channel,
+                            is_anonymous,
+                        ),
                     )
                     await conn.commit()
                     submission_id = cursor.lastrowid
