@@ -15,7 +15,7 @@ from core.ai.memory_manager import MemoryManager, get_memory_manager
 class TestMemoryManagerInit:
     """初始化测试"""
 
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.get_db_manager")
     def test_init(self, mock_get_db):
         """测试初始化"""
         mock_db = MagicMock()
@@ -30,9 +30,9 @@ class TestMemoryManagerInit:
 class TestExtractMetadata:
     """提取元数据测试"""
 
-    @patch("core.memory_manager.client_llm")
-    @patch("core.memory_manager.get_llm_model")
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.client_llm")
+    @patch("core.ai.memory_manager.get_llm_model")
+    @patch("core.ai.memory_manager.get_db_manager")
     def test_extract_metadata_success(self, mock_get_db, mock_model, mock_client):
         """测试成功提取元数据"""
         mock_db = MagicMock()
@@ -56,7 +56,7 @@ class TestExtractMetadata:
         assert "keywords" in metadata
         assert "topics" in metadata
 
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.get_db_manager")
     def test_extract_metadata_default(self, mock_get_db):
         """测试提取元数据失败时返回默认值"""
         mock_db = MagicMock()
@@ -74,7 +74,7 @@ class TestExtractMetadata:
 class TestUpdateChannelProfile:
     """更新频道画像测试"""
 
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.get_db_manager")
     @pytest.mark.asyncio
     async def test_update_channel_profile(self, mock_get_db):
         """测试更新频道画像"""
@@ -98,7 +98,7 @@ class TestUpdateChannelProfile:
 class TestGetChannelContext:
     """获取频道上下文测试"""
 
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.get_db_manager")
     @pytest.mark.asyncio
     async def test_get_channel_context_with_profile(self, mock_get_db):
         """测试获取有画像的频道上下文"""
@@ -118,7 +118,7 @@ class TestGetChannelContext:
 
         assert "技术专业" in context or "特点" in context
 
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.get_db_manager")
     @pytest.mark.asyncio
     async def test_get_channel_context_no_profile(self, mock_get_db):
         """测试获取无画像的频道上下文"""
@@ -131,7 +131,7 @@ class TestGetChannelContext:
 
         assert "test" in context.lower()
 
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.get_db_manager")
     @pytest.mark.asyncio
     async def test_get_channel_context_no_channel(self, mock_get_db):
         """测试获取无频道ID的上下文"""
@@ -145,10 +145,68 @@ class TestGetChannelContext:
 
 
 @pytest.mark.unit
+class TestChannelDirectory:
+    """频道目录测试"""
+
+    @patch("core.ai.memory_manager.get_db_manager")
+    @pytest.mark.asyncio
+    async def test_list_channels_returns_normalized_rows(self, mock_get_db):
+        """测试获取标准化频道列表"""
+        mock_db = MagicMock()
+        mock_db.get_all_channels = AsyncMock(
+            return_value=[
+                {
+                    "channel_id": "https://t.me/test",
+                    "channel_name": "Test",
+                    "summary_count": "2",
+                    "message_count": None,
+                }
+            ]
+        )
+        mock_get_db.return_value = mock_db
+
+        manager = MemoryManager()
+        channels = await manager.list_channels()
+
+        assert channels[0]["summary_count"] == 2
+        assert channels[0]["message_count"] == 0
+
+    @patch("core.ai.memory_manager.get_db_manager")
+    @pytest.mark.asyncio
+    async def test_resolve_channel_exact_match(self, mock_get_db):
+        """测试精确解析频道"""
+        mock_db = MagicMock()
+        mock_db.get_all_channels = AsyncMock(
+            return_value=[{"channel_id": "https://t.me/test", "channel_name": "Test Channel"}]
+        )
+        mock_get_db.return_value = mock_db
+
+        manager = MemoryManager()
+        result = await manager.resolve_channel("@test")
+
+        assert result["success"] is True
+        assert result["channel_id"] == "https://t.me/test"
+
+    @patch("core.ai.memory_manager.get_db_manager")
+    @pytest.mark.asyncio
+    async def test_get_recent_summaries_delegates_to_db(self, mock_get_db):
+        """测试最近总结调用数据库接口"""
+        mock_db = MagicMock()
+        mock_db.get_recent_summaries = AsyncMock(return_value=[{"id": 1}])
+        mock_get_db.return_value = mock_db
+
+        manager = MemoryManager()
+        results = await manager.get_recent_summaries("https://t.me/test", limit=3)
+
+        assert results == [{"id": 1}]
+        mock_db.get_recent_summaries.assert_awaited_once()
+
+
+@pytest.mark.unit
 class TestSearchSummaries:
     """搜索总结测试"""
 
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.get_db_manager")
     @pytest.mark.asyncio
     async def test_search_summaries_no_filters(self, mock_get_db):
         """测试无过滤条件的搜索"""
@@ -161,7 +219,7 @@ class TestSearchSummaries:
 
         assert len(results) == 1
 
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.get_db_manager")
     @pytest.mark.asyncio
     async def test_search_summaries_with_keywords(self, mock_get_db):
         """测试带关键词的搜索"""
@@ -176,7 +234,7 @@ class TestSearchSummaries:
 
         assert len(results) == 1
 
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.get_db_manager")
     @pytest.mark.asyncio
     async def test_search_summaries_empty_result(self, mock_get_db):
         """测试搜索无结果"""
@@ -194,24 +252,24 @@ class TestSearchSummaries:
 class TestGetMemoryManager:
     """获取全局实例测试"""
 
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.get_db_manager")
     def test_singleton(self, mock_get_db):
         """测试单例模式"""
-        import core.memory_manager
+        import core.ai.memory_manager
 
-        core.memory_manager.memory_manager = None
+        core.ai.memory_manager.memory_manager = None
 
         manager1 = get_memory_manager()
         manager2 = get_memory_manager()
 
         assert manager1 is manager2
 
-    @patch("core.memory_manager.get_db_manager")
+    @patch("core.ai.memory_manager.get_db_manager")
     def test_returns_memory_manager_instance(self, mock_get_db):
         """测试返回MemoryManager实例"""
-        import core.memory_manager
+        import core.ai.memory_manager
 
-        core.memory_manager.memory_manager = None
+        core.ai.memory_manager.memory_manager = None
 
         manager = get_memory_manager()
 

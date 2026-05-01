@@ -8,6 +8,7 @@
 # 本项目源代码：https://github.com/Sakura520222/Sakura-Bot
 # 许可证全文：参见 LICENSE 文件
 
+import json
 from datetime import UTC, datetime, timedelta
 
 import core.config as config_module
@@ -244,6 +245,9 @@ async def main_job(channel=None):
                                         "created_at": datetime.now(UTC).isoformat(),
                                         "summary_type": frequency,  # 'daily' 或 'weekly'
                                         "message_count": len(messages),
+                                        "summary_message_ids": json.dumps(
+                                            summary_ids, ensure_ascii=False
+                                        ),
                                     },
                                 )
 

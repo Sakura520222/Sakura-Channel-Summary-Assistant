@@ -165,6 +165,7 @@ class QABot:
 • `/status` - 查看使用配额和会话状态
 • `/clear` - 清除对话记忆，重新开始
 • `/view_persona` - 查看当前助手人格设定
+• `/ask <频道> <问题>` - 限定指定频道查询
 
 *订阅管理*
 • `/listchannels` - 列出可订阅的频道
@@ -179,6 +180,11 @@ class QABot:
 • "最近有什么技术讨论？"
 • "今天有什么更新？"
 • "关于特定关键词的内容"
+
+*指定频道查询*
+• `/ask @channel_name 最近有什么更新？`
+• `/ask https://t.me/channel_name 分析一下 AI 讨论`
+• 也可以直接说："在 channel_name 频道里查 AI"
 
 *多轮对话*
 • 我会记住我们的对话上下文（30分钟内）
@@ -429,6 +435,52 @@ class QABot:
         result = await self.user_system.create_summary_request(user_id, channel_url, channel_name)
         await update.message.reply_text(result["message"], parse_mode="HTML")
 
+    async def ask_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """处理/ask命令 - 限定指定频道查询"""
+        user_id = update.effective_user.id
+
+        await self.user_system.register_user(
+            user_id, update.effective_user.username, update.effective_user.first_name
+        )
+
+        if not context.args or len(context.args) < 2:
+            message = """🔎 <b>指定频道查询</b>
+
+使用方法:
+<code>/ask &lt;频道链接或@用户名&gt; &lt;问题&gt;</code>
+
+示例:
+<code>/ask @channel_name 最近有什么更新？</code>
+<code>/ask https://t.me/channel_name 分析一下 AI 讨论</code>
+
+💡 使用 <code>/listchannels</code> 查看可查询频道。"""
+            await update.message.reply_text(message, parse_mode="HTML")
+            return
+
+        channel_hint = context.args[0]
+        query = " ".join(context.args[1:]).strip()
+        if not query:
+            await update.message.reply_text("请提供要查询的问题。")
+            return
+
+        try:
+            quota_check = await self.quota_manager.check_quota(user_id)
+            if not quota_check.get("allowed", False):
+                await update.message.reply_text(quota_check.get("message", "配额不足"))
+                return
+
+            placeholder = await update.message.reply_text("🔍 正在限定频道检索相关记录...")
+            await self._stream_and_edit(
+                placeholder=placeholder,
+                query=query,
+                user_id=user_id,
+                quota_check=quota_check,
+                channel_hint=channel_hint,
+            )
+        except Exception as e:
+            logger.error(f"处理指定频道查询失败: {type(e).__name__}: {e}", exc_info=True)
+            await update.message.reply_text("❌ 抱歉，处理查询时出错。请稍后再试。")
+
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """处理用户消息（流式输出 - 单条消息动态编辑）"""
         # 防御性检查：忽略非用户消息（如频道事件、系统消息）
@@ -471,7 +523,12 @@ class QABot:
                 pass
 
     async def _stream_and_edit(
-        self, placeholder, query: str, user_id: int, quota_check: dict
+        self,
+        placeholder,
+        query: str,
+        user_id: int,
+        quota_check: dict,
+        channel_hint: str | None = None,
     ) -> None:
         """
         流式接收 QA 引擎输出，并实时编辑 Telegram 消息。
@@ -567,7 +624,7 @@ class QABot:
             last_edit_time = time.monotonic()
 
         try:
-            async for chunk in self.qa_engine.process_query_stream(query, user_id):
+            async for chunk in self.qa_engine.process_query_stream(query, user_id, channel_hint):
                 # ── 处理特殊控制标记 ─────────────────────────────────────────
                 if chunk == "__DONE__":
                     break
@@ -727,6 +784,7 @@ class QABot:
                 BotCommand("status", "查看使用配额和会话状态"),
                 BotCommand("clear", "清除对话记忆"),
                 BotCommand("view_persona", "查看当前助手人格设定"),
+                BotCommand("ask", "限定指定频道查询"),
                 BotCommand("listchannels", "列出可订阅的频道"),
                 BotCommand("subscribe", "订阅频道总结推送"),
                 BotCommand("unsubscribe", "取消频道订阅"),
@@ -762,6 +820,7 @@ class QABot:
         self.application.add_handler(CommandHandler("status", self.status_command))
         self.application.add_handler(CommandHandler("clear", self.clear_command))
         self.application.add_handler(CommandHandler("view_persona", self.view_persona_command))
+        self.application.add_handler(CommandHandler("ask", self.ask_command))
 
         # 订阅管理命令
         self.application.add_handler(CommandHandler("listchannels", self.list_channels_command))

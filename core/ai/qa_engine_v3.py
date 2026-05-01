@@ -45,7 +45,8 @@ BASE_SYSTEM_TEMPLATE = """{persona_description}
 2. **上下文理解**：如果有对话历史，优先利用上下文理解代词指代（如"它"、"那个"、"这个"等）
 3. **明确回答**：总结中没有相关信息时，明确说明
 4. **结构清晰**：使用清晰的结构和要点，语言简洁专业
-5. **Markdown规范**：
+5. **引用来源**：如果上下文或工具结果中提供了 post_links，请在相关要点后引用帖子链接
+6. **Markdown规范**：
    - 粗体：使用 **文本** （两边各两个星号）
    - 斜体：使用 *文本* （两边各一个星号）
    - 代码：使用 `代码` （反引号）
@@ -71,13 +72,20 @@ AGENT_TOOL_INSTRUCTIONS = """
 - **semantic_search**: 语义搜索，适合模糊/概念性查询
 - **keyword_search**: 关键词搜索，适合精确匹配特定术语
 - **rerank_results**: 对搜索结果重排序（结果>5条时考虑使用）
-- **get_channel_info**: 获取频道信息
+- **list_channels**: 获取所有可查询频道链接
+- **resolve_channel**: 将频道名、@username 或链接解析为标准频道链接
+- **get_recent_summaries**: 获取最近总结，适合回答最新动态
+- **get_channel_stats**: 获取频道统计信息
+- **get_source_detail**: 展开之前搜索结果的完整来源内容
 
 ### 使用策略
 1. 分析用户问题，确定需要的搜索方式和参数
-2. 可以同时调用多个搜索工具（如语义+关键词并行检索）
-3. 评估搜索结果：结果充足则回答，不足则调整参数再次搜索
-4. 最多进行{max_iterations}轮工具调用
+2. 如果用户询问可用频道或频道链接，优先调用 list_channels
+3. 如果用户指定频道名、@username 或频道链接，先调用 resolve_channel，再把 channel_id 传给搜索工具
+4. 可以同时调用多个搜索工具（如语义+关键词并行检索）
+5. 评估搜索结果：结果充足则回答，不足则调整参数再次搜索
+6. 如果工具结果包含 post_links，最终回答必须尽量保留相关帖子链接作为证据来源
+7. 最多进行{max_iterations}轮工具调用
 """
 
 
@@ -199,6 +207,7 @@ class QAEngineV3:
             query = parsed["original_query"]
             keywords = parsed.get("keywords", [])
             time_range = parsed.get("time_range")  # 可能为 None
+            channel_id = await self._resolve_channel_from_parsed(parsed)
 
             # 获取对话历史
             conversation_history = await self.conversation_mgr.get_conversation_history(
@@ -220,12 +229,18 @@ class QAEngineV3:
                     # 优先使用双 collection 联合检索
                     if self.vector_store.is_messages_available():
                         semantic_results = self.vector_store.search_all(
-                            query=query, top_k=20, date_after=date_after
+                            query=query,
+                            top_k=20,
+                            filter_metadata={"channel_id": channel_id} if channel_id else None,
+                            date_after=date_after,
                         )
                         logger.info(f"双collection语义检索: 找到 {len(semantic_results)} 条结果")
                     else:
                         semantic_results = self.vector_store.search_similar(
-                            query=query, top_k=20, date_after=date_after
+                            query=query,
+                            top_k=20,
+                            filter_metadata={"channel_id": channel_id} if channel_id else None,
+                            date_after=date_after,
                         )
                         logger.info(f"语义检索(summaries): 找到 {len(semantic_results)} 条结果")
                 except Exception as e:
@@ -238,7 +253,10 @@ class QAEngineV3:
                 try:
                     search_days = time_range if time_range is not None else 90
                     keyword_results = await self.memory_manager.search_summaries(
-                        keywords=keywords, time_range_days=search_days, limit=10
+                        keywords=keywords,
+                        time_range_days=search_days,
+                        channel_id=channel_id,
+                        limit=10,
                     )
                     logger.info(f"关键词检索: 找到 {len(keyword_results)} 条结果")
                 except Exception as e:
@@ -512,7 +530,7 @@ class QAEngineV3:
             suffix = f"\n\n{source_info}"
             yield suffix
 
-    async def process_query_stream(self, query: str, user_id: int):
+    async def process_query_stream(self, query: str, user_id: int, channel_hint: str | None = None):
         """
         流式处理用户查询（异步生成器版本）
 
@@ -536,6 +554,8 @@ class QAEngineV3:
 
             # 3. 解析查询意图
             parsed = self.intent_parser.parse_query(query)
+            if channel_hint:
+                parsed["channel_hint"] = channel_hint
             intent = parsed["intent"]
 
             # 4. 非内容查询直接返回（不使用流式）
@@ -564,6 +584,10 @@ class QAEngineV3:
             original_query = parsed["original_query"]
             keywords = parsed.get("keywords", [])
             time_range = parsed.get("time_range")
+            # 这里预解析频道用于约束首轮检索与降级流水线；即使 agentic 模式后续
+            # 自主调用 resolve_channel，也可以确保向量检索从一开始就限定频道。
+            # 预解析仅做快速限定；若无法唯一解析，agentic 工具仍可返回候选供 LLM 选择。
+            channel_id = await self._resolve_channel_from_parsed(parsed)
 
             conversation_history = await self.conversation_mgr.get_conversation_history(
                 user_id, session_id
@@ -584,6 +608,8 @@ class QAEngineV3:
                     time_range=time_range,
                     date_after=date_after,
                     keywords=keywords,
+                    channel_id=channel_id,
+                    channel_hint=parsed.get("channel_hint"),
                 ):
                     full_answer += chunk
                     yield chunk
@@ -595,6 +621,7 @@ class QAEngineV3:
                     keywords=keywords,
                     time_range=time_range,
                     date_after=date_after,
+                    channel_id=channel_id,
                 )
                 if final_candidates:
                     async for chunk in self.generate_answer_stream(
@@ -654,6 +681,7 @@ class QAEngineV3:
             channel_name = metadata.get("channel_name") or summary.get("channel_name", "未知频道")
             created_at = metadata.get("created_at") or summary.get("created_at", "")
             summary_text = summary.get("summary_text", "")
+            post_links = QAEngineV3._extract_post_links(summary)
 
             # 来源标签（总结 or 原始消息）
             source_tag = ""
@@ -674,8 +702,13 @@ class QAEngineV3:
             if "rerank_score" in summary:
                 score_info += f" [重排分: {summary['rerank_score']:.2f}]"
 
+            links_text = ""
+            if post_links:
+                links_text = "\n相关帖子链接: " + " ".join(post_links[:5])
+
             context_parts.append(
-                f"[{i}] {channel_name} ({created_at}){source_tag}{score_info}\n{text_preview}"
+                f"[{i}] {channel_name} ({created_at}){source_tag}{score_info}\n"
+                f"{text_preview}{links_text}"
             )
 
         return "\n\n".join(context_parts)
@@ -683,10 +716,14 @@ class QAEngineV3:
     def _format_source_info_v3(self, summaries: list[dict[str, Any]]) -> str:
         """格式化来源信息（v3版本）"""
         channels = {}
+        post_links = []
         for s in summaries:
             metadata = s.get("metadata", {})
             channel_id = metadata.get("channel_id") or s.get("channel_id", "")
             channel_name = metadata.get("channel_name") or s.get("channel_name", "未知频道")
+            for link in QAEngineV3._extract_post_links(s):
+                if link not in post_links:
+                    post_links.append(link)
 
             if channel_id not in channels:
                 channels[channel_id] = {"name": channel_name, "count": 0}
@@ -694,7 +731,36 @@ class QAEngineV3:
 
         sources = [f"• {info['name']}: {info['count']}条" for info in channels.values()]
 
-        return f"📚 数据来源: {len(sources)}个频道\n" + "\n".join(sources)
+        source_text = f"📚 数据来源: {len(sources)}个频道\n" + "\n".join(sources)
+        if post_links:
+            source_text += "\n🔗 相关帖子: " + " ".join(post_links[:5])
+        return source_text
+
+    @staticmethod
+    def _extract_post_links(summary: dict[str, Any]) -> list[str]:
+        """从结果中提取帖子链接，保证 RAG 上下文和来源信息使用同一逻辑。"""
+        metadata = summary.get("metadata", {})
+        links = summary.get("post_links") or metadata.get("post_links") or []
+        if isinstance(links, str):
+            return [links]
+        return list(links)
+
+    async def _resolve_channel_from_parsed(self, parsed: dict[str, Any]) -> str | None:
+        """根据解析结果获取标准频道 ID。"""
+        channel_id = parsed.get("channel_id")
+        if channel_id:
+            return channel_id
+
+        channel_hint = parsed.get("channel_hint")
+        if not channel_hint:
+            return None
+
+        resolved = await self.memory_manager.resolve_channel(channel_hint)
+        if resolved.get("success"):
+            return resolved.get("channel_id")
+
+        logger.info(f"频道提示未能唯一解析: {channel_hint}, result={resolved}")
+        return None
 
     async def _agentic_stream(
         self,
@@ -703,6 +769,8 @@ class QAEngineV3:
         time_range: int | None,
         date_after: str | None,
         keywords: list[str],
+        channel_id: str | None = None,
+        channel_hint: str | None = None,
     ):
         """Agentic RAG 流式生成器。Tool-calling 循环（非流式）+ 最终回答（流式）。"""
         self.tool_executor.reset()
@@ -732,6 +800,11 @@ class QAEngineV3:
             intent_parts.append(f"系统分析的时间范围: 最近 {time_range} 天")
         if date_after:
             intent_parts.append(f"时间过滤起点: {date_after}")
+        if channel_hint:
+            intent_parts.append(f"用户指定的频道提示: {channel_hint}")
+        if channel_id:
+            intent_parts.append(f"已解析频道ID: {channel_id}")
+            intent_parts.append("后续检索必须优先带上该 channel_id 过滤。")
 
         intent_note = "\n".join(intent_parts) if intent_parts else ""
         user_content = query
@@ -848,6 +921,7 @@ class QAEngineV3:
         keywords: list[str],
         time_range: int | None,
         date_after: str | None,
+        channel_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """降级到固定流水线（当 Agentic 处理异常时使用）。"""
         logger.info("[fallback] 使用固定流水线检索")
@@ -857,7 +931,10 @@ class QAEngineV3:
         if self.vector_store.is_available():
             try:
                 semantic_results = self.vector_store.search_similar(
-                    query=search_query, top_k=20, date_after=date_after
+                    query=search_query,
+                    top_k=20,
+                    filter_metadata={"channel_id": channel_id} if channel_id else None,
+                    date_after=date_after,
                 )
             except Exception as e:
                 logger.error(f"[fallback] 语义检索失败: {e}")
@@ -868,7 +945,10 @@ class QAEngineV3:
             try:
                 search_days = time_range if time_range is not None else 90
                 keyword_results = await self.memory_manager.search_summaries(
-                    keywords=keywords, time_range_days=search_days, limit=10
+                    keywords=keywords,
+                    time_range_days=search_days,
+                    channel_id=channel_id,
+                    limit=10,
                 )
             except Exception as e:
                 logger.error(f"[fallback] 关键词检索失败: {e}")

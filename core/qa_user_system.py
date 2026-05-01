@@ -263,9 +263,12 @@ class QAUserSystem:
             channel_name = channel.get("channel_name", "未知频道")
             channel_id = channel.get("channel_id", "")
             last_time = self._format_date_field(channel.get("last_summary_time"))
+            summary_count = channel.get("summary_count", 0)
+            message_count = channel.get("message_count", 0)
             lines.append(f"{i}. **{channel_name}**")
             lines.append(f"   链接: `{channel_id}`")
-            lines.append(f"   最后更新: {last_time}")
+            lines.append(f"   总结数: {summary_count}，消息数: {message_count}")
+            lines.append(f"   最后更新: {last_time or '暂无总结'}")
             lines.append("")
 
         lines.append("💡 使用方法:")

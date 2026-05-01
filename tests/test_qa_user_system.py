@@ -277,6 +277,8 @@ def test_format_channels_list(qa_user_system):
             "channel_id": "https://t.me/test_channel",
             "channel_name": "Test Channel",
             "last_summary_time": "2026-02-24",
+            "summary_count": 3,
+            "message_count": 42,
         }
     ]
 
@@ -286,6 +288,7 @@ def test_format_channels_list(qa_user_system):
     assert "Test Channel" in result
     assert "https://t.me/test_channel" in result
     assert "2026-02-24" in result
+    assert "总结数: 3" in result
 
 
 def test_format_channels_list_empty(qa_user_system):

@@ -190,6 +190,7 @@ async def generate_channel_summary(
                             "created_at": datetime.now(UTC).isoformat(),
                             "summary_type": "manual",
                             "message_count": len(messages),
+                            "summary_message_ids": json.dumps([], ensure_ascii=False),
                         },
                     )
 
@@ -458,6 +459,7 @@ async def handle_manual_summary(event):
                                     "created_at": datetime.now(UTC).isoformat(),
                                     "summary_type": "manual",
                                     "message_count": len(messages),
+                                    "summary_message_ids": json.dumps([], ensure_ascii=False),
                                 },
                             )
 

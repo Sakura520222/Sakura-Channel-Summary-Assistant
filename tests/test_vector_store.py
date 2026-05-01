@@ -15,8 +15,8 @@ from core.ai.vector_store import VectorStore, get_vector_store
 class TestVectorStoreInit:
     """初始化测试"""
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", True)
-    @patch("core.vector_store.chromadb.PersistentClient")
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", True)
+    @patch("core.ai.vector_store.chromadb.PersistentClient")
     def test_init_success(self, mock_client):
         """测试成功初始化"""
         mock_collection = MagicMock()
@@ -27,7 +27,7 @@ class TestVectorStoreInit:
 
         assert store.client is not None
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", False)
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", False)
     def test_init_chromadb_not_available(self):
         """测试ChromaDB不可用"""
         store = VectorStore()
@@ -40,15 +40,15 @@ class TestVectorStoreInit:
 class TestIsAvailable:
     """可用性测试"""
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", False)
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", False)
     def test_is_available_when_unavailable(self):
         """测试不可用时返回False"""
         store = VectorStore()
 
         assert store.is_available() is False
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", True)
-    @patch("core.vector_store.chromadb.PersistentClient")
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", True)
+    @patch("core.ai.vector_store.chromadb.PersistentClient")
     def test_is_available_when_available(self, mock_client):
         """测试可用时返回True"""
         mock_collection = MagicMock()
@@ -63,7 +63,7 @@ class TestIsAvailable:
 class TestAddSummary:
     """添加总结测试"""
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", False)
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", False)
     def test_add_summary_unavailable(self):
         """测试不可用时添加失败"""
         store = VectorStore()
@@ -72,9 +72,9 @@ class TestAddSummary:
 
         assert result is False
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", True)
-    @patch("core.vector_store.chromadb.PersistentClient")
-    @patch("core.embedding_generator.get_embedding_generator")
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", True)
+    @patch("core.ai.vector_store.chromadb.PersistentClient")
+    @patch("core.ai.embedding_generator.get_embedding_generator")
     def test_add_summary_success(self, mock_get_emb, mock_client):
         """测试成功添加"""
         mock_collection = MagicMock()
@@ -90,9 +90,9 @@ class TestAddSummary:
 
         assert result is True
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", True)
-    @patch("core.vector_store.chromadb.PersistentClient")
-    @patch("core.embedding_generator.get_embedding_generator")
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", True)
+    @patch("core.ai.vector_store.chromadb.PersistentClient")
+    @patch("core.ai.embedding_generator.get_embedding_generator")
     def test_add_summary_embedding_failed(self, mock_get_emb, mock_client):
         """测试embedding生成失败"""
         mock_collection = MagicMock()
@@ -113,7 +113,7 @@ class TestAddSummary:
 class TestSearchSimilar:
     """搜索相似总结测试"""
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", False)
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", False)
     def test_search_similar_unavailable(self):
         """测试不可用时搜索失败"""
         store = VectorStore()
@@ -122,9 +122,9 @@ class TestSearchSimilar:
 
         assert results == []
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", True)
-    @patch("core.vector_store.chromadb.PersistentClient")
-    @patch("core.embedding_generator.get_embedding_generator")
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", True)
+    @patch("core.ai.vector_store.chromadb.PersistentClient")
+    @patch("core.ai.embedding_generator.get_embedding_generator")
     def test_search_similar_success(self, mock_get_emb, mock_client):
         """测试成功搜索"""
         mock_collection = MagicMock()
@@ -148,9 +148,9 @@ class TestSearchSimilar:
         assert len(results) == 2
         assert results[0]["summary_id"] == 1
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", True)
-    @patch("core.vector_store.chromadb.PersistentClient")
-    @patch("core.embedding_generator.get_embedding_generator")
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", True)
+    @patch("core.ai.vector_store.chromadb.PersistentClient")
+    @patch("core.ai.embedding_generator.get_embedding_generator")
     def test_search_similar_empty_results(self, mock_get_emb, mock_client):
         """测试搜索无结果"""
         mock_collection = MagicMock()
@@ -172,7 +172,7 @@ class TestSearchSimilar:
 class TestDeleteSummary:
     """删除总结测试"""
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", False)
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", False)
     def test_delete_summary_unavailable(self):
         """测试不可用时删除失败"""
         store = VectorStore()
@@ -181,8 +181,8 @@ class TestDeleteSummary:
 
         assert result is False
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", True)
-    @patch("core.vector_store.chromadb.PersistentClient")
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", True)
+    @patch("core.ai.vector_store.chromadb.PersistentClient")
     def test_delete_summary_success(self, mock_client):
         """测试成功删除"""
         mock_collection = MagicMock()
@@ -198,7 +198,7 @@ class TestDeleteSummary:
 class TestGetStats:
     """获取统计信息测试"""
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", False)
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", False)
     def test_get_stats_unavailable(self):
         """测试不可用时获取统计"""
         store = VectorStore()
@@ -206,8 +206,8 @@ class TestGetStats:
 
         assert stats["available"] is False
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", True)
-    @patch("core.vector_store.chromadb.PersistentClient")
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", True)
+    @patch("core.ai.vector_store.chromadb.PersistentClient")
     def test_get_stats_success(self, mock_client):
         """测试成功获取统计"""
         mock_collection = MagicMock()
@@ -225,24 +225,24 @@ class TestGetStats:
 class TestGetVectorStore:
     """获取全局实例测试"""
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", False)
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", False)
     def test_singleton(self):
         """测试单例模式"""
-        import core.vector_store
+        import core.ai.vector_store
 
-        core.vector_store.vector_store = None
+        core.ai.vector_store.vector_store = None
 
         store1 = get_vector_store()
         store2 = get_vector_store()
 
         assert store1 is store2
 
-    @patch("core.vector_store.CHROMADB_AVAILABLE", False)
+    @patch("core.ai.vector_store.CHROMADB_AVAILABLE", False)
     def test_returns_vector_store_instance(self):
         """测试返回VectorStore实例"""
-        import core.vector_store
+        import core.ai.vector_store
 
-        core.vector_store.vector_store = None
+        core.ai.vector_store.vector_store = None
 
         store = get_vector_store()
 

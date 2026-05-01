@@ -317,6 +317,7 @@ class RealtimeRAGHandler:
                 metadata = {
                     "channel_id": item["channel_id"],
                     "channel_name": item["channel_name"],
+                    "message_id": str(item["message_id"]),
                     "created_at": item["created_at"],
                     "sender_id": str(item["sender_id"]) if item.get("sender_id") else "",
                 }

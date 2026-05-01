@@ -183,6 +183,7 @@ class IntentParser:
                 "time_range": Optional[int],  # 时间范围（天数），None 表示不限制
                 "keywords": List[str], # 关键词
                 "channel_id": Optional[str],  # 频道ID
+                "channel_hint": Optional[str],  # 用户提到的频道提示
                 "original_query": str, # 原始查询
                 "confidence": float    # 置信度
             }
@@ -196,8 +197,14 @@ class IntentParser:
             "time_range": None,
             "keywords": [],
             "channel_id": None,
+            "channel_hint": None,
             "confidence": 0.0,
         }
+
+        channel_hint = self._extract_channel_hint(query)
+        if channel_hint:
+            result["channel_hint"] = channel_hint
+            logger.info(f"提取频道提示: {channel_hint}")
 
         # 1. 检测状态查询意图
         if self._is_status_query(query):
@@ -247,6 +254,34 @@ class IntentParser:
             # result["time_range"] 保持 None
 
         return result
+
+    def _extract_channel_hint(self, query: str) -> str | None:
+        """
+        提取查询中的频道提示。
+
+        支持 @username、Telegram 链接，以及“在 xxx 频道”这类自然语言片段。
+        """
+        link_match = re.search(
+            r"(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me)/[A-Za-z0-9_+/-]+", query
+        )
+        if link_match:
+            return link_match.group(0).rstrip("。，,；;！!？?")
+
+        mention_match = re.search(r"@[A-Za-z0-9_]{5,}", query)
+        if mention_match:
+            return mention_match.group(0)
+
+        natural_patterns = [
+            r"在\s*([^，。！？?\s]{2,40})\s*频道",
+            r"从\s*([^，。！？?\s]{2,40})\s*频道",
+            r"查询\s*([^，。！？?\s]{2,40})\s*频道",
+        ]
+        for pattern in natural_patterns:
+            match = re.search(pattern, query)
+            if match:
+                return match.group(1).strip()
+
+        return None
 
     def _is_status_query(self, query: str) -> bool:
         """检查是否为状态查询"""
