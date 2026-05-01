@@ -10,6 +10,7 @@
 
 import base64
 import logging
+import warnings
 from io import BytesIO
 from typing import Any
 
@@ -22,6 +23,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+from telegram.warnings import PTBUserWarning
 
 from core.i18n.i18n import get_text
 from core.infrastructure.database.submission_repo import get_submission_repo
@@ -456,41 +458,50 @@ class SubmissionHandler:
 
     def build_conversation_handler(self) -> ConversationHandler:
         """构建 ConversationHandler 实例"""
-        return ConversationHandler(
-            entry_points=[
-                CommandHandler("submit", self.start_submission),
-                CommandHandler("start", self.start_submission_deep_link),
-            ],
-            states={
-                WAITING_TITLE: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.receive_title),
-                    CommandHandler("cancel_submit", self.cancel_submission),
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="If 'per_message=False', 'CallbackQueryHandler' will not be tracked.*",
+                category=PTBUserWarning,
+            )
+            return ConversationHandler(
+                entry_points=[
+                    CommandHandler("submit", self.start_submission),
+                    CommandHandler("start", self.start_submission_deep_link),
                 ],
-                WAITING_CONTENT: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.receive_content),
-                    CommandHandler("skip", self.skip_content),
-                    CommandHandler("cancel_submit", self.cancel_submission),
-                ],
-                WAITING_MEDIA: [
-                    MessageHandler(
-                        filters.PHOTO | filters.VIDEO | filters.Document.ALL | filters.AUDIO,
-                        self.receive_media,
-                    ),
-                    CommandHandler("skip", self.skip_media),
-                    CommandHandler("done", self.done_media),
-                    CommandHandler("cancel_submit", self.cancel_submission),
-                ],
-                SELECT_CHANNEL: [
-                    CallbackQueryHandler(self.select_channel, pattern=r"^ch_\d+$"),
-                    CommandHandler("cancel_submit", self.cancel_submission),
-                ],
-                CONFIRM: [
-                    CommandHandler("confirm", self.confirm_submission),
-                    CommandHandler("cancel_submit", self.cancel_submission),
-                ],
-            },
-            fallbacks=[CommandHandler("cancel_submit", self.cancel_submission)],
-        )
+                states={
+                    WAITING_TITLE: [
+                        MessageHandler(filters.TEXT & ~filters.COMMAND, self.receive_title),
+                        CommandHandler("cancel_submit", self.cancel_submission),
+                    ],
+                    WAITING_CONTENT: [
+                        MessageHandler(filters.TEXT & ~filters.COMMAND, self.receive_content),
+                        CommandHandler("skip", self.skip_content),
+                        CommandHandler("cancel_submit", self.cancel_submission),
+                    ],
+                    WAITING_MEDIA: [
+                        MessageHandler(
+                            filters.PHOTO | filters.VIDEO | filters.Document.ALL | filters.AUDIO,
+                            self.receive_media,
+                        ),
+                        CommandHandler("skip", self.skip_media),
+                        CommandHandler("done", self.done_media),
+                        CommandHandler("cancel_submit", self.cancel_submission),
+                    ],
+                    SELECT_CHANNEL: [
+                        CallbackQueryHandler(self.select_channel, pattern=r"^ch_\d+$"),
+                        CommandHandler("cancel_submit", self.cancel_submission),
+                    ],
+                    CONFIRM: [
+                        CommandHandler("confirm", self.confirm_submission),
+                        CommandHandler("cancel_submit", self.cancel_submission),
+                    ],
+                },
+                fallbacks=[CommandHandler("cancel_submit", self.cancel_submission)],
+                # 投稿流程同时使用文本/命令消息和频道选择按钮；必须保持 per_message=False。
+                # PTB 会对混用 CallbackQueryHandler 给出提示，但本流程按用户维度跟踪即可。
+                per_message=False,
+            )
 
 
 # 全局实例
