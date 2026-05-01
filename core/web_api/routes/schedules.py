@@ -14,6 +14,7 @@
 提供频道总结定时任务的查看、设置和清除功能。
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -35,6 +36,8 @@ from core.web_api.schemas.schedule import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+_summary_time_file_lock = asyncio.Lock()
 
 
 @router.get("")
@@ -158,24 +161,33 @@ async def delete_last_summary_time(channel: str):
     """删除指定频道的上次总结时间记录。"""
     try:
         channel = _clean_summary_channel(channel)
-        if not await aiofiles.ospath.exists(LAST_SUMMARY_FILE):
-            return {"success": False, "message": "上次总结时间文件不存在"}
+        async with _summary_time_file_lock:
+            try:
+                async with aiofiles.open(LAST_SUMMARY_FILE, encoding="utf-8") as f:
+                    content = (await f.read()).strip()
+                data = json.loads(content) if content else {}
+            except FileNotFoundError:
+                return {"success": False, "message": "上次总结时间文件不存在"}
+            except json.JSONDecodeError as e:
+                raise HTTPException(status_code=409, detail="上次总结时间文件内容已损坏") from e
 
-        async with aiofiles.open(LAST_SUMMARY_FILE, encoding="utf-8") as f:
-            content = (await f.read()).strip()
-        data = json.loads(content) if content else {}
-        if channel not in data:
-            return {"success": False, "message": f"该频道无上次总结时间记录: {channel}"}
+            if channel not in data:
+                return {"success": False, "message": f"该频道无上次总结时间记录: {channel}"}
 
-        del data[channel]
-        if data:
-            async with aiofiles.open(LAST_SUMMARY_FILE, "w", encoding="utf-8") as f:
-                await f.write(json.dumps(data, ensure_ascii=False, indent=2))
-        else:
-            await _remove_file_if_exists(LAST_SUMMARY_FILE)
+            del data[channel]
+            try:
+                if data:
+                    async with aiofiles.open(LAST_SUMMARY_FILE, "w", encoding="utf-8") as f:
+                        await f.write(json.dumps(data, ensure_ascii=False, indent=2))
+                else:
+                    await _remove_file_if_exists(LAST_SUMMARY_FILE)
+            except FileNotFoundError:
+                return {"success": False, "message": "上次总结时间文件已被其他进程删除"}
 
         logger.info(f"已通过 WebUI 删除上次总结时间: {channel}")
         return {"success": True, "message": f"上次总结时间已删除: {channel}"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"删除上次总结时间失败: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -209,12 +221,11 @@ async def delete_poll_regenerations_file():
 
 async def _remove_file_if_exists(path: str) -> bool:
     """异步删除文件，返回是否实际删除。"""
-    import asyncio
-
-    if not await aiofiles.ospath.exists(path):
+    try:
+        await asyncio.to_thread(os.remove, path)
+        return True
+    except FileNotFoundError:
         return False
-    await asyncio.to_thread(os.remove, path)
-    return True
 
 
 @router.get("/{channel:path}")

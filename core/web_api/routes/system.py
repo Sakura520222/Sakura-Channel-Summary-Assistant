@@ -26,6 +26,7 @@ from typing import Any
 import aiofiles
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from core import __version__
 from core.config import RESTART_FLAG_FILE, get_bot_state, set_bot_state
 from core.web_api.schemas.system import BotStatusResponse, CleanupRequest, LogLevelUpdate
 
@@ -147,7 +148,7 @@ async def get_system_status():
             "success": True,
             "data": BotStatusResponse(
                 status=get_bot_state(),
-                version="1.8.4",
+                version=__version__,
                 log_level=logging.getLevelName(logging.getLogger().level),
                 channel_count=len(channels),
                 forwarding_enabled=forwarding.get("enabled", False),

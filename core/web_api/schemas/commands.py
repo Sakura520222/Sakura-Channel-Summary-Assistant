@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 CommandRisk = Literal["safe", "normal", "danger"]
 ParameterType = Literal["string", "number", "boolean", "select", "tags", "textarea"]
+CommandResultData = dict[str, Any]
 
 
 class CommandParameter(BaseModel):
@@ -68,4 +69,4 @@ class CommandExecuteResponse(BaseModel):
 
     success: bool = Field(..., description="是否成功")
     message: str = Field(default="", description="结果消息")
-    data: dict[str, Any] = Field(default_factory=dict, description="结果数据")
+    data: CommandResultData = Field(default_factory=dict, description="结果数据")

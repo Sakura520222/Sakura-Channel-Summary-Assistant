@@ -402,7 +402,7 @@ async function loadSummaryTimes() {
 async function loadData() {
   loading.value = true;
   try {
-    const [schedRes, chRes] = await Promise.all([getSchedules(), getChannels(), loadSummaryTimes()]);
+    const [schedRes, chRes] = await Promise.all([getSchedules(), getChannels()]);
     if (schedRes.success) {
       scheduleList.value = schedRes.data.schedules || [];
       unscheduled.value = schedRes.data.unscheduled_channels || [];
@@ -410,6 +410,7 @@ async function loadData() {
     if (chRes.success) {
       allChannels.value = (chRes.data.channels || []).map((c: Record<string, unknown>) => c.url as string);
     }
+    await loadSummaryTimes();
   } catch {
     message.error("加载数据失败");
   } finally {

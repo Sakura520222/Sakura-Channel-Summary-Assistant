@@ -29,8 +29,10 @@ from core.web_api.routes.system import _actor_from_request, _audit_duration, rec
 from core.web_api.schemas.commands import (
     CommandCategory,
     CommandExecuteRequest,
+    CommandExecuteResponse,
     CommandItem,
     CommandParameter,
+    ParameterType,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,12 +42,14 @@ router = APIRouter()
 OperationHandler = Callable[[dict[str, Any], Request], Awaitable[dict[str, Any]]]
 
 DANGER_CONFIRM_TEXT = "CONFIRM"
+LOG_LEVEL_OPTIONS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+SENSITIVE_PARAM_NAMES = {"api_key", "secret_key", "token", "secret", "password"}
 
 
 def _param(
     name: str,
     label: str,
-    parameter_type: str = "string",
+    parameter_type: ParameterType = "string",
     *,
     required: bool = False,
     description: str = "",
@@ -57,7 +61,7 @@ def _param(
     return CommandParameter(
         name=name,
         label=label,
-        type=parameter_type,  # type: ignore[arg-type]
+        type=parameter_type,
         required=required,
         description=description,
         placeholder=placeholder,
@@ -101,10 +105,7 @@ COMMAND_METADATA: dict[str, dict[str, Any]] = {
                 "select",
                 required=True,
                 default="INFO",
-                options=[
-                    {"label": level, "value": level}
-                    for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-                ],
+                options=[{"label": level, "value": level} for level in LOG_LEVEL_OPTIONS],
             ),
         ],
     },
@@ -144,10 +145,34 @@ COMMAND_METADATA: dict[str, dict[str, Any]] = {
         "risk": "danger",
         "covered_by_page": "/forwarding",
         "parameters": [
-            _param("rule_index", "规则序号", "number", required=True, description="从 1 开始")
+            _param(
+                "source_channel",
+                "源频道",
+                required=False,
+                placeholder="https://t.me/source",
+                description="优先按源频道和目标频道删除，与 Telegram 命令保持一致",
+            ),
+            _param(
+                "target_channel",
+                "目标频道",
+                required=False,
+                placeholder="https://t.me/target",
+                description="与源频道一起填写时按频道对删除规则",
+            ),
+            _param(
+                "rule_index",
+                "规则序号",
+                "number",
+                required=False,
+                description="兼容旧界面：从 1 开始；规则列表会展示序号与频道对应关系",
+            ),
         ],
     },
-    "forwarding_stats": {"risk": "safe", "covered_by_page": "/forwarding"},
+    "forwarding_stats": {
+        "risk": "safe",
+        "covered_by_page": "/forwarding",
+        "description_note": "当前复用转发状态处理器，返回规则数量与启用状态。",
+    },
     "userbot_status": {"risk": "safe", "covered_by_page": "/userbot"},
     "userbot_join": {
         "risk": "normal",
@@ -325,8 +350,7 @@ async def _op_set_log_level(params: dict[str, Any], _request: Request) -> dict[s
     import logging as logging_module
 
     level = str(_require_param(params, "level")).upper()
-    valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-    if level not in valid_levels:
+    if level not in LOG_LEVEL_OPTIONS:
         raise HTTPException(status_code=400, detail=f"无效的日志级别: {level}")
     root_logger = logging_module.getLogger()
     level_value = getattr(logging_module, level)
@@ -522,10 +546,43 @@ async def _op_forwarding_add_rule(params: dict[str, Any], _request: Request) -> 
 
 
 async def _op_forwarding_remove_rule(params: dict[str, Any], _request: Request) -> dict[str, Any]:
-    rule_index = int(_require_param(params, "rule_index")) - 1
     config = get_config()
     forwarding = _ensure_forwarding(config)
     rules = forwarding.get("rules", [])
+
+    source = params.get("source_channel")
+    target = params.get("target_channel")
+    if source or target:
+        if not source or not target:
+            raise HTTPException(
+                status_code=400, detail="按频道删除规则时需同时提供源频道和目标频道"
+            )
+        normalized_source = normalize_channel_id(str(source))
+        normalized_target = normalize_channel_id(str(target))
+        for index, rule in enumerate(rules):
+            if (
+                rule.get("source_channel") == normalized_source
+                and rule.get("target_channel") == normalized_target
+            ):
+                removed = rules.pop(index)
+                forwarding["rules"] = rules
+                write_config(config)
+                return {
+                    "success": True,
+                    "message": f"转发规则已删除: {normalized_source} -> {normalized_target}",
+                    "data": {"removed": removed, "rule_index": index + 1},
+                }
+        return {
+            "success": False,
+            "message": f"转发规则不存在: {normalized_source} -> {normalized_target}",
+            "data": {},
+        }
+
+    try:
+        rule_index = int(_require_param(params, "rule_index")) - 1
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="规则序号必须是整数") from e
+
     if rule_index < 0 or rule_index >= len(rules):
         return {"success": False, "message": f"无效的规则序号: {rule_index + 1}", "data": {}}
     removed = rules.pop(rule_index)
@@ -602,11 +659,6 @@ async def _op_userbot_list(_params: dict[str, Any], _request: Request) -> dict[s
     return {"success": False, "message": result.get("message", "列出频道失败"), "data": result}
 
 
-async def _op_not_implemented(params: dict[str, Any], _request: Request) -> dict[str, Any]:
-    command = params.get("command", "未知命令")
-    return {"success": False, "message": f"命令 {command} 暂未接入结构化执行", "data": {}}
-
-
 OPERATION_HANDLERS: dict[str, OperationHandler] = {
     "summary": _op_summary,
     "showchannels": _op_show_channels,
@@ -674,7 +726,7 @@ async def list_commands():
     }
 
 
-@router.post("/{operation_id}/execute")
+@router.post("/{operation_id}/execute", response_model=CommandExecuteResponse)
 async def execute_command(operation_id: str, request_data: CommandExecuteRequest, request: Request):
     """执行结构化命令操作。"""
     command_meta = COMMAND_METADATA.get(operation_id, _default_metadata(operation_id))
@@ -740,7 +792,10 @@ def _summarize_params(params: dict[str, Any]) -> str:
     """生成参数摘要，避免记录敏感长文本。"""
     safe_params = {}
     for key, value in params.items():
-        if "key" in key.lower() or "token" in key.lower() or "secret" in key.lower():
+        normalized_key = key.lower()
+        if normalized_key in SENSITIVE_PARAM_NAMES or normalized_key.endswith(
+            ("_token", "_secret", "_password")
+        ):
             safe_params[key] = "***"
         elif isinstance(value, str) and len(value) > 120:
             safe_params[key] = value[:120] + "..."
