@@ -267,7 +267,7 @@ class IntentParser:
         if link_match:
             return link_match.group(0).rstrip("。，,；;！!？?")
 
-        mention_match = re.search(r"@[A-Za-z0-9_]{4,}", query)
+        mention_match = re.search(r"@[A-Za-z0-9_]{5,}", query)
         if mention_match:
             return mention_match.group(0)
 

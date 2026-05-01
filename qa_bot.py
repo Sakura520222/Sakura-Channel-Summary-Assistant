@@ -444,17 +444,17 @@ class QABot:
         )
 
         if not context.args or len(context.args) < 2:
-            message = """🔎 **指定频道查询**
+            message = """🔎 <b>指定频道查询</b>
 
 使用方法:
-`/ask <频道链接或@用户名> <问题>`
+<code>/ask &lt;频道链接或@用户名&gt; &lt;问题&gt;</code>
 
 示例:
-`/ask @channel_name 最近有什么更新？`
-`/ask https://t.me/channel_name 分析一下 AI 讨论`
+<code>/ask @channel_name 最近有什么更新？</code>
+<code>/ask https://t.me/channel_name 分析一下 AI 讨论</code>
 
-💡 使用 `/listchannels` 查看可查询频道。"""
-            await update.message.reply_text(message, parse_mode="Markdown")
+💡 使用 <code>/listchannels</code> 查看可查询频道。"""
+            await update.message.reply_text(message, parse_mode="HTML")
             return
 
         channel_hint = context.args[0]

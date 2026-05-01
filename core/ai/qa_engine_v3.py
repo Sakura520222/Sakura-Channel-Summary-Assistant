@@ -584,6 +584,8 @@ class QAEngineV3:
             original_query = parsed["original_query"]
             keywords = parsed.get("keywords", [])
             time_range = parsed.get("time_range")
+            # 这里预解析频道用于约束首轮检索与降级流水线；即使 agentic 模式后续
+            # 自主调用 resolve_channel，也可以确保向量检索从一开始就限定频道。
             channel_id = await self._resolve_channel_from_parsed(parsed)
 
             conversation_history = await self.conversation_mgr.get_conversation_history(
@@ -678,7 +680,7 @@ class QAEngineV3:
             channel_name = metadata.get("channel_name") or summary.get("channel_name", "未知频道")
             created_at = metadata.get("created_at") or summary.get("created_at", "")
             summary_text = summary.get("summary_text", "")
-            post_links = summary.get("post_links") or metadata.get("post_links") or []
+            post_links = self._extract_post_links(summary)
 
             # 来源标签（总结 or 原始消息）
             source_tag = ""
@@ -718,7 +720,7 @@ class QAEngineV3:
             metadata = s.get("metadata", {})
             channel_id = metadata.get("channel_id") or s.get("channel_id", "")
             channel_name = metadata.get("channel_name") or s.get("channel_name", "未知频道")
-            for link in s.get("post_links") or metadata.get("post_links") or []:
+            for link in self._extract_post_links(s):
                 if link not in post_links:
                     post_links.append(link)
 
@@ -732,6 +734,15 @@ class QAEngineV3:
         if post_links:
             source_text += "\n🔗 相关帖子: " + " ".join(post_links[:5])
         return source_text
+
+    @staticmethod
+    def _extract_post_links(summary: dict[str, Any]) -> list[str]:
+        """从结果中提取帖子链接，保证 RAG 上下文和来源信息使用同一逻辑。"""
+        metadata = summary.get("metadata", {})
+        links = summary.get("post_links") or metadata.get("post_links") or []
+        if isinstance(links, str):
+            return [links]
+        return list(links)
 
     async def _resolve_channel_from_parsed(self, parsed: dict[str, Any]) -> str | None:
         """根据解析结果获取标准频道 ID。"""

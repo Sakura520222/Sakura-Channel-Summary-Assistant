@@ -89,6 +89,35 @@ def test_serialize_result_builds_summary_post_links_from_metadata_json():
     assert serialized["post_links"] == ["https://t.me/test/10", "https://t.me/test/11"]
 
 
+def test_build_post_link_rejects_invalid_sources():
+    """测试帖子链接构造会拒绝无效或私有来源"""
+    assert ToolExecutor._build_post_link(None, 1) is None
+    assert ToolExecutor._build_post_link("https://t.me/+private", 1) is None
+    assert ToolExecutor._build_post_link("https://t.me/test", "abc") is None
+    assert ToolExecutor._build_post_link("@test_channel", 123) == "https://t.me/test_channel/123"
+
+
+def test_get_all_results_includes_doc_results_without_duplicates(executor):
+    """测试获取全部结果时包含仅 doc_id 索引的消息结果并去重"""
+    summary_result = {"summary_id": 1, "summary_text": "总结"}
+    message_result = {"summary_text": "消息", "doc_id": "https://t.me/test:2"}
+    duplicated_result = {
+        "summary_id": 3,
+        "summary_text": "同时有两个索引",
+        "doc_id": "https://t.me/test:3",
+    }
+
+    executor._store_result(summary_result)
+    executor._store_result(message_result)
+    executor._store_result(duplicated_result)
+
+    results = executor.get_all_results()
+
+    assert summary_result in results
+    assert message_result in results
+    assert results.count(duplicated_result) == 1
+
+
 @pytest.mark.asyncio
 async def test_execute_list_channels_returns_channels(executor):
     """测试列出频道工具"""

@@ -79,6 +79,7 @@ TOOL_SCHEMAS = [
                 "基于关键词搜索频道历史总结。"
                 "使用SQL匹配，适合精确关键词查找和补充语义检索的结果。"
                 "当语义搜索结果不足、需要查找特定术语，或需要按频道/时间获取最近总结时使用。"
+                "keywords 可为空；为空时将按 channel_id/time_range_days/limit 做频道或时间过滤。"
             ),
             "parameters": {
                 "type": "object",
@@ -391,15 +392,16 @@ class ToolExecutor:
             sid = r.get("id")
             if sid is None:
                 continue
+            post_links = self._build_summary_post_links(r)
             normalized = {
                 "summary_id": sid,
                 "summary_text": r.get("summary_text", ""),
-                "post_links": self._build_summary_post_links(r),
+                "post_links": post_links,
                 "metadata": {
                     "channel_id": r.get("channel_id"),
                     "channel_name": r.get("channel_name"),
                     "created_at": r.get("created_at"),
-                    "post_links": self._build_summary_post_links(r),
+                    "post_links": post_links,
                 },
             }
             self._store_result(normalized)
@@ -472,15 +474,16 @@ class ToolExecutor:
             sid = r.get("id") or r.get("summary_id")
             if sid is None:
                 continue
+            post_links = self._build_summary_post_links(r)
             normalized = {
                 "summary_id": sid,
                 "summary_text": r.get("summary_text", ""),
-                "post_links": self._build_summary_post_links(r),
+                "post_links": post_links,
                 "metadata": {
                     "channel_id": r.get("channel_id"),
                     "channel_name": r.get("channel_name"),
                     "created_at": r.get("created_at"),
-                    "post_links": self._build_summary_post_links(r),
+                    "post_links": post_links,
                 },
                 "source": "summary",
             }
@@ -635,7 +638,13 @@ class ToolExecutor:
 
     def get_all_results(self) -> list[dict[str, Any]]:
         """获取所有累积的搜索结果（完整文本，不截断）。"""
-        return list(self._result_store.values())
+        all_results = list(self._result_store.values())
+        seen_ids = {id(result) for result in all_results}
+        for result in self._doc_result_store.values():
+            if id(result) not in seen_ids:
+                all_results.append(result)
+                seen_ids.add(id(result))
+        return all_results
 
     def get_results_by_ids(self, ids: list[int]) -> list[dict[str, Any]]:
         """根据 ID 列表获取结果，按 ID 出现顺序排列。"""

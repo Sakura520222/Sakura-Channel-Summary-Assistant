@@ -212,6 +212,7 @@ class MemoryManager:
             normalized_hint = normalize_channel_id(hint)
             hint_lower = hint.lower().lstrip("@")
             normalized_lower = normalized_hint.lower()
+            hint_tail_lower = normalized_hint.rstrip("/").split("/")[-1].lower().lstrip("@")
 
             exact_matches = []
             fuzzy_matches = []
@@ -227,11 +228,19 @@ class MemoryManager:
                     channel_name.lower(),
                 }
 
-                if normalized_lower in candidates or hint_lower in candidates:
+                if (
+                    normalized_lower in candidates
+                    or hint_lower in candidates
+                    or hint_tail_lower in candidates
+                ):
                     exact_matches.append(channel)
                     continue
 
-                if hint_lower in channel_name.lower() or hint_lower in channel_tail.lower():
+                if (
+                    hint_lower in channel_name.lower()
+                    or hint_lower in channel_tail.lower()
+                    or hint_tail_lower in channel_tail.lower()
+                ):
                     fuzzy_matches.append(channel)
 
             matches = exact_matches or fuzzy_matches
@@ -300,7 +309,7 @@ class MemoryManager:
         Args:
             channel_id: 可选频道链接
             limit: 返回数量
-            time_range_days: 可选时间范围
+            time_range_days: 可选时间范围；不传时返回不限时间范围的最近 N 条
 
         Returns:
             最近总结列表
