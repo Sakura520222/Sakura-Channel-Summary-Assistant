@@ -18,9 +18,13 @@
 
 import asyncio
 import logging
+import os
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+# 批量提交间隔
+_BATCH_SIZE = 100
 
 
 async def fix_reviewed_at_datetime(db):
@@ -76,19 +80,12 @@ async def _fix_mysql(db):
 
                 for submission_id, reviewed_at_str in rows:
                     try:
-                        # 尝试解析ISO格式的datetime（2026-04-24T15:43:57.758685+00:00）
-                        # 移除时区信息并转换为MySQL格式
                         if isinstance(reviewed_at_str, str):
-                            # 移除时区信息（+00:00 或 Z）
-                            clean_str = reviewed_at_str.replace("+00:00", "").replace("Z", "")
-                            # 如果包含毫秒，截断到秒
-                            if "." in clean_str:
-                                clean_str = clean_str.split(".")[0]
-                            # 转换为datetime并重新格式化
-                            dt = datetime.fromisoformat(clean_str)
+                            # Python 3.11+ 的 fromisoformat 支持带时区的格式
+                            # 直接解析任意 ISO 格式（含 +08:00、-05:00、Z 等时区）
+                            dt = datetime.fromisoformat(reviewed_at_str)
                             formatted_dt = dt.strftime("%Y-%m-%d %H:%M:%S")
 
-                            # 更新数据库
                             await cursor.execute(
                                 "UPDATE submissions SET reviewed_at = %s WHERE id = %s",
                                 (formatted_dt, submission_id),
@@ -110,6 +107,10 @@ async def _fix_mysql(db):
                             (submission_id,),
                         )
                         invalid_count += 1
+
+                    # 批量提交：每处理 _BATCH_SIZE 条提交一次
+                    if (fixed_count + invalid_count) % _BATCH_SIZE == 0:
+                        await conn.commit()
 
                 await conn.commit()
 
@@ -153,7 +154,7 @@ async def ensure_reviewed_at_datetime_fixed(db):
 if __name__ == "__main__":
     import sys
 
-    sys.path.insert(0, str(__file__).rsplit("/", 2)[0])
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
     async def main():
         from core.infrastructure.database.manager import get_db_manager

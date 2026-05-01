@@ -30,6 +30,15 @@ from .base import DatabaseManagerBase
 logger = logging.getLogger(__name__)
 
 
+def utc_now_naive() -> datetime:
+    """返回 naive UTC datetime，兼容 MySQL DATETIME 列
+
+    MySQL 的 DATETIME 列不支持带时区信息的 ISO 格式字符串，
+    统一使用此函数获取 UTC 时间，避免 aware datetime 写入问题。
+    """
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
 class MySQLManager(DatabaseManagerBase):
     """MySQL数据库管理器（异步）"""
 

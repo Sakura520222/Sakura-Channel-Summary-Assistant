@@ -121,29 +121,26 @@ build_frontend() {
         return 0
     fi
     
-    print_info "进入前端目录..."
-    cd web
+    # 使用子 shell 隔离目录变更，避免 cd 后未返回的问题
+    (
+        set -e
+        cd web || exit 1
+        
+        # 安装前端依赖（跳过 devDependencies 以减少构建时间和部署体积）
+        print_info "安装前端依赖..."
+        npm install --omit=dev
+        
+        # 构建前端
+        print_info "构建前端应用..."
+        npm run build
+    )
     
-    # 安装前端依赖
-    print_info "安装前端依赖..."
-    npm install
-    if [ $? -ne 0 ]; then
-        print_error "前端依赖安装失败"
-        cd ..
-        return 1
-    fi
-    
-    # 构建前端
-    print_info "构建前端应用..."
-    npm run build
     if [ $? -ne 0 ]; then
         print_error "前端构建失败"
-        cd ..
         return 1
     fi
     
     print_success "前端构建完成"
-    cd ..
 }
 
 # 检查 PM2

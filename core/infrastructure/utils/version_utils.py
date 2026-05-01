@@ -10,6 +10,7 @@
 
 """版本检查和更新工具模块"""
 
+import asyncio
 import logging
 import os
 import re
@@ -82,7 +83,6 @@ def compare_versions(local, remote):
 
 async def git_pull_latest():
     """执行 git pull 更新代码"""
-    import asyncio
 
     try:
         # 检测远程分支
@@ -146,7 +146,6 @@ async def git_pull_latest():
 
 async def install_dependencies():
     """在当前虚拟环境中安装依赖"""
-    import asyncio
 
     try:
         result = await asyncio.to_thread(
@@ -170,7 +169,6 @@ async def install_dependencies():
 
 async def build_frontend():
     """构建前端应用（npm install && npm run build）"""
-    import asyncio
 
     try:
         # 检查web目录
@@ -211,7 +209,11 @@ async def build_frontend():
 
         if npm_install.returncode != 0:
             error_msg = (
-                npm_install.stderr[-500:] if npm_install.stderr else npm_install.stdout[-500:]
+                npm_install.stderr[-500:]
+                if npm_install.stderr
+                else npm_install.stdout[-500:]
+                if npm_install.stdout
+                else "无错误输出"
             )
             logger.error(f"npm install 失败: {error_msg}")
             return False, f"前端依赖安装失败: {error_msg}"
@@ -230,7 +232,13 @@ async def build_frontend():
         )
 
         if npm_build.returncode != 0:
-            error_msg = npm_build.stderr[-500:] if npm_build.stderr else npm_build.stdout[-500:]
+            error_msg = (
+                npm_build.stderr[-500:]
+                if npm_build.stderr
+                else npm_build.stdout[-500:]
+                if npm_build.stdout
+                else "无错误输出"
+            )
             logger.error(f"npm run build 失败: {error_msg}")
             return False, f"前端构建失败: {error_msg}"
 
