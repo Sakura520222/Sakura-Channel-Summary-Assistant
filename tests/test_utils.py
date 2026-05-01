@@ -7,6 +7,7 @@ Copyright 2026 Sakura-Bot
 from datetime import UTC
 
 import pytest
+
 from core.utils.date_utils import extract_date_range_from_summary
 from core.utils.message_utils import format_schedule_info
 
