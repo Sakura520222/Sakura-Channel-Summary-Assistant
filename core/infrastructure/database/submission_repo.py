@@ -10,10 +10,11 @@
 
 import json
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
 import aiomysql
+
+from core.infrastructure.database.mysql import utc_now_naive
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +219,7 @@ class SubmissionRepository:
                         update_fields.append("reviewed_by = %s")
                         params.append(reviewed_by)
                         update_fields.append("reviewed_at = %s")
-                        params.append(datetime.now(UTC))
+                        params.append(utc_now_naive())
 
                     if ai_optimized_content is not None:
                         update_fields.append("ai_optimized_content = %s")

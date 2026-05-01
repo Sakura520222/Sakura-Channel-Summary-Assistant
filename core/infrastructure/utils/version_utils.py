@@ -10,7 +10,9 @@
 
 """版本检查和更新工具模块"""
 
+import asyncio
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -23,21 +25,30 @@ logger = logging.getLogger(__name__)
 
 
 def get_local_version():
-    """从 main.py 读取 __version__"""
-    try:
-        main_py = Path("main.py")
-        if not main_py.exists():
-            logger.warning("main.py 不存在")
-            return None
+    """读取本地版本号
 
-        content = main_py.read_text(encoding="utf-8")
-        match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', content)
-        if match:
-            return match.group(1)
-        return None
-    except Exception as e:
-        logger.error(f"读取本地版本失败: {e}")
-        return None
+    依次尝试从 core/__init__.py 和 main.py 中读取 __version__。
+    """
+    # 优先从 core/__init__.py 读取（版本号的实际定义位置）
+    version_files = [
+        Path("core/__init__.py"),
+        Path("main.py"),
+    ]
+    for version_file in version_files:
+        try:
+            if not version_file.exists():
+                continue
+
+            content = version_file.read_text(encoding="utf-8")
+            match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', content)
+            if match:
+                return match.group(1)
+        except Exception as e:
+            logger.debug(f"从 {version_file} 读取版本号失败: {e}")
+            continue
+
+    logger.error("无法从任何源文件读取版本号")
+    return None
 
 
 async def get_remote_version():
@@ -72,7 +83,6 @@ def compare_versions(local, remote):
 
 async def git_pull_latest():
     """执行 git pull 更新代码"""
-    import asyncio
 
     try:
         # 检测远程分支
@@ -136,7 +146,6 @@ async def git_pull_latest():
 
 async def install_dependencies():
     """在当前虚拟环境中安装依赖"""
-    import asyncio
 
     try:
         result = await asyncio.to_thread(
@@ -155,4 +164,93 @@ async def install_dependencies():
         return False, "依赖安装超时"
     except Exception as e:
         logger.error(f"依赖安装失败: {e}")
+        return False, str(e)
+
+
+async def build_frontend():
+    """构建前端应用（npm install && npm run build）"""
+
+    try:
+        # 检查web目录
+        if not await asyncio.to_thread(os.path.exists, "web"):
+            logger.warning("web 目录不存在，跳过前端构建")
+            return True, "前端目录不存在，已跳过"
+
+        # 检查 package.json
+        if not await asyncio.to_thread(os.path.exists, "web/package.json"):
+            logger.warning("web/package.json 不存在，跳过前端构建")
+            return True, "package.json 不存在，已跳过"
+
+        # 检查 Node.js
+        node_check = await asyncio.to_thread(
+            subprocess.run,
+            ["node", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        if node_check.returncode != 0:
+            logger.warning("Node.js 未安装或不在 PATH 中")
+            return False, "Node.js 未安装，请先安装 Node.js"
+
+        logger.info(f"检测到 Node.js: {node_check.stdout.strip()}")
+
+        # 安装前端依赖
+        logger.info("安装前端依赖...")
+        npm_install = await asyncio.to_thread(
+            subprocess.run,
+            ["npm", "install"],
+            cwd="web",
+            capture_output=True,
+            text=True,
+            timeout=600,  # 10分钟超时
+        )
+
+        if npm_install.returncode != 0:
+            error_msg = (
+                npm_install.stderr[-500:]
+                if npm_install.stderr
+                else npm_install.stdout[-500:]
+                if npm_install.stdout
+                else "无错误输出"
+            )
+            logger.error(f"npm install 失败: {error_msg}")
+            return False, f"前端依赖安装失败: {error_msg}"
+
+        logger.info("前端依赖安装完成")
+
+        # 构建前端
+        logger.info("构建前端应用...")
+        npm_build = await asyncio.to_thread(
+            subprocess.run,
+            ["npm", "run", "build"],
+            cwd="web",
+            capture_output=True,
+            text=True,
+            timeout=600,  # 10分钟超时
+        )
+
+        if npm_build.returncode != 0:
+            error_msg = (
+                npm_build.stderr[-500:]
+                if npm_build.stderr
+                else npm_build.stdout[-500:]
+                if npm_build.stdout
+                else "无错误输出"
+            )
+            logger.error(f"npm run build 失败: {error_msg}")
+            return False, f"前端构建失败: {error_msg}"
+
+        logger.info("前端构建完成")
+        return True, "前端构建完成"
+
+    except subprocess.TimeoutExpired:
+        logger.error("前端构建超时")
+        return False, "前端构建超时（超过10分钟）"
+    except FileNotFoundError as e:
+        logger.error(f"执行文件不存在: {e}")
+        return False, f"执行文件不存在: {e}"
+    except Exception as e:
+        logger.error(f"前端构建失败: {e}")
         return False, str(e)

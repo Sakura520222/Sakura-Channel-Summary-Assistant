@@ -48,6 +48,7 @@ from core.i18n.i18n import get_language, get_supported_languages, get_text, set_
 from core.infrastructure.database.manager import get_db_manager
 from core.infrastructure.utils.message_utils import format_schedule_info
 from core.infrastructure.utils.version_utils import (
+    build_frontend,
     compare_versions,
     get_local_version,
     get_remote_version,
@@ -1135,6 +1136,16 @@ async def handle_update(event):
             return
 
         logger.info("依赖安装完成")
+
+        # 构建前端
+        await event.reply(get_text("update.building_frontend"))
+        success, message = await build_frontend()
+
+        if not success:
+            await event.reply(get_text("update.frontend_error", error=message))
+            return
+
+        logger.info("前端构建完成")
 
         # 设置脚本执行权限 (Linux)
         if sys.platform != "win32":

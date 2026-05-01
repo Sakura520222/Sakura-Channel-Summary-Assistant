@@ -64,3 +64,11 @@ class DatabaseInitializer:
             await ensure_forwarding_table_updated(db_manager)
         except Exception as e:
             self.logger.warning(f"数据库迁移执行失败（可忽略）: {type(e).__name__}: {e}")
+
+        # 修复 reviewed_at datetime 格式不兼容问题
+        try:
+            from core.migrations.fix_reviewed_at_datetime import ensure_reviewed_at_datetime_fixed
+
+            await ensure_reviewed_at_datetime_fixed(db_manager)
+        except Exception as e:
+            self.logger.warning(f"datetime 格式修复执行失败（可忽略）: {type(e).__name__}: {e}")

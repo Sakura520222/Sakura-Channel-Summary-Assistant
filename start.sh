@@ -95,6 +95,54 @@ install_dependencies() {
     fi
 }
 
+# 构建前端
+build_frontend() {
+    print_info "检查 Node.js 和 npm..."
+    
+    if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+        print_error "前端构建需要 Node.js 和 npm，但未检测到"
+        print_warning "请先安装 Node.js:"
+        print_warning "  curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -"
+        print_warning "  sudo apt-get install -y nodejs"
+        return 1
+    fi
+    
+    print_success "Node.js 已安装"
+    
+    # 检查前端目录
+    if [ ! -d "web" ]; then
+        print_warning "前端目录不存在，跳过构建"
+        return 0
+    fi
+    
+    # 检查 package.json
+    if [ ! -f "web/package.json" ]; then
+        print_warning "web/package.json 不存在，跳过前端构建"
+        return 0
+    fi
+    
+    # 使用子 shell 隔离目录变更，避免 cd 后未返回的问题
+    (
+        set -e
+        cd web || exit 1
+        
+        # 安装前端依赖（跳过 devDependencies 以减少构建时间和部署体积）
+        print_info "安装前端依赖..."
+        npm install --omit=dev
+        
+        # 构建前端
+        print_info "构建前端应用..."
+        npm run build
+    )
+    
+    if [ $? -ne 0 ]; then
+        print_error "前端构建失败"
+        return 1
+    fi
+    
+    print_success "前端构建完成"
+}
+
 # 检查 PM2
 check_pm2() {
     print_info "检查 PM2 进程管理器..."
@@ -282,6 +330,10 @@ main() {
     
     # 安装依赖
     install_dependencies
+    echo ""
+    
+    # 构建前端
+    build_frontend
     echo ""
     
     # 检查配置
