@@ -82,20 +82,20 @@ def normalize_channel_id(channel_id: str) -> str:
     # 去除首尾空格
     channel_id = channel_id.strip()
 
-    # 支持完整或省略协议的 Telegram 链接
+    # 支持完整或省略协议的 Telegram 链接（www. 前缀需优先匹配，避免被短前缀截断）
     for prefix in (
-        "https://t.me/",
-        "http://t.me/",
         "https://www.t.me/",
+        "https://t.me/",
         "http://www.t.me/",
-        "https://telegram.me/",
-        "http://telegram.me/",
+        "http://t.me/",
         "https://www.telegram.me/",
+        "https://telegram.me/",
         "http://www.telegram.me/",
-        "t.me/",
+        "http://telegram.me/",
         "www.t.me/",
-        "telegram.me/",
+        "t.me/",
         "www.telegram.me/",
+        "telegram.me/",
     ):
         if channel_id.startswith(prefix):
             return f"https://t.me/{channel_id.removeprefix(prefix).rstrip('/')}"

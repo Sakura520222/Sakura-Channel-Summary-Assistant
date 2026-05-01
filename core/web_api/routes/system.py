@@ -15,6 +15,8 @@
 """
 
 import asyncio
+import collections
+import inspect
 import logging
 import time
 from datetime import datetime
@@ -51,7 +53,7 @@ def _get_db():
 
 async def _maybe_await(value):
     """兼容同步和异步数据库方法。"""
-    if hasattr(value, "__await__"):
+    if inspect.isawaitable(value):
         return await value
     return value
 
@@ -434,7 +436,20 @@ async def cleanup_forwarded_messages_endpoint(request_data: CleanupRequest, requ
     if not db or not hasattr(db, "cleanup_old_forwarded_messages"):
         raise HTTPException(status_code=503, detail="数据库管理器不可用")
 
-    deleted = await _maybe_await(db.cleanup_old_forwarded_messages(days=request_data.days))
+    try:
+        deleted = await _maybe_await(db.cleanup_old_forwarded_messages(days=request_data.days))
+    except Exception as e:
+        message = f"清理转发记录失败: {type(e).__name__}: {e}"
+        await record_system_audit(
+            action="database.cleanup.forwarded_messages",
+            actor=_actor_from_request(request),
+            params_summary=f'{{"days": {request_data.days}}}',
+            success=False,
+            message=message,
+            duration_ms=_audit_duration(started_at),
+        )
+        raise HTTPException(status_code=500, detail=message) from e
+
     message = f"已清理 {deleted} 条旧转发记录"
     await record_system_audit(
         action="database.cleanup.forwarded_messages",
@@ -459,7 +474,20 @@ async def cleanup_poll_regenerations_endpoint(request_data: CleanupRequest, requ
     if not db or not hasattr(db, "cleanup_old_poll_regenerations"):
         raise HTTPException(status_code=503, detail="数据库管理器不可用")
 
-    deleted = await _maybe_await(db.cleanup_old_poll_regenerations(days=request_data.days))
+    try:
+        deleted = await _maybe_await(db.cleanup_old_poll_regenerations(days=request_data.days))
+    except Exception as e:
+        message = f"清理投票重生成记录失败: {type(e).__name__}: {e}"
+        await record_system_audit(
+            action="database.cleanup.poll_regenerations",
+            actor=_actor_from_request(request),
+            params_summary=f'{{"days": {request_data.days}}}',
+            success=False,
+            message=message,
+            duration_ms=_audit_duration(started_at),
+        )
+        raise HTTPException(status_code=500, detail=message) from e
+
     message = f"已清理 {deleted} 条旧投票重生成记录"
     await record_system_audit(
         action="database.cleanup.poll_regenerations",
@@ -479,21 +507,33 @@ async def cleanup_poll_regenerations_endpoint(request_data: CleanupRequest, requ
 @router.post("/database/cleanup/audit-logs")
 async def cleanup_audit_logs_endpoint(
     request: Request,
-    request_data: CleanupRequest | None = None,
+    request_data: CleanupRequest,
 ):
     """清理旧审计记录。"""
     started_at = time.perf_counter()
-    days = request_data.days if request_data else 90
     db = _get_db()
     if not db or not hasattr(db, "cleanup_old_system_audit_logs"):
         raise HTTPException(status_code=503, detail="数据库管理器不可用")
 
-    deleted = await _maybe_await(db.cleanup_old_system_audit_logs(days=days))
+    try:
+        deleted = await _maybe_await(db.cleanup_old_system_audit_logs(days=request_data.days))
+    except Exception as e:
+        message = f"清理审计记录失败: {type(e).__name__}: {e}"
+        await record_system_audit(
+            action="database.cleanup.audit_logs",
+            actor=_actor_from_request(request),
+            params_summary=f'{{"days": {request_data.days}}}',
+            success=False,
+            message=message,
+            duration_ms=_audit_duration(started_at),
+        )
+        raise HTTPException(status_code=500, detail=message) from e
+
     message = f"已清理 {deleted} 条旧审计记录"
     await record_system_audit(
         action="database.cleanup.audit_logs",
         actor=_actor_from_request(request),
-        params_summary=f'{{"days": {days}}}',
+        params_summary=f'{{"days": {request_data.days}}}',
         success=True,
         message=message,
         duration_ms=_audit_duration(started_at),
@@ -501,7 +541,7 @@ async def cleanup_audit_logs_endpoint(
     return {
         "success": True,
         "message": message,
-        "data": {"deleted_count": deleted, "days": days},
+        "data": {"deleted_count": deleted, "days": request_data.days},
     }
 
 
@@ -526,11 +566,13 @@ async def get_recent_logs(
                 "message": "日志文件不存在",
             }
 
-        content_text = await asyncio.to_thread(
-            log_path.read_text, encoding="utf-8", errors="replace"
-        )
-        content = content_text.splitlines()
-        filtered = content
+        # 使用 deque 限制内存占用，只保留尾部 N*3 行作为过滤候选
+        tail_lines: collections.deque[str] = collections.deque(maxlen=lines * 3)
+        async with aiofiles.open(log_path, encoding="utf-8", errors="replace") as f:
+            async for raw_line in f:
+                tail_lines.append(raw_line.rstrip("\n"))
+
+        filtered = list(tail_lines)
         if level:
             level_upper = level.upper()
             filtered = [line for line in filtered if level_upper in line.upper()]
@@ -544,7 +586,7 @@ async def get_recent_logs(
             "data": {
                 "lines": selected,
                 "total_returned": len(selected),
-                "path": str(log_path),
+                "path": log_path.name,
             },
         }
     except Exception as e:

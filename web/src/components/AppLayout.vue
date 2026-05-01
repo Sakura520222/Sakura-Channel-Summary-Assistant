@@ -148,10 +148,6 @@ async function checkBotStatus() {
 }
 
 onMounted(() => {
-  const savedTheme = localStorage.getItem("sakura_bot_theme");
-  isDark.value = savedTheme === "dark";
-  document.documentElement.classList.toggle("dark", isDark.value);
-  window.dispatchEvent(new CustomEvent("theme-change", { detail: isDark.value }));
   checkBotStatus();
   healthTimer = setInterval(checkBotStatus, 30000);
 });
