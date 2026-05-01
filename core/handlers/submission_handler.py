@@ -177,6 +177,9 @@ class SubmissionHandler:
 
     async def choose_anonymous(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         """处理是否匿名投稿选择。"""
+        if not update.message or not update.message.text:
+            return WAITING_ANONYMOUS
+
         user_id = update.effective_user.id
         state = self._user_states.get(user_id)
         if not state:

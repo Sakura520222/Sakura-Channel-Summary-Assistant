@@ -451,13 +451,16 @@ class SubmissionReviewHandler:
             # 构建发布消息（优先使用 AI 优化后的标题和内容）
             title = submission.get("ai_optimized_title") or submission["title"]
             content = submission.get("ai_optimized_content") or submission.get("content") or ""
-            submitter_name = submission.get("submitter_name") or "匿名"
             is_anonymous = bool(submission.get("is_anonymous"))
+            submitter_name = submission.get("submitter_name")
 
             caption = f"**{title}**\n"
             if content:
                 caption += f"\n{content}\n"
-            caption += "\n—— 投稿者: 匿名" if is_anonymous else f"\n—— 投稿者: @{submitter_name}"
+            if is_anonymous or not submitter_name:
+                caption += "\n—— 投稿者: 匿名"
+            else:
+                caption += f"\n—— 投稿者: @{submitter_name}"
 
             media_files = submission.get("media_files") or []
             first_message_id = None

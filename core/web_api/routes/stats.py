@@ -51,6 +51,8 @@ async def list_summaries(
         if not db:
             return {"success": False, "message": "数据库未连接"}
 
+        # TODO: 若接口后续支持日期过滤，需要同步向 count_summaries/get_summaries
+        # 传递 start_date 和 end_date，避免分页总数与列表数据不一致。
         total = await db.count_summaries(channel_id=channel)
         summaries = await db.get_summaries(channel_id=channel, limit=limit, offset=offset)
         return {

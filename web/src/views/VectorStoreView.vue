@@ -416,8 +416,8 @@ async function loadStats() {
     if (res.success) {
       stats.value = res.data;
     }
-  } catch {
-    // 静默处理
+  } catch (error) {
+    console.error("加载向量统计失败:", error);
   }
 }
 

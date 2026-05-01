@@ -567,15 +567,21 @@ class MySQLManager(DatabaseManagerBase):
 
                     if start_date:
                         conditions.append("created_at >= %s")
-                        if start_date.tzinfo is not None:
-                            start_date = start_date.replace(tzinfo=None)
-                        params.append(start_date)
+                        naive_start = (
+                            start_date.replace(tzinfo=None)
+                            if start_date.tzinfo is not None
+                            else start_date
+                        )
+                        params.append(naive_start)
 
                     if end_date:
                         conditions.append("created_at <= %s")
-                        if end_date.tzinfo is not None:
-                            end_date = end_date.replace(tzinfo=None)
-                        params.append(end_date)
+                        naive_end = (
+                            end_date.replace(tzinfo=None)
+                            if end_date.tzinfo is not None
+                            else end_date
+                        )
+                        params.append(naive_end)
 
                     where_clause = " AND ".join(conditions) if conditions else "1=1"
                     await cursor.execute(
