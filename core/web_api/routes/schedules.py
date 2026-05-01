@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# 仅保护当前 FastAPI 进程内的并发读-改-写；多 worker/多进程部署仍需文件系统原子操作或外部锁。
 _summary_time_file_lock = asyncio.Lock()
 
 
@@ -104,6 +105,22 @@ def _clean_summary_channel(channel: str) -> str:
     return normalize_channel_id(channel)
 
 
+async def _read_summary_time_file() -> dict:
+    """Async 读取上次总结时间文件。"""
+    async with aiofiles.open(LAST_SUMMARY_FILE, encoding="utf-8") as f:
+        content = (await f.read()).strip()
+    return json.loads(content) if content else {}
+
+
+async def _write_summary_time_file(data: dict) -> None:
+    """Async 写入或清理上次总结时间文件。"""
+    if data:
+        async with aiofiles.open(LAST_SUMMARY_FILE, "w", encoding="utf-8") as f:
+            await f.write(json.dumps(data, ensure_ascii=False, indent=2))
+    else:
+        await _remove_file_if_exists(LAST_SUMMARY_FILE)
+
+
 @router.get("/summary-times")
 async def list_last_summary_times():
     """读取所有频道的上次总结时间记录。"""
@@ -163,9 +180,7 @@ async def delete_last_summary_time(channel: str):
         channel = _clean_summary_channel(channel)
         async with _summary_time_file_lock:
             try:
-                async with aiofiles.open(LAST_SUMMARY_FILE, encoding="utf-8") as f:
-                    content = (await f.read()).strip()
-                data = json.loads(content) if content else {}
+                data = await _read_summary_time_file()
             except FileNotFoundError:
                 return {"success": False, "message": "上次总结时间文件不存在"}
             except json.JSONDecodeError as e:
@@ -176,11 +191,7 @@ async def delete_last_summary_time(channel: str):
 
             del data[channel]
             try:
-                if data:
-                    async with aiofiles.open(LAST_SUMMARY_FILE, "w", encoding="utf-8") as f:
-                        await f.write(json.dumps(data, ensure_ascii=False, indent=2))
-                else:
-                    await _remove_file_if_exists(LAST_SUMMARY_FILE)
+                await _write_summary_time_file(data)
             except FileNotFoundError:
                 return {"success": False, "message": "上次总结时间文件已被其他进程删除"}
 

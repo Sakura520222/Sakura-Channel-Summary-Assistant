@@ -550,13 +550,9 @@ async def _op_forwarding_remove_rule(params: dict[str, Any], _request: Request) 
     forwarding = _ensure_forwarding(config)
     rules = forwarding.get("rules", [])
 
-    source = params.get("source_channel")
-    target = params.get("target_channel")
-    if source or target:
-        if not source or not target:
-            raise HTTPException(
-                status_code=400, detail="按频道删除规则时需同时提供源频道和目标频道"
-            )
+    source = params.get("source_channel") or None
+    target = params.get("target_channel") or None
+    if source and target:
         normalized_source = normalize_channel_id(str(source))
         normalized_target = normalize_channel_id(str(target))
         for index, rule in enumerate(rules):
@@ -577,6 +573,8 @@ async def _op_forwarding_remove_rule(params: dict[str, Any], _request: Request) 
             "message": f"转发规则不存在: {normalized_source} -> {normalized_target}",
             "data": {},
         }
+    if source or target:
+        raise HTTPException(status_code=400, detail="按频道删除规则时需同时提供源频道和目标频道")
 
     try:
         rule_index = int(_require_param(params, "rule_index")) - 1
