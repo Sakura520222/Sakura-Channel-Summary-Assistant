@@ -136,6 +136,8 @@ python main.py
 | **🔄 配置热重载**      | 无需重启即可热更新配置，支持原子性回滚             | ✅    |
 | **🗳️ 投票公开/匿名**   | 为每个频道单独配置投票为公开或匿名模式             | ✅    |
 | **🎯 自动趣味投票**    | AI自动生成趣味投票，可按频道独立配置               | ✅    |
+| **🌐 WebUI 管理面板**  | 基于 Vue.js 的 Web 管理界面，支持深色主题和 JWT 认证 | ✅    |
+| **📱 帖子链接支持**    | RAG 工具支持帖子链接引用，答案可追溯至原始消息     | ✅    |
 
 ---
 
@@ -547,6 +549,16 @@ RERANKER_FINAL=5
 
 # 向量数据库配置
 VECTOR_DB_PATH=data/vectors
+
+# ===== WebUI 管理面板配置（可选） =====
+# 启用 WebUI 管理界面（true/false）
+WEBUI_ENABLED=true
+# WebUI 监听地址
+WEBUI_HOST=0.0.0.0
+# WebUI 监听端口
+WEBUI_PORT=8080
+# WebUI 开发模式（免认证登录，仅用于开发环境）
+WEBUI_DEV_MODE=false
 ```
 
 > **提示**：RAG系统需要额外的API密钥，推荐使用 [SiliconFlow](https://siliconflow.cn/) 获取Embedding和Reranker服务的API密钥。详细配置请参考 [RAG快速启动指南](wiki/RAG_QUICKSTART.md)。
@@ -572,7 +584,8 @@ Sakura-Bot/
 │   ├── services/                     # 业务服务层
 │   ├── system/                       # 系统管理（调度、错误处理、进程、关闭）
 │   ├── telegram/                     # Telegram客户端
-│   └── utils/                        # 工具函数
+│   ├── utils/                        # 工具函数
+│   └── web_api/                      # WebUI API 服务器（FastAPI、JWT 认证）
 │
 ├── 📁 data/                          # 数据目录
 │   ├── .env                          # 环境变量配置
@@ -585,6 +598,7 @@ Sakura-Bot/
 │   └── vectors/                      # 向量数据库目录
 │
 ├── 📁 tests/                         # 测试目录
+├── 📁 web/                           # WebUI 前端源码（Vue.js + Vite）
 ├── 📁 wiki/                          # 文档目录
 ├── 📁 .github/                       # GitHub工作流
 │
@@ -614,8 +628,10 @@ Sakura-Bot/
 | **httpx**               | HTTP客户端（Reranker调用）          | 0.27+  |
 | **watchdog**            | 文件监控（配置热重载）              | 4.0+   |
 | **python-dotenv**       | 环境变量管理                        | 1.0+   |
+| **FastAPI**             | WebUI API 服务器框架                | 0.115+ |
+| **Vue.js + Vite**       | WebUI 前端框架                      | 3.5+   |
 | **Ruff**                | 代码检查与格式化                    | 0.8+   |
-| **Docker**              | 容器化部署                          | 20.10+ |
+| **Docker**              | 容器化部署                          | 20.10+ | |
 
 ---
 
@@ -648,6 +664,13 @@ Sakura-Bot/
 3. **配置文件**：在 `data/config.json` 中设置 `qa_bot_persona` 字段
 
 修改后重启Bot生效。可通过 `/view_persona` 命令查看当前生效的人格。
+
+### 如何使用 WebUI 管理面板？
+
+1. 在 `.env` 中设置 `WEBUI_ENABLED=true`
+2. 启动 Bot 后访问 `http://localhost:8080`
+3. 使用管理员 Telegram ID 登录（JWT 认证）
+4. 支持深色/浅色主题切换，可在面板中管理频道、查看统计、触发总结等
 
 ### 如何备份数据？
 

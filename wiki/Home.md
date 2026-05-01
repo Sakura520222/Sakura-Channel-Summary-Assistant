@@ -16,6 +16,7 @@
 - **[RAG 快速启动](User-RAG-Quickstart.md)** - 语义检索功能快速配置
 - **[多轮对话功能](User-Multi-Turn-Conversation.md)** - 上下文感知对话说明
 - **[投票功能](User-Poll-Feature.md)** - 频道投票配置指南
+- **[WebUI 管理面板](User-WebUI-Guide.md)** - Web 管理界面使用指南
 - **[行为准则](Code-of-Conduct.md)** - 社区贡献行为准则
 
 ### 👨‍💻 开发者文档
@@ -45,6 +46,7 @@
 | **AI 功能** | [问答 Bot](User-QA-Bot-Guide.md) | [实施文档](Developer-QA-Bot-Implementation.md) |
 | **RAG 功能** | [快速启动](User-RAG-Quickstart.md) | [技术文档](Developer-RAG-Feature-V3.md) |
 | **投票功能** | [配置指南](User-Poll-Feature.md) | - |
+| **WebUI 面板** | [WebUI 指南](User-WebUI-Guide.md) | - |
 | **代码质量** | - | [Ruff 指南](Developer-Ruff-Script-Guide.md) |
 | **系统架构** | - | [架构设计](Developer-Architecture.md) |
 
@@ -53,7 +55,7 @@
 | 难度 | 文档 |
 |------|------|
 | ⭐ **入门** | [快速开始](User-Getting-Started.md) · [RAG 快速启动](User-RAG-Quickstart.md) |
-| ⭐⭐ **进阶** | [问答 Bot 指南](User-QA-Bot-Guide.md) · [投票功能](User-Poll-Feature.md) |
+| ⭐⭐ **进阶** | [问答 Bot 指南](User-QA-Bot-Guide.md) · [投票功能](User-Poll-Feature.md) · [WebUI 面板](User-WebUI-Guide.md) |
 | ⭐⭐⭐ **高级** | [RAG 技术文档](Developer-RAG-Feature-V3.md) · [架构设计](Developer-Architecture.md) |
 
 ---

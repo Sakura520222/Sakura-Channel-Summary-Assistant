@@ -136,6 +136,8 @@ python main.py
 | **🔄 Hot Configuration Reload**   | Update config without restart; supports atomic rollback on failure                         | ✅      |
 | **🗳️ Public/Anonymous Polls**     | Configure polls as public or anonymous mode per channel                                    | ✅      |
 | **🎯 Auto Fun Polls**             | AI-generated fun polls with per-channel independent configuration                          | ✅      |
+| **🌐 WebUI Dashboard**            | Vue.js-based web management interface with dark theme and JWT authentication              | ✅      |
+| **📱 Post Link Support**          | RAG tools support post link references, answers traceable to original messages            | ✅      |
 
 ---
 
@@ -548,6 +550,16 @@ RERANKER_FINAL=5
 
 # Vector Database Configuration
 VECTOR_DB_PATH=data/vectors
+
+# ===== WebUI Dashboard Configuration (Optional) =====
+# Enable WebUI management interface (true/false)
+WEBUI_ENABLED=true
+# WebUI listen address
+WEBUI_HOST=0.0.0.0
+# WebUI listen port
+WEBUI_PORT=8080
+# WebUI development mode (auth-free login, for development only)
+WEBUI_DEV_MODE=false
 ```
 
 > **Note**: The RAG system requires additional API keys. We recommend using [SiliconFlow](https://siliconflow.cn/) for Embedding and Reranker services. For detailed configuration, please refer to the [RAG Quick Start Guide](wiki/RAG_QUICKSTART.md).
@@ -573,7 +585,8 @@ Sakura-Bot/
 │   ├── services/                     # Business service layer
 │   ├── system/                       # System management (scheduler, error handler, process, shutdown)
 │   ├── telegram/                     # Telegram client
-│   └── utils/                        # Utility functions
+│   ├── utils/                        # Utility functions
+│   └── web_api/                      # WebUI API server (FastAPI, JWT auth)
 │
 ├── 📁 data/                          # Data directory
 │   ├── .env                          # Environment configuration
@@ -586,6 +599,7 @@ Sakura-Bot/
 │   └── vectors/                      # Vector database directory
 │
 ├── 📁 tests/                         # Tests directory
+├── 📁 web/                           # WebUI frontend source (Vue.js + Vite)
 ├── 📁 wiki/                          # Documentation
 ├── 📁 .github/                       # GitHub workflows
 │
@@ -616,6 +630,8 @@ Sakura-Bot/
 | **watchdog**            | File monitoring (config hot-reload)             | 4.0+    |
 | **python-dotenv**       | Environment management                          | 1.0+    |
 | **Ruff**                | Code linting & formatting                       | 0.8+    |
+| **FastAPI**             | WebUI API server framework                      | 0.115+  |
+| **Vue.js + Vite**       | WebUI frontend framework                        | 3.5+    |
 | **Docker**              | Containerization                                | 20.10+  |
 
 ---
@@ -649,6 +665,13 @@ There are three ways (priority from high to low):
 3. **Config file**: Set the `qa_bot_persona` field in `data/config.json`
 
 Restart the bot for changes to take effect. Use `/view_persona` to check the active persona.
+
+### How to use the WebUI Dashboard?
+
+1. Set `WEBUI_ENABLED=true` in `.env`
+2. Start the bot and visit `http://localhost:8080`
+3. Log in with your admin Telegram ID (JWT authentication)
+4. Supports dark/light theme switching; manage channels, view stats, trigger summaries, and more from the dashboard
 
 ### How to backup data?
 
