@@ -1595,23 +1595,105 @@ class MySQLManager(DatabaseManagerBase):
             return []
 
     async def get_all_channels(self) -> list[dict[str, Any]]:
-        """获取所有可用频道（从summaries表中提取）"""
+        """获取所有可用频道（从 summaries 表中提取并合并配置频道）"""
         try:
             async with self.pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
                     await cursor.execute("""
-                        SELECT DISTINCT channel_id, channel_name,
-                               MAX(created_at) as last_summary_time
+                        SELECT
+                            channel_id,
+                            COALESCE(MAX(NULLIF(channel_name, '')), channel_id) AS channel_name,
+                            MAX(created_at) AS last_summary_time,
+                            COUNT(*) AS summary_count,
+                            COALESCE(SUM(message_count), 0) AS message_count
                         FROM summaries
-                        GROUP BY channel_id, channel_name
+                        GROUP BY channel_id
                         ORDER BY last_summary_time DESC
                     """)
 
-                    return await cursor.fetchall()
+                    rows = await cursor.fetchall()
+
+            channels = {row["channel_id"]: row for row in rows if row.get("channel_id")}
+
+            try:
+                from core.config import CHANNELS, normalize_channel_id
+
+                for configured_channel in CHANNELS:
+                    normalized = normalize_channel_id(configured_channel)
+                    if normalized in channels:
+                        continue
+                    channels[normalized] = {
+                        "channel_id": normalized,
+                        "channel_name": normalized.split("/")[-1],
+                        "last_summary_time": None,
+                        "summary_count": 0,
+                        "message_count": 0,
+                    }
+            except Exception as e:
+                logger.warning(f"合并配置频道失败: {type(e).__name__}: {e}")
+
+            return sorted(
+                channels.values(),
+                key=lambda item: item.get("last_summary_time") or datetime.min,
+                reverse=True,
+            )
 
         except Exception as e:
             logger.error(f"获取频道列表失败: {type(e).__name__}: {e}", exc_info=True)
             return []
+
+    async def get_channel_summary_stats(self, channel_id: str) -> dict[str, Any]:
+        """获取指定频道的总结统计"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(
+                        """
+                        SELECT
+                            channel_id,
+                            COALESCE(MAX(NULLIF(channel_name, '')), channel_id) AS channel_name,
+                            COUNT(*) AS summary_count,
+                            COALESCE(SUM(message_count), 0) AS message_count,
+                            MAX(created_at) AS last_summary_time,
+                            MIN(created_at) AS first_summary_time
+                        FROM summaries
+                        WHERE channel_id = %s
+                        GROUP BY channel_id
+                    """,
+                        (channel_id,),
+                    )
+                    row = await cursor.fetchone()
+
+                    if row:
+                        return row
+
+                    return {
+                        "channel_id": channel_id,
+                        "channel_name": channel_id.split("/")[-1],
+                        "summary_count": 0,
+                        "message_count": 0,
+                        "last_summary_time": None,
+                        "first_summary_time": None,
+                    }
+
+        except Exception as e:
+            logger.error(f"获取频道统计失败: {type(e).__name__}: {e}", exc_info=True)
+            return {}
+
+    async def get_recent_summaries(
+        self,
+        channel_id: str | None = None,
+        limit: int = 5,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """获取最近总结列表"""
+        return await self.get_summaries(
+            channel_id=channel_id,
+            limit=limit,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
     async def is_subscribed(self, user_id: int, channel_id: str, sub_type: str = "summary") -> bool:
         """检查用户是否已订阅某频道"""

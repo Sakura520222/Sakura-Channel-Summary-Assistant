@@ -248,6 +248,22 @@ class DatabaseManagerBase(ABC):
         pass
 
     @abstractmethod
+    def get_channel_summary_stats(self, channel_id: str) -> dict[str, Any]:
+        """获取指定频道的总结统计"""
+        pass
+
+    @abstractmethod
+    def get_recent_summaries(
+        self,
+        channel_id: str | None = None,
+        limit: int = 5,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """获取最近总结列表"""
+        pass
+
+    @abstractmethod
     def is_subscribed(self, user_id: int, channel_id: str, sub_type: str = "summary") -> bool:
         """检查用户是否已订阅某频道"""
         pass

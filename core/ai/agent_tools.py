@@ -77,7 +77,7 @@ TOOL_SCHEMAS = [
             "description": (
                 "基于关键词搜索频道历史总结。"
                 "使用SQL匹配，适合精确关键词查找和补充语义检索的结果。"
-                "当语义搜索结果不足或需要查找特定术语时使用。"
+                "当语义搜索结果不足、需要查找特定术语，或需要按频道/时间获取最近总结时使用。"
             ),
             "parameters": {
                 "type": "object",
@@ -107,7 +107,106 @@ TOOL_SCHEMAS = [
                         "default": 10,
                     },
                 },
-                "required": ["keywords"],
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_channels",
+            "description": "获取所有可查询频道的名称、链接、总结数和最后更新时间。用户询问频道链接、有哪些频道、可查询范围时使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "返回频道数量上限，默认50",
+                        "default": 50,
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "resolve_channel",
+            "description": "根据频道名、@username、t.me链接或模糊名称解析为标准频道链接。限定频道查询前应先调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "channel_hint": {
+                        "type": "string",
+                        "description": "用户提到的频道名称、@username 或 Telegram 链接",
+                    },
+                },
+                "required": ["channel_hint"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_recent_summaries",
+            "description": "获取指定频道或所有频道的最近总结，适合回答最近发生了什么、最新动态等问题。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "可选，限定频道链接。若用户给的是频道名，应先调用 resolve_channel。",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "返回总结数量，默认5",
+                        "default": 5,
+                    },
+                    "time_range_days": {
+                        "type": "integer",
+                        "description": "可选，最近N天",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_channel_stats",
+            "description": "获取指定频道的总结数量、消息数量和更新时间等统计信息。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "标准频道链接。若用户给的是频道名，应先调用 resolve_channel。",
+                    },
+                },
+                "required": ["channel_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_source_detail",
+            "description": "按 summary_id 或 doc_id 获取之前搜索结果中的完整来源内容。用户要求展开来源、查看详情时使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary_id": {
+                        "type": "integer",
+                        "description": "搜索结果中的 summary_id",
+                    },
+                    "doc_id": {
+                        "type": "string",
+                        "description": "搜索结果中的原始 doc_id，适用于消息向量来源",
+                    },
+                },
+                "required": [],
             },
         },
     },
@@ -176,10 +275,12 @@ class ToolExecutor:
         self.reranker = reranker
         # 累积所有搜索结果，供 rerank_results 按 ID 引用
         self._result_store: dict[int, dict[str, Any]] = {}
+        self._doc_result_store: dict[str, dict[str, Any]] = {}
 
     def reset(self):
         """重置结果存储（每次 agent loop 开始时调用）"""
         self._result_store.clear()
+        self._doc_result_store.clear()
 
     async def execute(self, tool_name: str, arguments: dict[str, Any]) -> str:
         """执行工具调用，返回 JSON 字符串格式的结果。
@@ -193,6 +294,16 @@ class ToolExecutor:
                 return await self._execute_keyword_search(arguments)
             elif tool_name == "rerank_results":
                 return await self._execute_rerank(arguments)
+            elif tool_name == "list_channels":
+                return await self._execute_list_channels(arguments)
+            elif tool_name == "resolve_channel":
+                return await self._execute_resolve_channel(arguments)
+            elif tool_name == "get_recent_summaries":
+                return await self._execute_recent_summaries(arguments)
+            elif tool_name == "get_channel_stats":
+                return await self._execute_channel_stats(arguments)
+            elif tool_name == "get_source_detail":
+                return await self._execute_source_detail(arguments)
             elif tool_name == "get_channel_info":
                 return await self._execute_channel_info(arguments)
             else:
@@ -256,8 +367,7 @@ class ToolExecutor:
         # 累积到 result_store 并序列化（截断长文本）
         serialized = []
         for r in results:
-            sid = r["summary_id"]
-            self._result_store[sid] = r
+            self._store_result(r)
             serialized.append(self._serialize_result(r))
 
         return json.dumps(
@@ -289,7 +399,7 @@ class ToolExecutor:
                     "created_at": r.get("created_at"),
                 },
             }
-            self._result_store[sid] = normalized
+            self._store_result(normalized)
             serialized.append(self._serialize_result(normalized))
 
         return json.dumps(
@@ -324,9 +434,7 @@ class ToolExecutor:
         # 更新 result_store 中的结果（含 rerank_score）
         serialized = []
         for r in reranked:
-            sid = r.get("summary_id")
-            if sid is not None:
-                self._result_store[sid] = r
+            self._store_result(r)
             serialized.append(self._serialize_result(r))
 
         return json.dumps(
@@ -334,8 +442,79 @@ class ToolExecutor:
             ensure_ascii=False,
         )
 
+    async def _execute_list_channels(self, args: dict) -> str:
+        channels = await self.memory_manager.list_channels()
+        limit = max(1, min(int(args.get("limit", 50)), 100))
+        return json.dumps(
+            {
+                "channels": channels[:limit],
+                "count": min(len(channels), limit),
+                "total": len(channels),
+            },
+            ensure_ascii=False,
+        )
+
+    async def _execute_resolve_channel(self, args: dict) -> str:
+        result = await self.memory_manager.resolve_channel(args.get("channel_hint", ""))
+        return json.dumps(result, ensure_ascii=False)
+
+    async def _execute_recent_summaries(self, args: dict) -> str:
+        results = await self.memory_manager.get_recent_summaries(
+            channel_id=args.get("channel_id"),
+            limit=args.get("limit", 5),
+            time_range_days=args.get("time_range_days"),
+        )
+        serialized = []
+        for r in results:
+            sid = r.get("id") or r.get("summary_id")
+            if sid is None:
+                continue
+            normalized = {
+                "summary_id": sid,
+                "summary_text": r.get("summary_text", ""),
+                "metadata": {
+                    "channel_id": r.get("channel_id"),
+                    "channel_name": r.get("channel_name"),
+                    "created_at": r.get("created_at"),
+                },
+                "source": "summary",
+            }
+            self._store_result(normalized)
+            serialized.append(self._serialize_result(normalized))
+
+        return json.dumps({"results": serialized, "count": len(serialized)}, ensure_ascii=False)
+
+    async def _execute_channel_stats(self, args: dict) -> str:
+        stats = await self.memory_manager.get_channel_stats(args.get("channel_id", ""))
+        return json.dumps({"stats": stats}, ensure_ascii=False)
+
+    async def _execute_source_detail(self, args: dict) -> str:
+        result = None
+        summary_id = args.get("summary_id")
+        doc_id = args.get("doc_id")
+
+        if summary_id is not None:
+            result = self._result_store.get(summary_id)
+
+        if result is None and doc_id:
+            result = self._doc_result_store.get(str(doc_id))
+
+        if result is None:
+            return json.dumps(
+                {"error": "未找到来源详情，请先执行搜索或提供有效的 summary_id/doc_id"},
+                ensure_ascii=False,
+            )
+
+        detail = self._serialize_result(result)
+        detail["summary_text"] = result.get("summary_text", "")
+        return json.dumps({"detail": detail}, ensure_ascii=False)
+
     async def _execute_channel_info(self, args: dict) -> str:
         channel_id = args.get("channel_id")
+        if not channel_id:
+            channels = await self.memory_manager.list_channels()
+            return json.dumps({"channels": channels, "count": len(channels)}, ensure_ascii=False)
+
         context = await self.memory_manager.get_channel_context(channel_id)
 
         if channel_id:
@@ -362,14 +541,26 @@ class ToolExecutor:
         serialized = {
             "summary_id": result.get("summary_id"),
             "summary_text": truncated,
+            "channel_id": metadata.get("channel_id"),
             "channel_name": metadata.get("channel_name"),
             "created_at": created_at,
+            "doc_id": result.get("doc_id"),
+            "source": result.get("source"),
         }
         if "similarity" in result:
             serialized["similarity"] = round(result["similarity"], 3)
         if "rerank_score" in result:
             serialized["rerank_score"] = round(result["rerank_score"], 3)
         return serialized
+
+    def _store_result(self, result: dict[str, Any]) -> None:
+        """缓存搜索结果，供重排序和来源详情工具复用。"""
+        sid = result.get("summary_id")
+        if sid is not None:
+            self._result_store[sid] = result
+        doc_id = result.get("doc_id")
+        if doc_id:
+            self._doc_result_store[str(doc_id)] = result
 
     def get_all_results(self) -> list[dict[str, Any]]:
         """获取所有累积的搜索结果（完整文本，不截断）。"""
