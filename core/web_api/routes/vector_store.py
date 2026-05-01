@@ -27,6 +27,7 @@ router = APIRouter()
 VALID_COLLECTIONS = frozenset(("summaries", "messages"))
 VALID_SEARCH_COLLECTIONS = VALID_COLLECTIONS | frozenset(("all",))
 MAX_BATCH_DELETE_IDS = 500
+CLEAR_COLLECTION_BATCH_SIZE = 1000
 
 
 def _validate_collection(collection_name: str) -> None:
@@ -40,6 +41,35 @@ def _get_collection(collection_name: str):
     _validate_collection(collection_name)
     vs = get_vector_store()
     return vs.collection if collection_name == "summaries" else vs.messages_collection
+
+
+def _delete_document_by_collection(collection_name: str, doc_id: str) -> bool:
+    """按集合类型删除单个向量文档。"""
+    _validate_collection(collection_name)
+    vs = get_vector_store()
+
+    if collection_name == "summaries":
+        try:
+            summary_id = int(doc_id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"无效的文档 ID: {doc_id}") from e
+        return vs.delete_summary(summary_id)
+
+    return vs.delete_message(doc_id)
+
+
+def _delete_collection_in_batches(collection) -> int:
+    """分批删除集合中的所有文档并返回实际删除数量。"""
+    deleted_count = 0
+
+    while True:
+        batch = collection.get(include=[], limit=CLEAR_COLLECTION_BATCH_SIZE)
+        ids = batch.get("ids") if batch else None
+        if not ids:
+            return deleted_count
+
+        collection.delete(ids=ids)
+        deleted_count += len(ids)
 
 
 @router.get("/stats")
@@ -193,20 +223,20 @@ async def clear_collection(collection_name: str):
         if coll is None:
             raise HTTPException(status_code=503, detail="向量存储不可用")
 
-        count = coll.count()
-        if count == 0:
+        initial_count = coll.count()
+        if initial_count == 0:
             return {"success": True, "message": "集合已经是空的", "data": {"deleted_count": 0}}
 
-        # 获取所有 ID 并批量删除
-        all_docs = coll.get(include=[])
-        if all_docs and all_docs["ids"]:
-            coll.delete(ids=all_docs["ids"])
+        deleted_count = _delete_collection_in_batches(coll)
 
-        logger.info(f"已清空向量集合: {collection_name}, 删除 {count} 条记录")
+        logger.info(
+            f"已清空向量集合: {collection_name}, "
+            f"初始 {initial_count} 条，实际删除 {deleted_count} 条"
+        )
         return {
             "success": True,
-            "message": f"已清空集合 {collection_name}（{count} 条记录）",
-            "data": {"deleted_count": count},
+            "message": f"已清空集合 {collection_name}（{deleted_count} 条记录）",
+            "data": {"deleted_count": deleted_count},
         }
 
     except HTTPException:
@@ -228,17 +258,7 @@ async def delete_document(collection_name: str, doc_id: str):
         删除结果
     """
     try:
-        vs = get_vector_store()
-
-        if collection_name == "summaries":
-            try:
-                summary_id = int(doc_id)
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=f"无效的文档 ID: {doc_id}") from e
-            success = vs.delete_summary(summary_id)
-        else:
-            _validate_collection(collection_name)
-            success = vs.delete_message(doc_id)
+        success = _delete_document_by_collection(collection_name, doc_id)
 
         if success:
             logger.info(f"已删除向量文档: {collection_name}/{doc_id}")
