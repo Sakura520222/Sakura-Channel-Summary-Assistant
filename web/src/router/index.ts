@@ -63,6 +63,11 @@ const router = createRouter({
           name: "UserBot",
           component: () => import("../views/UserBotView.vue"),
         },
+        {
+          path: "vector-store",
+          name: "VectorStore",
+          component: () => import("../views/VectorStoreView.vue"),
+        },
       ],
     },
   ],

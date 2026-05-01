@@ -80,6 +80,7 @@ import {
   BarChartOutlined,
   SettingOutlined,
   UserOutlined,
+  DatabaseOutlined,
 } from "./icons";
 
 const router = useRouter();
@@ -103,6 +104,7 @@ const pageTitle = computed(() => {
     "/stats": "统计数据",
     "/system": "系统运维",
     "/userbot": "UserBot 管理",
+    "/vector-store": "向量存储",
   };
   return map[route.path] || "Sakura-Bot";
 });
@@ -119,6 +121,7 @@ const menuOptions: MenuOption[] = [
   { label: "统计数据", key: "/stats", icon: BarChartOutlined },
   { label: "系统运维", key: "/system", icon: SettingOutlined },
   { label: "UserBot", key: "/userbot", icon: UserOutlined },
+  { label: "向量存储", key: "/vector-store", icon: DatabaseOutlined },
 ];
 
 function handleMenuSelect(key: string) {

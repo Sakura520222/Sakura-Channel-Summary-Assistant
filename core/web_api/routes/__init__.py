@@ -24,6 +24,7 @@ __all__ = [
     "summaries",
     "system",
     "userbot",
+    "vector_store",
 ]
 
 

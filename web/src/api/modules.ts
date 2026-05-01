@@ -490,3 +490,74 @@ export async function executeCommand(operationId: string, payload: CommandExecut
   const res = await apiClient.post(`/commands/${encodeURIComponent(operationId)}/execute`, payload);
   return res.data;
 }
+
+// ==================== 向量存储 ====================
+
+export interface VectorStats {
+  available: boolean;
+  summaries: {
+    available?: boolean;
+    total_vectors?: number;
+    error?: string;
+  };
+  messages: {
+    available?: boolean;
+    total_vectors?: number;
+    error?: string;
+  };
+  total_vectors?: number;
+}
+
+export interface VectorDocument {
+  id: string;
+  document: string;
+  metadata: Record<string, unknown>;
+  embedding_dimension?: number | null;
+}
+
+export interface VectorSearchResult {
+  summary_id: number;
+  summary_text: string;
+  metadata: Record<string, unknown>;
+  distance: number;
+  similarity: number;
+  doc_id: string;
+  source?: string;
+}
+
+export async function getVectorStats() {
+  const res = await apiClient.get("/vector-store/stats");
+  return res.data;
+}
+
+export async function listVectorDocuments(collection: string, limit = 50, offset = 0) {
+  const res = await apiClient.get(`/vector-store/collections/${collection}`, { params: { limit, offset } });
+  return res.data;
+}
+
+export async function getVectorDocument(collection: string, docId: string) {
+  const res = await apiClient.get(`/vector-store/collections/${collection}/${encodeURIComponent(docId)}`);
+  return res.data;
+}
+
+export async function deleteVectorDocument(collection: string, docId: string) {
+  const res = await apiClient.delete(`/vector-store/collections/${collection}/${encodeURIComponent(docId)}`);
+  return res.data;
+}
+
+export async function deleteVectorDocumentsBatch(collection: string, docIds: string[]) {
+  const res = await apiClient.delete(`/vector-store/collections/${collection}`, { data: docIds });
+  return res.data;
+}
+
+export async function searchVectors(query: string, collection?: string | null, topK = 10) {
+  const params: Record<string, unknown> = { query, top_k: topK };
+  if (collection) params.collection = collection;
+  const res = await apiClient.post("/vector-store/search", null, { params });
+  return res.data;
+}
+
+export async function clearVectorCollection(collection: string) {
+  const res = await apiClient.delete(`/vector-store/collections/${collection}/clear`);
+  return res.data;
+}

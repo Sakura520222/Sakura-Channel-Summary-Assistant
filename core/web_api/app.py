@@ -36,6 +36,7 @@ from .routes import (
     summaries,
     system,
     userbot,
+    vector_store,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(interaction.router, prefix="/api/interaction", tags=["互动设置"])
     app.include_router(summaries.router, prefix="/api/summaries", tags=["总结生成"])
     app.include_router(userbot.router, prefix="/api/userbot", tags=["UserBot 管理"])
+    app.include_router(vector_store.router, prefix="/api/vector-store", tags=["向量存储"])
 
     # 注册健康检查端点
     @app.get("/api/health", tags=["健康检查"])
