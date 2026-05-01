@@ -6,7 +6,7 @@
 2. 添加 forward_status, error_message, message_type 字段
 3. 添加必要的索引
 
-版本：v1.8.3
+版本：v1.8.4（迁移脚本记录历史目标版本，发布版本更新时需与 core.__version__ 同步确认）
 """
 
 import asyncio

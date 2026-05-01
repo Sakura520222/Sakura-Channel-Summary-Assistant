@@ -19,6 +19,7 @@ import time
 
 from fastapi import APIRouter
 
+from core import __version__
 from core.config import get_bot_state
 from core.settings import get_settings
 
@@ -60,7 +61,7 @@ async def get_dashboard():
             "success": True,
             "data": {
                 "bot_status": get_bot_state(),
-                "version": "1.8.3",
+                "version": __version__,
                 "channel_count": len(channels),
                 "schedule_count": len(schedules),
                 "forwarding_enabled": forwarding_config.get("enabled", False),

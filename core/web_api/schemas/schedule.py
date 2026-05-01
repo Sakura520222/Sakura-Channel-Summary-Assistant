@@ -60,3 +60,12 @@ class ScheduleUpdateRequest(BaseModel):
         if v not in ("daily", "weekly"):
             raise ValueError("频率必须为 daily 或 weekly")
         return v
+
+
+class LastSummaryTimeUpdateRequest(BaseModel):
+    """上次总结时间更新请求"""
+
+    time: str = Field(..., description="ISO 8601 时间字符串")
+    summary_message_ids: list[int] = Field(default_factory=list, description="总结消息 ID 列表")
+    poll_message_ids: list[int] = Field(default_factory=list, description="投票消息 ID 列表")
+    button_message_ids: list[int] = Field(default_factory=list, description="按钮消息 ID 列表")

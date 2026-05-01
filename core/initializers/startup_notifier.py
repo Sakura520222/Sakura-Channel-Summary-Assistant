@@ -24,6 +24,7 @@ import aiofiles
 if TYPE_CHECKING:
     from telethon import TelegramClient
 
+from core import __version__
 from core.config import ADMIN_LIST, RESTART_FLAG_FILE
 from core.i18n.i18n import get_text
 from core.infrastructure.config.system_config import SystemConfigManager
@@ -33,7 +34,9 @@ from core.infrastructure.database.manager import get_db_manager
 class StartupNotifier:
     """启动通知器"""
 
-    def __init__(self, version: str = "1.8.3", system_config_manager: SystemConfigManager = None):
+    def __init__(
+        self, version: str = __version__, system_config_manager: SystemConfigManager = None
+    ):
         self.logger = logging.getLogger(__name__)
         self.version = version
         self.system_config_manager = system_config_manager

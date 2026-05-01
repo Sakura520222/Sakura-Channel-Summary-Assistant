@@ -9,6 +9,7 @@ import pytest
 
 from core.web_api.routes.userbot import (
     ChannelRequest,
+    list_userbot_channels,
     userbot_join_channel,
     userbot_leave_channel,
 )
@@ -50,3 +51,24 @@ async def test_userbot_leave_channel_uses_userbot_manager(channel_input: str):
 
     assert result == {"success": True, "message": "离开频道成功"}
     userbot.leave_channel.assert_awaited_once_with("https://t.me/test_channel")
+
+
+@pytest.mark.asyncio
+async def test_userbot_list_channels_uses_userbot_manager():
+    """Web API 列出频道应调用 UserBot 管理器的 list_joined_channels。"""
+    settings = SimpleNamespace(userbot=SimpleNamespace(userbot_enabled=True))
+    payload = {
+        "success": True,
+        "channels": [{"id": 1, "title": "测试频道", "username": "test_channel"}],
+        "count": 1,
+    }
+    userbot = SimpleNamespace(list_joined_channels=AsyncMock(return_value=payload))
+
+    with (
+        patch("core.settings.get_settings", return_value=settings),
+        patch("core.handlers.userbot_client.get_userbot_client", return_value=userbot),
+    ):
+        result = await list_userbot_channels()
+
+    assert result == payload
+    userbot.list_joined_channels.assert_awaited_once_with()

@@ -137,3 +137,33 @@ async def userbot_leave_channel(request: ChannelRequest):
     except Exception as e:
         logger.error(f"UserBot 离开频道失败: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/channels")
+async def list_userbot_channels():
+    """列出 UserBot 已加入的频道"""
+    try:
+        from core.handlers.userbot_client import get_userbot_client
+        from core.settings import get_settings
+
+        settings = get_settings()
+        if not settings.userbot.userbot_enabled:
+            return {"success": False, "message": "UserBot 未启用"}
+
+        userbot = get_userbot_client()
+        if not userbot:
+            return {"success": False, "message": "UserBot 客户端未初始化"}
+
+        try:
+            result = await userbot.list_joined_channels()
+        except Exception as e:
+            logger.warning(f"UserBot 列出频道运行时失败: {type(e).__name__}: {e}", exc_info=True)
+            return {"success": False, "message": f"列出频道失败: {e}"}
+
+        if result.get("success"):
+            logger.info("已通过 WebUI 查询 UserBot 已加入频道列表")
+        return result
+
+    except Exception as e:
+        logger.error(f"UserBot 列出频道失败: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e

@@ -44,6 +44,11 @@ const router = createRouter({
           component: () => import("../views/InteractionView.vue"),
         },
         {
+          path: "commands",
+          name: "Commands",
+          component: () => import("../views/CommandsView.vue"),
+        },
+        {
           path: "stats",
           name: "Stats",
           component: () => import("../views/StatsView.vue"),

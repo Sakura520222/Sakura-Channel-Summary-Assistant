@@ -24,6 +24,7 @@ from telethon import TelegramClient
 if TYPE_CHECKING:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from core import __version__
 from core.infrastructure.config.system_config import SystemConfigManager
 from core.infrastructure.database.manager import get_db_manager
 from core.initializers import (
@@ -46,7 +47,7 @@ from core.telegram.client import set_active_client
 class AppBootstrap:
     """应用引导程序 - 协调所有初始化器的工作"""
 
-    def __init__(self, version: str = "1.8.3", config_manager=None):
+    def __init__(self, version: str = __version__, config_manager=None):
         self.logger = logging.getLogger(__name__)
         self.version = version
         self.client: TelegramClient | None = None

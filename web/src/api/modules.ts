@@ -123,6 +123,39 @@ export async function deleteSchedule(channel: string) {
   return res.data;
 }
 
+export interface LastSummaryTimeItem {
+  channel: string;
+  time: string;
+  summary_message_ids: number[];
+  poll_message_ids: number[];
+  button_message_ids: number[];
+}
+
+export async function getLastSummaryTimes() {
+  const res = await apiClient.get("/schedules/summary-times");
+  return res.data;
+}
+
+export async function updateLastSummaryTime(channel: string, data: Omit<LastSummaryTimeItem, "channel">) {
+  const res = await apiClient.put(`/schedules/summary-times/${encodeURIComponent(channel)}`, data);
+  return res.data;
+}
+
+export async function deleteLastSummaryTime(channel: string) {
+  const res = await apiClient.delete(`/schedules/summary-times/${encodeURIComponent(channel)}`);
+  return res.data;
+}
+
+export async function deleteAllLastSummaryTimes() {
+  const res = await apiClient.delete("/schedules/summary-times");
+  return res.data;
+}
+
+export async function deletePollRegenerationsFile() {
+  const res = await apiClient.delete("/schedules/poll-regenerations");
+  return res.data;
+}
+
 // ==================== 转发规则 ====================
 
 export interface ForwardingRule {
@@ -389,6 +422,11 @@ export async function userBotLeaveChannel(channelUrl: string) {
   return res.data;
 }
 
+export async function userBotListChannels() {
+  const res = await apiClient.get("/userbot/channels");
+  return res.data;
+}
+
 // ==================== 总结生成 ====================
 
 export async function generateSummary(channel: string) {
@@ -400,5 +438,55 @@ export async function generateSummary(channel: string) {
 
 export async function getDashboard() {
   const res = await apiClient.get("/dashboard");
+  return res.data;
+}
+
+// ==================== 命令中心 ====================
+
+export type CommandRisk = "safe" | "normal" | "danger";
+export type CommandParameterType = "string" | "number" | "boolean" | "select" | "tags" | "textarea";
+
+export interface CommandParameter {
+  name: string;
+  label: string;
+  type: CommandParameterType;
+  required: boolean;
+  description?: string;
+  placeholder?: string;
+  default?: unknown;
+  options?: Array<{ label: string; value: unknown }>;
+}
+
+export interface CommandItem {
+  command: string;
+  description: string;
+  operation_id: string;
+  category: string;
+  risk: CommandRisk;
+  executable: boolean;
+  covered_by_page?: string | null;
+  parameters: CommandParameter[];
+  aliases: string[];
+}
+
+export interface CommandCategory {
+  category: string;
+  i18n_key: string;
+  commands: CommandItem[];
+}
+
+export interface CommandExecutePayload {
+  params: Record<string, unknown>;
+  confirm?: boolean;
+  confirm_text?: string;
+}
+
+export async function getCommandCatalog() {
+  const res = await apiClient.get("/commands");
+  return res.data;
+}
+
+export async function executeCommand(operationId: string, payload: CommandExecutePayload) {
+  const res = await apiClient.post(`/commands/${encodeURIComponent(operationId)}/execute`, payload);
   return res.data;
 }

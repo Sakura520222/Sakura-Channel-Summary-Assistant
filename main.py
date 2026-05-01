@@ -24,6 +24,7 @@ from pathlib import Path
 # 添加项目根目录到 Python 路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+from core import __version__
 from core.bootstrap.app_bootstrap import AppBootstrap
 from core.config import (
     RESTART_FLAG_FILE,
@@ -36,9 +37,6 @@ from core.config import (
 )
 from core.settings import get_admin_list, get_bot_token, validate_required_settings
 from core.system.process_manager import start_qa_bot, stop_qa_bot
-
-# 版本信息
-__version__ = "1.8.3"
 
 
 async def graceful_shutdown_resources():

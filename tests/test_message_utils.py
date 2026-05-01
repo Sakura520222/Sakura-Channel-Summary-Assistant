@@ -5,6 +5,7 @@ Copyright 2026 Sakura-Bot
 """
 
 import pytest
+
 from core.utils.message_utils import format_schedule_info
 
 
