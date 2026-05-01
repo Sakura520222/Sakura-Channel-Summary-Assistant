@@ -28,7 +28,7 @@
       </template>
 
       <n-data-table :columns="summaryColumns" :data="summaries" :bordered="false" :loading="loadingSummaries"
-        :remote="true" :pagination="pagination" :row-count="totalSummaries"
+        :remote="true" :pagination="pagination"
         @update:page="handlePageChange" />
     </n-card>
 
@@ -55,7 +55,7 @@ const channels = ref<string[]>([]);
 const filterChannel = ref<string | null>(null);
 const loadingSummaries = ref(false);
 const totalSummaries = ref(0);
-const pagination = ref({ page: 1, pageSize: 15 });
+const pagination = ref({ page: 1, pageSize: 15, itemCount: 0 });
 
 const channelOptions = computed(() =>
   channels.value.map((ch) => ({ label: getChannelName(ch), value: ch }))
@@ -118,6 +118,7 @@ async function loadSummaries() {
     if (res.success) {
       summaries.value = res.data.summaries || [];
       totalSummaries.value = res.data.total || summaries.value.length;
+      pagination.value.itemCount = totalSummaries.value;
     }
   } catch {
     message.error("加载总结列表失败");

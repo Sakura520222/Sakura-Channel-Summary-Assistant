@@ -52,6 +52,7 @@ class DatabaseManagerBase(ABC):
         self,
         channel_id: str | None = None,
         limit: int = 10,
+        offset: int = 0,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
     ) -> list[dict[str, Any]]:

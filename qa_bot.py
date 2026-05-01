@@ -37,6 +37,15 @@ from core.ai.quota_manager import get_quota_manager
 from core.config import get_qa_bot_persona
 from core.infrastructure.exceptions import DatabaseError
 from core.qa_user_system import get_qa_user_system
+from core.telegram.keyboards import (
+    QA_MENU_ASK,
+    QA_MENU_CHANNELS,
+    QA_MENU_CLEAR,
+    QA_MENU_HELP,
+    QA_MENU_STATUS,
+    QA_MENU_SUBSCRIPTIONS,
+    build_qa_main_menu_keyboard,
+)
 
 
 # 配置日志 - 添加[QA]前缀以便区分
@@ -153,51 +162,55 @@ class QABot:
 💡 **小提示：**
 我会记住我们的对话上下文（30分钟内），所以你可以用代词追问，比如"那它呢？"、"这个怎么样？"。"""
 
-        await update.message.reply_text(welcome_message, parse_mode="Markdown")
+        await update.message.reply_text(
+            welcome_message,
+            parse_mode="Markdown",
+            reply_markup=build_qa_main_menu_keyboard(),
+        )
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """处理/help命令"""
-        help_text = """📚 **使用帮助**
+        help_text = """📚 <b>使用帮助</b>
 
-*基础命令*
-• `/start` - 查看欢迎信息
-• `/help` - 显示这份帮助文档
-• `/status` - 查看使用配额和会话状态
-• `/clear` - 清除对话记忆，重新开始
-• `/view_persona` - 查看当前助手人格设定
-• `/ask <频道> <问题>` - 限定指定频道查询
+    <b>基础命令</b>
+    • <code>/start</code> - 查看欢迎信息
+    • <code>/help</code> - 显示这份帮助文档
+    • <code>/status</code> - 查看使用配额和会话状态
+    • <code>/clear</code> - 清除对话记忆，重新开始
+    • <code>/view_persona</code> - 查看当前助手人格设定
+    • <code>/ask &lt;频道&gt; &lt;问题&gt;</code> - 限定指定频道查询
 
-*订阅管理*
-• `/listchannels` - 列出可订阅的频道
-• `/subscribe` - 订阅频道总结推送
-• `/unsubscribe` - 取消频道订阅
-• `/mysubscriptions` - 查看我的订阅列表
-• `/request_summary` - 请求生成频道总结
+    <b>订阅管理</b>
+    • <code>/listchannels</code> - 列出可订阅的频道
+    • <code>/subscribe</code> - 订阅频道总结推送
+    • <code>/unsubscribe</code> - 取消频道订阅
+    • <code>/mysubscriptions</code> - 查看我的订阅列表
+    • <code>/request_summary</code> - 请求生成频道总结
 
-*自然语言查询*
+    <b>自然语言查询</b>
 直接发送问题，例如：
 • "上周发生了什么？"
 • "最近有什么技术讨论？"
 • "今天有什么更新？"
 • "关于特定关键词的内容"
 
-*指定频道查询*
-• `/ask @channel_name 最近有什么更新？`
-• `/ask https://t.me/channel_name 分析一下 AI 讨论`
+    <b>指定频道查询</b>
+    • <code>/ask @channel_name 最近有什么更新？</code>
+    • <code>/ask https://t.me/channel_name 分析一下 AI 讨论</code>
 • 也可以直接说："在 channel_name 频道里查 AI"
 
-*多轮对话*
+    <b>多轮对话</b>
 • 我会记住我们的对话上下文（30分钟内）
 • 你可以使用代词追问："那它呢？"、"这个怎么样？"
 • 对话超时后会自动开始新会话
 
-*时间关键词*
+    <b>时间关键词</b>
 • 今天、昨天、前天
 • 本周、上周
 • 本月、上月
 • 最近7天、最近30天
 
-*功能特点*
+    <b>功能特点</b>
 ✅ 智能意图识别
 ✅ 上下文感知（多轮对话）
 ✅ 频道画像注入
@@ -205,10 +218,14 @@ class QABot:
 ✅ 频道订阅推送
 ✅ 总结请求功能
 
-⚠️ *注意*
+⚠️ <b>注意</b>
 请尽量提出与频道总结相关的问题。过度偏离的查询可能会被拦截。"""
 
-        await update.message.reply_text(help_text, parse_mode="Markdown")
+        await update.message.reply_text(
+            help_text,
+            parse_mode="HTML",
+            reply_markup=build_qa_main_menu_keyboard(),
+        )
 
     async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """处理/status命令"""
@@ -253,7 +270,11 @@ class QABot:
 📅 重置时间：每日 00:00 (UTC)"""
 
         # 使用HTML模式以避免Markdown解析错误
-        await update.message.reply_text(message, parse_mode="HTML")
+        await update.message.reply_text(
+            message,
+            parse_mode="HTML",
+            reply_markup=build_qa_main_menu_keyboard(),
+        )
 
     async def clear_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """处理/clear命令 - 清除对话历史"""
@@ -268,7 +289,11 @@ class QABot:
 
 现在，我们的对话是全新的开始。有什么可以帮你的吗？"""
 
-        await update.message.reply_text(message, parse_mode="Markdown")
+        await update.message.reply_text(
+            message,
+            parse_mode="Markdown",
+            reply_markup=build_qa_main_menu_keyboard(),
+        )
 
     async def view_persona_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -297,7 +322,11 @@ class QABot:
 
 修改后需重启Bot生效。"""
 
-        await update.message.reply_text(message, parse_mode="Markdown")
+        await update.message.reply_text(
+            message,
+            parse_mode="Markdown",
+            reply_markup=build_qa_main_menu_keyboard(),
+        )
 
     async def list_channels_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -314,7 +343,11 @@ class QABot:
         channels = await self.user_system.get_available_channels()
         message = self.user_system.format_channels_list(channels)
 
-        await update.message.reply_text(message, parse_mode="Markdown")
+        await update.message.reply_text(
+            message,
+            parse_mode="Markdown",
+            reply_markup=build_qa_main_menu_keyboard(),
+        )
 
     async def subscribe_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """处理/subscribe命令 - 订阅频道"""
@@ -336,7 +369,11 @@ class QABot:
 `/subscribe https://t.me/channel_name`
 
 💡 使用 `/listchannels` 查看可订阅频道"""
-            await update.message.reply_text(message, parse_mode="Markdown")
+            await update.message.reply_text(
+                message,
+                parse_mode="Markdown",
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
             return
 
         channel_url = context.args[0]
@@ -355,7 +392,11 @@ class QABot:
 
         # 添加订阅
         result = await self.user_system.add_subscription(user_id, channel_url, channel_name)
-        await update.message.reply_text(result["message"], parse_mode="Markdown")
+        await update.message.reply_text(
+            result["message"],
+            parse_mode="Markdown",
+            reply_markup=build_qa_main_menu_keyboard(),
+        )
 
     async def unsubscribe_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """处理/unsubscribe命令 - 取消订阅"""
@@ -376,12 +417,20 @@ class QABot:
                 lines.append("使用方法: `/unsubscribe <频道链接>`")
                 message = "\n".join(lines)
 
-            await update.message.reply_text(message, parse_mode="Markdown")
+            await update.message.reply_text(
+                message,
+                parse_mode="Markdown",
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
             return
 
         channel_url = context.args[0]
         result = await self.user_system.remove_subscription(user_id, channel_url)
-        await update.message.reply_text(result["message"], parse_mode="Markdown")
+        await update.message.reply_text(
+            result["message"],
+            parse_mode="Markdown",
+            reply_markup=build_qa_main_menu_keyboard(),
+        )
 
     async def my_subscriptions_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -392,7 +441,11 @@ class QABot:
         subscriptions = await self.user_system.get_user_subscriptions(user_id)
         message = self.user_system.format_subscriptions_list(subscriptions)
 
-        await update.message.reply_text(message, parse_mode="Markdown")
+        await update.message.reply_text(
+            message,
+            parse_mode="Markdown",
+            reply_markup=build_qa_main_menu_keyboard(),
+        )
 
     async def request_summary_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -415,7 +468,11 @@ class QABot:
 此命令会向管理员提交请求，请管理员为指定频道生成总结。
 
 💡 使用 <code>/listchannels</code> 查看可用的频道。"""
-            await update.message.reply_text(message, parse_mode="HTML")
+            await update.message.reply_text(
+                message,
+                parse_mode="HTML",
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
             return
 
         channel_url = context.args[0]
@@ -433,7 +490,41 @@ class QABot:
 
         # 创建请求（异步调用）
         result = await self.user_system.create_summary_request(user_id, channel_url, channel_name)
-        await update.message.reply_text(result["message"], parse_mode="HTML")
+        await update.message.reply_text(
+            result["message"],
+            parse_mode="HTML",
+            reply_markup=build_qa_main_menu_keyboard(),
+        )
+
+    async def handle_menu_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """处理底部主菜单按钮。"""
+        text = update.message.text.strip() if update.message and update.message.text else ""
+
+        if text == QA_MENU_HELP:
+            await self.help_command(update, context)
+        elif text == QA_MENU_STATUS:
+            await self.status_command(update, context)
+        elif text == QA_MENU_CLEAR:
+            await self.clear_command(update, context)
+        elif text == QA_MENU_CHANNELS:
+            await self.list_channels_command(update, context)
+        elif text == QA_MENU_SUBSCRIPTIONS:
+            await self.my_subscriptions_command(update, context)
+        elif text == QA_MENU_ASK:
+            message = """🔎 <b>指定频道查询</b>
+
+请按以下格式发送命令：
+<code>/ask &lt;频道链接或@用户名&gt; &lt;问题&gt;</code>
+
+示例：
+<code>/ask @channel_name 最近有什么更新？</code>
+
+💡 也可以直接输入自然语言问题，我会自动检索相关记录。"""
+            await update.message.reply_text(
+                message,
+                parse_mode="HTML",
+                reply_markup=build_qa_main_menu_keyboard(),
+            )
 
     async def ask_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """处理/ask命令 - 限定指定频道查询"""
@@ -780,18 +871,18 @@ class QABot:
             logger.info("注册问答Bot命令菜单...")
             commands = [
                 BotCommand("start", "查看欢迎信息"),
-                BotCommand("help", "显示使用帮助"),
+                BotCommand("ask", "限定指定频道查询"),
                 BotCommand("status", "查看使用配额和会话状态"),
                 BotCommand("clear", "清除对话记忆"),
-                BotCommand("view_persona", "查看当前助手人格设定"),
-                BotCommand("ask", "限定指定频道查询"),
+                BotCommand("help", "显示使用帮助"),
                 BotCommand("listchannels", "列出可订阅的频道"),
+                BotCommand("mysubscriptions", "查看我的订阅列表"),
                 BotCommand("subscribe", "订阅频道总结推送"),
                 BotCommand("unsubscribe", "取消频道订阅"),
-                BotCommand("mysubscriptions", "查看我的订阅列表"),
                 BotCommand("request_summary", "请求生成频道总结"),
                 BotCommand("submit", "投稿"),
                 BotCommand("cancel_submit", "取消投稿"),
+                BotCommand("view_persona", "查看当前助手人格设定"),
             ]
 
             try:
@@ -832,6 +923,12 @@ class QABot:
         self.application.add_handler(
             CommandHandler("request_summary", self.request_summary_command)
         )
+
+        menu_button_filter = filters.Regex(
+            f"^({QA_MENU_ASK}|{QA_MENU_CHANNELS}|{QA_MENU_SUBSCRIPTIONS}|"
+            f"{QA_MENU_STATUS}|{QA_MENU_CLEAR}|{QA_MENU_HELP})$"
+        )
+        self.application.add_handler(MessageHandler(menu_button_filter, self.handle_menu_button))
 
         # 消息处理器
         self.application.add_handler(
