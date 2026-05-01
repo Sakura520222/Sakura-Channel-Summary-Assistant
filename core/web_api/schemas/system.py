@@ -41,3 +41,23 @@ class LogLevelUpdate(BaseModel):
         if v_upper not in valid_levels:
             raise ValueError(f"无效的日志级别: {v}，可选: {', '.join(valid_levels)}")
         return v_upper
+
+
+class CleanupRequest(BaseModel):
+    """数据库清理请求"""
+
+    days: int = Field(default=30, ge=1, le=3650, description="清理早于多少天的数据")
+
+
+class RecentLogsQuery(BaseModel):
+    """最近日志查询参数"""
+
+    lines: int = Field(default=100, ge=1, le=1000, description="返回最近日志行数")
+    level: str | None = Field(default=None, description="日志级别过滤")
+    keyword: str | None = Field(default=None, max_length=100, description="关键词过滤")
+
+
+class AuditLogQuery(BaseModel):
+    """审计记录查询参数"""
+
+    limit: int = Field(default=50, ge=1, le=200, description="返回记录数量")

@@ -73,6 +73,8 @@ def normalize_channel_id(channel_id: str) -> str:
         'https://t.me/jffnekjdnfn'
         >>> normalize_channel_id('https://t.me/jffnekjdnfn/')
         'https://t.me/jffnekjdnfn'
+        >>> normalize_channel_id('t.me/jffnekjdnfn')
+        'https://t.me/jffnekjdnfn'
     """
     if not channel_id:
         return channel_id
@@ -80,9 +82,23 @@ def normalize_channel_id(channel_id: str) -> str:
     # 去除首尾空格
     channel_id = channel_id.strip()
 
-    # 如果已经是完整URL，直接返回（去除尾部斜杠）
-    if channel_id.startswith("https://t.me/") or channel_id.startswith("http://t.me/"):
-        return channel_id.rstrip("/")
+    # 支持完整或省略协议的 Telegram 链接（www. 前缀需优先匹配，避免被短前缀截断）
+    for prefix in (
+        "https://www.t.me/",
+        "https://t.me/",
+        "http://www.t.me/",
+        "http://t.me/",
+        "https://www.telegram.me/",
+        "https://telegram.me/",
+        "http://www.telegram.me/",
+        "http://telegram.me/",
+        "www.t.me/",
+        "t.me/",
+        "www.telegram.me/",
+        "telegram.me/",
+    ):
+        if channel_id.startswith(prefix):
+            return f"https://t.me/{channel_id.removeprefix(prefix).rstrip('/')}"
 
     # 去除@前缀
     if channel_id.startswith("@"):
@@ -942,6 +958,22 @@ def get_channel_auto_poll_config(channel):
         return {
             "enabled": None,  # 使用全局 ENABLE_AUTO_POLL
         }
+
+
+def is_auto_poll_enabled_for_channel(channel):
+    """判断指定频道的自动趣味投票最终是否启用。
+
+    enable_auto_poll 是主开关：全局关闭时任何频道配置都不生效。
+    全局开启时，未配置频道默认启用，频道配置可显式启用或禁用。
+    """
+    if not ENABLE_AUTO_POLL:
+        return False
+
+    channel_config = get_channel_auto_poll_config(channel)
+    enabled = channel_config.get("enabled")
+    if enabled is None:
+        return True
+    return _parse_bool(enabled)
 
 
 def set_channel_auto_poll_config(channel, enabled=None):

@@ -29,7 +29,7 @@ router = APIRouter()
 class ChannelRequest(BaseModel):
     """频道请求"""
 
-    channel_url: str = Field(..., description="频道 URL")
+    channel_url: str = Field(..., description="频道名或链接")
 
 
 @router.get("/status")
@@ -86,19 +86,16 @@ async def userbot_join_channel(request: ChannelRequest):
 
         # 获取 UserBot 客户端
         try:
-            from core.telegram.userbot_client import get_userbot_client
+            from core.handlers.userbot_client import get_userbot_client
 
             userbot = get_userbot_client()
             if not userbot:
                 return {"success": False, "message": "UserBot 客户端未初始化"}
 
-            # 加入频道
-            from telethon.tl.functions.channels import JoinChannelRequest
-
-            entity = await userbot.get_entity(channel_url)
-            await userbot(JoinChannelRequest(entity))
-            logger.info(f"已通过 WebUI 让 UserBot 加入频道: {channel_url}")
-            return {"success": True, "message": f"UserBot 已加入频道: {channel_url}"}
+            result = await userbot.join_channel(channel_url)
+            if result.get("success"):
+                logger.info(f"已通过 WebUI 让 UserBot 加入频道: {channel_url}")
+            return result
 
         except Exception as e:
             logger.error(f"UserBot 加入频道失败: {type(e).__name__}: {e}")
@@ -122,18 +119,16 @@ async def userbot_leave_channel(request: ChannelRequest):
         channel_url = normalize_channel_id(request.channel_url)
 
         try:
-            from core.telegram.userbot_client import get_userbot_client
+            from core.handlers.userbot_client import get_userbot_client
 
             userbot = get_userbot_client()
             if not userbot:
                 return {"success": False, "message": "UserBot 客户端未初始化"}
 
-            from telethon.tl.functions.channels import LeaveChannelRequest
-
-            entity = await userbot.get_entity(channel_url)
-            await userbot(LeaveChannelRequest(entity))
-            logger.info(f"已通过 WebUI 让 UserBot 离开频道: {channel_url}")
-            return {"success": True, "message": f"UserBot 已离开频道: {channel_url}"}
+            result = await userbot.leave_channel(channel_url)
+            if result.get("success"):
+                logger.info(f"已通过 WebUI 让 UserBot 离开频道: {channel_url}")
+            return result
 
         except Exception as e:
             logger.error(f"UserBot 离开频道失败: {type(e).__name__}: {e}")

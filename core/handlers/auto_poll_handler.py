@@ -26,7 +26,7 @@ from telethon.tl.types import InputMediaPoll, Poll, PollAnswer, TextWithEntities
 import core.config as config_module
 from core.ai.ai_client import generate_poll_from_summary
 from core.config import (
-    get_channel_auto_poll_config,
+    is_auto_poll_enabled_for_channel,
 )
 from core.i18n.i18n import get_text
 from core.system.error_handler import record_error
@@ -139,6 +139,10 @@ class AutoPollHandler:
             logger.warning("自动趣味投票处理器未运行，无法入队")
             return False
 
+        if not is_auto_poll_enabled_for_channel(channel_id):
+            logger.info(f"频道 {channel_id} 的自动趣味投票未启用，跳过入队")
+            return False
+
         # 去重检查（同时清理过期条目）
         cache_key = f"{discussion_id}_{forward_msg_id}"
         if cache_key in self._poll_cache:
@@ -223,15 +227,7 @@ class AutoPollHandler:
         message_text = task["message_text"]
 
         try:
-            # 检查频道 auto_poll 配置
-            auto_poll_config = get_channel_auto_poll_config(channel_id)
-            enabled = auto_poll_config.get("enabled")
-
-            if enabled is None:
-                # 没有频道级配置，使用全局配置
-                enabled = config_module.ENABLE_AUTO_POLL
-
-            if not enabled:
+            if not is_auto_poll_enabled_for_channel(channel_id):
                 logger.info(f"频道 {channel_id} 的自动趣味投票已禁用，跳过")
                 return
 

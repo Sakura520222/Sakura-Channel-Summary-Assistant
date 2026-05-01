@@ -66,12 +66,11 @@ async def _show_single_channel_auto_poll(event, channel: str):
     channel_name = channel.split("/")[-1]
     enabled = auto_poll_config["enabled"]
 
-    if enabled is None:
+    if not config_module.ENABLE_AUTO_POLL:
+        status_text = get_text("auto_poll.status_global_disabled")
+    elif enabled is None:
         # 使用全局配置
-        if config_module.ENABLE_AUTO_POLL:
-            status_text = get_text("auto_poll.status_global_enabled")
-        else:
-            status_text = get_text("auto_poll.status_global_disabled")
+        status_text = get_text("auto_poll.status_global_enabled")
     else:
         status_text = (
             get_text("auto_poll.status_enabled")
@@ -108,12 +107,10 @@ async def _show_all_channels_auto_poll(event):
         channel_name = ch.split("/")[-1]
         enabled = auto_poll_config["enabled"]
 
-        if enabled is None:
-            status_text = (
-                get_text("auto_poll.status_global_enabled")
-                if config_module.ENABLE_AUTO_POLL
-                else get_text("auto_poll.status_global_disabled")
-            )
+        if not config_module.ENABLE_AUTO_POLL:
+            status_text = get_text("auto_poll.status_global_disabled")
+        elif enabled is None:
+            status_text = get_text("auto_poll.status_global_enabled")
         else:
             status_text = (
                 get_text("auto_poll.status_enabled")
@@ -185,6 +182,10 @@ async def handle_set_auto_poll(event):
             await event.reply(get_text("error.channel_not_found", channel=channel))
             return
 
+        if not config_module.ENABLE_AUTO_POLL:
+            await event.reply(get_text("auto_poll.global_required"))
+            return
+
         action = parts[2].lower()
 
         if action == "on":
@@ -241,6 +242,10 @@ async def handle_delete_auto_poll(event):
 
         if channel not in config_module.CHANNELS:
             await event.reply(get_text("error.channel_not_found", channel=channel))
+            return
+
+        if not config_module.ENABLE_AUTO_POLL:
+            await event.reply(get_text("auto_poll.global_required"))
             return
 
         success = delete_channel_auto_poll_config(channel)

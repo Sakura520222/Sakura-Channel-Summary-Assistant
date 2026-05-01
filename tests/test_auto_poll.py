@@ -8,6 +8,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 
 from core.handlers.auto_poll_handler import (
     AutoPollHandler,
@@ -36,9 +37,13 @@ def handler(mock_client):
 @pytest.fixture
 def running_handler(mock_client):
     """创建并启动 AutoPollHandler 实例"""
-    h = AutoPollHandler(mock_client)
-    h._running = True
-    return h
+    with patch(
+        "core.handlers.auto_poll_handler.is_auto_poll_enabled_for_channel",
+        return_value=True,
+    ):
+        h = AutoPollHandler(mock_client)
+        h._running = True
+        yield h
 
 
 # ==================== 初始化测试 ====================
@@ -116,6 +121,25 @@ class TestEnqueuePollTask:
         )
         assert result is False
 
+    def test_enqueue_disabled_channel_skipped(self, mock_client):
+        """测试全局或频道禁用时不入队"""
+        h = AutoPollHandler(mock_client)
+        h._running = True
+
+        with patch(
+            "core.handlers.auto_poll_handler.is_auto_poll_enabled_for_channel",
+            return_value=False,
+        ):
+            result = h.enqueue_poll_task(
+                channel_id="@disabled_channel",
+                discussion_id=123,
+                forward_msg_id=456,
+                message_text="这是一条测试消息内容",
+            )
+
+        assert result is False
+        assert h._queue.qsize() == 0
+
     def test_enqueue_duplicate_skipped(self, running_handler):
         """测试重复消息被去重"""
         running_handler.enqueue_poll_task(
@@ -141,12 +165,16 @@ class TestEnqueuePollTask:
         # 使用小队列测试背压
         h._queue = asyncio.Queue(maxsize=2)
 
-        # 填满队列（去重缓存也需不同的 msg_id）
-        h.enqueue_poll_task("@ch", 1, 1, "消息一")
-        h.enqueue_poll_task("@ch", 1, 2, "消息二")
+        with patch(
+            "core.handlers.auto_poll_handler.is_auto_poll_enabled_for_channel",
+            return_value=True,
+        ):
+            # 填满队列（去重缓存也需不同的 msg_id）
+            h.enqueue_poll_task("@ch", 1, 1, "消息一")
+            h.enqueue_poll_task("@ch", 1, 2, "消息二")
 
-        # 第三条应该被丢弃
-        result = h.enqueue_poll_task("@ch", 1, 3, "消息三")
+            # 第三条应该被丢弃
+            result = h.enqueue_poll_task("@ch", 1, 3, "消息三")
         assert result is False
         assert h._queue.qsize() == 2
 
@@ -168,12 +196,9 @@ class TestProcessPollTask:
             "message_text": "这是一条较长的测试消息内容",
         }
 
-        with (
-            patch(
-                "core.handlers.auto_poll_handler.get_channel_auto_poll_config",
-                return_value={"enabled": None},
-            ),
-            patch("core.handlers.auto_poll_handler.ENABLE_AUTO_POLL", False),
+        with patch(
+            "core.handlers.auto_poll_handler.is_auto_poll_enabled_for_channel",
+            return_value=False,
         ):
             await handler._process_poll_task(task)
 
@@ -192,8 +217,8 @@ class TestProcessPollTask:
         }
 
         with patch(
-            "core.handlers.auto_poll_handler.get_channel_auto_poll_config",
-            return_value={"enabled": True},
+            "core.handlers.auto_poll_handler.is_auto_poll_enabled_for_channel",
+            return_value=True,
         ):
             await handler._process_poll_task(task)
 
@@ -216,8 +241,8 @@ class TestProcessPollTask:
 
         with (
             patch(
-                "core.handlers.auto_poll_handler.get_channel_auto_poll_config",
-                return_value={"enabled": True},
+                "core.handlers.auto_poll_handler.is_auto_poll_enabled_for_channel",
+                return_value=True,
             ),
             patch(
                 "core.handlers.auto_poll_handler.generate_poll_from_summary",
@@ -247,8 +272,8 @@ class TestProcessPollTask:
 
         with (
             patch(
-                "core.handlers.auto_poll_handler.get_channel_auto_poll_config",
-                return_value={"enabled": True},
+                "core.handlers.auto_poll_handler.is_auto_poll_enabled_for_channel",
+                return_value=True,
             ),
             patch(
                 "core.handlers.auto_poll_handler.generate_poll_from_summary",
@@ -278,8 +303,8 @@ class TestProcessPollTask:
 
         with (
             patch(
-                "core.handlers.auto_poll_handler.get_channel_auto_poll_config",
-                return_value={"enabled": True},
+                "core.handlers.auto_poll_handler.is_auto_poll_enabled_for_channel",
+                return_value=True,
             ),
             patch(
                 "core.handlers.auto_poll_handler.generate_poll_from_summary",
@@ -290,6 +315,58 @@ class TestProcessPollTask:
 
         assert handler._processed_count == 0
         assert handler._failed_count == 1
+
+
+# ==================== Web API 配置测试 ====================
+
+
+@pytest.mark.unit
+class TestAutoPollWebApi:
+    """自动趣味投票 Web API 配置测试"""
+
+    @pytest.mark.asyncio
+    async def test_update_channel_auto_poll_rejects_when_global_disabled(self):
+        """测试全局关闭时拒绝更新频道级自动趣味投票"""
+        from core.web_api.routes import interaction
+        from core.web_api.schemas.interaction import AutoPollSettingsUpdate
+
+        with (
+            patch.object(interaction, "get_config", return_value={"enable_auto_poll": False}),
+            patch.object(interaction, "write_config") as mock_write,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await interaction.update_channel_auto_poll(
+                    "https://t.me/example_channel",
+                    AutoPollSettingsUpdate(enabled=True),
+                )
+
+        assert exc_info.value.status_code == 400
+        assert "全局自动趣味投票" in exc_info.value.detail
+        mock_write.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_channel_auto_poll_saves_when_global_enabled(self):
+        """测试全局开启时允许更新频道级自动趣味投票"""
+        from core.web_api.routes import interaction
+        from core.web_api.schemas.interaction import AutoPollSettingsUpdate
+
+        config = {"enable_auto_poll": True, "channel_auto_poll_settings": {}}
+
+        with (
+            patch.object(interaction, "get_config", return_value=config),
+            patch.object(interaction, "write_config") as mock_write,
+        ):
+            result = await interaction.update_channel_auto_poll(
+                "https://t.me/example_channel",
+                AutoPollSettingsUpdate(enabled=False),
+            )
+
+        assert result["success"] is True
+        mock_write.assert_called_once()
+        saved_config = mock_write.call_args.args[0]
+        assert saved_config["channel_auto_poll_settings"]["https://t.me/example_channel"] == {
+            "enabled": False
+        }
 
 
 # ==================== 生命周期测试 ====================

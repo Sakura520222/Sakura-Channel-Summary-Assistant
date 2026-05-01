@@ -167,6 +167,7 @@
                   <tr>
                     <th>频道</th>
                     <th style="width: 180px">自动投票</th>
+                    <th style="width: 120px">状态</th>
                     <th style="width: 80px">操作</th>
                   </tr>
                 </thead>
@@ -179,6 +180,7 @@
                       <n-switch
                         size="small"
                         :value="getAutoPollChannelEnabled(ch)"
+                        :disabled="!autoPollEnabled"
                         @update:value="(v: boolean) => saveChannelAutoPoll(ch, v)"
                       >
                         <template #checked>已启用</template>
@@ -186,11 +188,16 @@
                       </n-switch>
                     </td>
                     <td>
+                      <n-tag size="small" :type="getAutoPollChannelStatus(ch).type">
+                        {{ getAutoPollChannelStatus(ch).label }}
+                      </n-tag>
+                    </td>
+                    <td>
                       <n-button
                         size="tiny"
                         quaternary
                         type="error"
-                        :disabled="!autoPollChannelSettings[ch]"
+                        :disabled="!autoPollEnabled || !autoPollChannelSettings[ch]"
                         @click="deleteChannelAutoPollSetting(ch)"
                       >
                         重置
@@ -480,19 +487,46 @@ async function resetPollPrompt() {
 async function handleAutoPollToggle(enabled: boolean) {
   try {
     const res = await updateAutoPoll(enabled);
-    message[res.success ? "success" : "error"](res.message);
+    if (res.success) {
+      message.success(res.message);
+    } else {
+      autoPollEnabled.value = !enabled;
+      message.error(res.message);
+    }
   } catch {
+    autoPollEnabled.value = !enabled;
     message.error("操作失败");
   }
 }
 
 function getAutoPollChannelEnabled(channel: string): boolean {
+  if (!autoPollEnabled.value) return false;
   const cfg = autoPollChannelSettings.value[channel];
   if (cfg) return !!cfg.enabled;
-  return autoPollEnabled.value;
+  return true;
+}
+
+function getAutoPollChannelStatus(
+  channel: string,
+): { label: string; type: "default" | "success" | "info" | "warning" } {
+  if (!autoPollEnabled.value) {
+    return { label: "全局已关闭", type: "default" };
+  }
+
+  const cfg = autoPollChannelSettings.value[channel];
+  if (!cfg) {
+    return { label: "继承全局", type: "success" };
+  }
+
+  return cfg.enabled
+    ? { label: "独立开启", type: "info" }
+    : { label: "独立禁用", type: "warning" };
 }
 
 async function saveChannelAutoPoll(channel: string, enabled: boolean) {
+  if (!autoPollEnabled.value) return;
+
+  const previousSettings = { ...autoPollChannelSettings.value };
   try {
     const res = await updateChannelAutoPoll(channel, enabled);
     if (res.success) {
@@ -500,14 +534,20 @@ async function saveChannelAutoPoll(channel: string, enabled: boolean) {
       newSettings[channel] = { enabled };
       autoPollChannelSettings.value = newSettings;
     } else {
+      autoPollChannelSettings.value = previousSettings;
       message.error(res.message);
     }
   } catch {
+    autoPollChannelSettings.value = previousSettings;
+    await loadData();
     message.error("保存失败");
   }
 }
 
 async function deleteChannelAutoPollSetting(channel: string) {
+  if (!autoPollEnabled.value) return;
+
+  const previousSettings = { ...autoPollChannelSettings.value };
   try {
     const res = await deleteChannelAutoPollApi(channel);
     if (res.success) {
@@ -516,9 +556,12 @@ async function deleteChannelAutoPollSetting(channel: string) {
       autoPollChannelSettings.value = newSettings;
       message.success("已重置为全局设置");
     } else {
+      autoPollChannelSettings.value = previousSettings;
       message.error(res.message);
     }
   } catch {
+    autoPollChannelSettings.value = previousSettings;
+    await loadData();
     message.error("操作失败");
   }
 }

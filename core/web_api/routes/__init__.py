@@ -12,20 +12,6 @@
 API 路由模块
 """
 
-from . import (
-    ai_config,
-    auth,
-    channels,
-    dashboard,
-    forwarding,
-    interaction,
-    schedules,
-    stats,
-    summaries,
-    system,
-    userbot,
-)
-
 __all__ = [
     "ai_config",
     "auth",
@@ -39,3 +25,14 @@ __all__ = [
     "system",
     "userbot",
 ]
+
+
+def __getattr__(name: str):
+    """按需导入路由模块，避免测试单个路由时初始化完整路由树。"""
+    if name in __all__:
+        import importlib
+
+        module = importlib.import_module(f"{__name__}.{name}")
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
