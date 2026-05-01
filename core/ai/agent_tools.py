@@ -16,6 +16,7 @@ Agentic RAG 工具定义与执行器
 import asyncio
 import json
 import logging
+import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -393,10 +394,12 @@ class ToolExecutor:
             normalized = {
                 "summary_id": sid,
                 "summary_text": r.get("summary_text", ""),
+                "post_links": self._build_summary_post_links(r),
                 "metadata": {
                     "channel_id": r.get("channel_id"),
                     "channel_name": r.get("channel_name"),
                     "created_at": r.get("created_at"),
+                    "post_links": self._build_summary_post_links(r),
                 },
             }
             self._store_result(normalized)
@@ -472,10 +475,12 @@ class ToolExecutor:
             normalized = {
                 "summary_id": sid,
                 "summary_text": r.get("summary_text", ""),
+                "post_links": self._build_summary_post_links(r),
                 "metadata": {
                     "channel_id": r.get("channel_id"),
                     "channel_name": r.get("channel_name"),
                     "created_at": r.get("created_at"),
+                    "post_links": self._build_summary_post_links(r),
                 },
                 "source": "summary",
             }
@@ -546,6 +551,7 @@ class ToolExecutor:
             "created_at": created_at,
             "doc_id": result.get("doc_id"),
             "source": result.get("source"),
+            "post_links": ToolExecutor._get_post_links(result),
         }
         if "similarity" in result:
             serialized["similarity"] = round(result["similarity"], 3)
@@ -561,6 +567,71 @@ class ToolExecutor:
         doc_id = result.get("doc_id")
         if doc_id:
             self._doc_result_store[str(doc_id)] = result
+
+    @staticmethod
+    def _build_summary_post_links(summary: dict[str, Any], max_links: int = 5) -> list[str]:
+        """根据总结中的消息 ID 构造 Telegram 帖子链接。"""
+        channel_id = summary.get("channel_id") or summary.get("metadata", {}).get("channel_id")
+        metadata = summary.get("metadata", {})
+        message_ids = (
+            summary.get("summary_message_ids") or metadata.get("summary_message_ids") or []
+        )
+        if isinstance(message_ids, str):
+            try:
+                message_ids = json.loads(message_ids)
+            except json.JSONDecodeError:
+                message_ids = []
+
+        return [
+            link
+            for message_id in message_ids[:max_links]
+            if (link := ToolExecutor._build_post_link(channel_id, message_id))
+        ]
+
+    @staticmethod
+    def _get_post_links(result: dict[str, Any]) -> list[str]:
+        """从结果中提取或构造帖子链接。"""
+        metadata = result.get("metadata", {})
+        links = result.get("post_links") or metadata.get("post_links") or []
+        if isinstance(links, str):
+            try:
+                links = json.loads(links)
+            except json.JSONDecodeError:
+                links = [links]
+        if links:
+            return links
+
+        summary_links = ToolExecutor._build_summary_post_links(result)
+        if summary_links:
+            return summary_links
+
+        doc_id = result.get("doc_id")
+        channel_id = metadata.get("channel_id") or result.get("channel_id")
+        message_id = metadata.get("message_id") or result.get("message_id")
+
+        if not message_id and doc_id:
+            match = re.search(r":(\d+)$", str(doc_id))
+            if match:
+                message_id = match.group(1)
+
+        link = ToolExecutor._build_post_link(channel_id, message_id)
+        return [link] if link else []
+
+    @staticmethod
+    def _build_post_link(channel_id: str | None, message_id: Any) -> str | None:
+        """构造 Telegram 公开频道帖子链接。"""
+        if not channel_id or not message_id:
+            return None
+
+        channel = str(channel_id).strip().rstrip("/")
+        if "/+" in channel or channel.split("/")[-1].startswith("+"):
+            return None
+
+        channel_part = channel.split("/")[-1].lstrip("@")
+        if not channel_part or not str(message_id).isdigit():
+            return None
+
+        return f"https://t.me/{channel_part}/{message_id}"
 
     def get_all_results(self) -> list[dict[str, Any]]:
         """获取所有累积的搜索结果（完整文本，不截断）。"""

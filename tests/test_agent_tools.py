@@ -41,6 +41,54 @@ def test_tool_schemas_include_channel_tools():
     assert "get_source_detail" in names
 
 
+def test_serialize_result_builds_message_post_link():
+    """测试消息向量结果会生成帖子链接"""
+    result = {
+        "summary_id": 1,
+        "summary_text": "消息内容",
+        "doc_id": "https://t.me/test:123",
+        "metadata": {"channel_id": "https://t.me/test", "channel_name": "Test"},
+    }
+
+    serialized = ToolExecutor._serialize_result(result)
+
+    assert serialized["post_links"] == ["https://t.me/test/123"]
+
+
+def test_build_summary_post_links_uses_summary_message_ids():
+    """测试总结结果会根据 summary_message_ids 生成帖子链接"""
+    summary = {
+        "channel_id": "https://t.me/test",
+        "summary_message_ids": [10, 11, 12],
+    }
+
+    links = ToolExecutor._build_summary_post_links(summary)
+
+    assert links == [
+        "https://t.me/test/10",
+        "https://t.me/test/11",
+        "https://t.me/test/12",
+    ]
+
+
+def test_serialize_result_builds_summary_post_links_from_metadata_json():
+    """测试总结向量元数据中的消息 ID 会生成帖子链接"""
+    result = {
+        "summary_id": 1,
+        "summary_text": "总结内容",
+        "metadata": {
+            "channel_id": "https://t.me/test",
+            "channel_name": "Test",
+            "summary_message_ids": "[10, 11]",
+        },
+        "source": "summary",
+    }
+
+    serialized = ToolExecutor._serialize_result(result)
+
+    assert serialized["post_links"] == ["https://t.me/test/10", "https://t.me/test/11"]
+
+
 @pytest.mark.asyncio
 async def test_execute_list_channels_returns_channels(executor):
     """测试列出频道工具"""
@@ -90,6 +138,7 @@ async def test_execute_semantic_search_uses_channel_filter(executor):
     )
 
     assert result["count"] == 1
+    assert result["results"][0]["post_links"] == ["https://t.me/test/1"]
     executor.vector_store.search_all.assert_called_once()
     call_kwargs = executor.vector_store.search_all.call_args.kwargs
     assert call_kwargs["filter_metadata"] == {"channel_id": "https://t.me/test"}

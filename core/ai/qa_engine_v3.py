@@ -45,7 +45,8 @@ BASE_SYSTEM_TEMPLATE = """{persona_description}
 2. **上下文理解**：如果有对话历史，优先利用上下文理解代词指代（如"它"、"那个"、"这个"等）
 3. **明确回答**：总结中没有相关信息时，明确说明
 4. **结构清晰**：使用清晰的结构和要点，语言简洁专业
-5. **Markdown规范**：
+5. **引用来源**：如果上下文或工具结果中提供了 post_links，请在相关要点后引用帖子链接
+6. **Markdown规范**：
    - 粗体：使用 **文本** （两边各两个星号）
    - 斜体：使用 *文本* （两边各一个星号）
    - 代码：使用 `代码` （反引号）
@@ -83,7 +84,8 @@ AGENT_TOOL_INSTRUCTIONS = """
 3. 如果用户指定频道名、@username 或频道链接，先调用 resolve_channel，再把 channel_id 传给搜索工具
 4. 可以同时调用多个搜索工具（如语义+关键词并行检索）
 5. 评估搜索结果：结果充足则回答，不足则调整参数再次搜索
-6. 最多进行{max_iterations}轮工具调用
+6. 如果工具结果包含 post_links，最终回答必须尽量保留相关帖子链接作为证据来源
+7. 最多进行{max_iterations}轮工具调用
 """
 
 
@@ -676,6 +678,7 @@ class QAEngineV3:
             channel_name = metadata.get("channel_name") or summary.get("channel_name", "未知频道")
             created_at = metadata.get("created_at") or summary.get("created_at", "")
             summary_text = summary.get("summary_text", "")
+            post_links = summary.get("post_links") or metadata.get("post_links") or []
 
             # 来源标签（总结 or 原始消息）
             source_tag = ""
@@ -696,8 +699,13 @@ class QAEngineV3:
             if "rerank_score" in summary:
                 score_info += f" [重排分: {summary['rerank_score']:.2f}]"
 
+            links_text = ""
+            if post_links:
+                links_text = "\n相关帖子链接: " + " ".join(post_links[:5])
+
             context_parts.append(
-                f"[{i}] {channel_name} ({created_at}){source_tag}{score_info}\n{text_preview}"
+                f"[{i}] {channel_name} ({created_at}){source_tag}{score_info}\n"
+                f"{text_preview}{links_text}"
             )
 
         return "\n\n".join(context_parts)
@@ -705,10 +713,14 @@ class QAEngineV3:
     def _format_source_info_v3(self, summaries: list[dict[str, Any]]) -> str:
         """格式化来源信息（v3版本）"""
         channels = {}
+        post_links = []
         for s in summaries:
             metadata = s.get("metadata", {})
             channel_id = metadata.get("channel_id") or s.get("channel_id", "")
             channel_name = metadata.get("channel_name") or s.get("channel_name", "未知频道")
+            for link in s.get("post_links") or metadata.get("post_links") or []:
+                if link not in post_links:
+                    post_links.append(link)
 
             if channel_id not in channels:
                 channels[channel_id] = {"name": channel_name, "count": 0}
@@ -716,7 +728,10 @@ class QAEngineV3:
 
         sources = [f"• {info['name']}: {info['count']}条" for info in channels.values()]
 
-        return f"📚 数据来源: {len(sources)}个频道\n" + "\n".join(sources)
+        source_text = f"📚 数据来源: {len(sources)}个频道\n" + "\n".join(sources)
+        if post_links:
+            source_text += "\n🔗 相关帖子: " + " ".join(post_links[:5])
+        return source_text
 
     async def _resolve_channel_from_parsed(self, parsed: dict[str, Any]) -> str | None:
         """根据解析结果获取标准频道 ID。"""

@@ -3,6 +3,7 @@ Telegram消息发送模块
 包含消息抓取、长消息发送和报告发送功能
 """
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -861,6 +862,9 @@ async def send_report(
                                     "created_at": datetime.now(UTC).isoformat(),
                                     "summary_type": "manual",
                                     "message_count": message_count,
+                                    "summary_message_ids": json.dumps(
+                                        report_message_ids, ensure_ascii=False
+                                    ),
                                 },
                             )
 
