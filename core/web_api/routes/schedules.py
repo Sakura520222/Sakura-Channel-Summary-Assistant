@@ -135,7 +135,7 @@ async def list_last_summary_times():
                 "items": items,
                 "total": len(items),
                 "file_exists": await aiofiles.ospath.exists(LAST_SUMMARY_FILE),
-                "file_path": LAST_SUMMARY_FILE,
+                "file_path": os.path.basename(LAST_SUMMARY_FILE),
             },
         }
     except Exception as e:

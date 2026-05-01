@@ -573,6 +573,7 @@ async def _op_forwarding_remove_rule(params: dict[str, Any], _request: Request) 
             "message": f"转发规则不存在: {normalized_source} -> {normalized_target}",
             "data": {},
         }
+    # 只提供了源频道或目标频道其中一个，无法唯一定位转发规则。
     if source or target:
         raise HTTPException(status_code=400, detail="按频道删除规则时需同时提供源频道和目标频道")
 
