@@ -126,8 +126,7 @@ python main.py
 | **🤖 Cross-Bot Communication**    | QA bot and main bot communicate via database queue for inter-process communication         | ✅      |
 | **🔧 Code Optimization**          | Modularized summary generation process with code reuse and unified management              | ✅      |
 | **📱 Command Menu**               | QA Bot automatically registers command menu for direct access to all available commands    | ✅      |
-| **🗄️ MySQL Database Support**     | New MySQL database support for improved performance and concurrency                        | ✅      |
-| **�️ MySQL Database** | MySQL database for high performance and concurrency support | ✅ |
+| **🗄️ MySQL Database Support**     | MySQL database for high performance and concurrency support                        | ✅      |
 | **📤 Channel Message Forwarding** | Intelligently forward channel messages to target channels with keyword and regex filtering | ✅      |
 | **⚡ Startup Check**              | Automatically detects old databases and notifies admins with migration suggestions         | ✅      |
 | **📝 Submission Review System**   | Users submit content via QA Bot; admins review and publish to channels                     | ✅      |
@@ -138,6 +137,9 @@ python main.py
 | **🎯 Auto Fun Polls**             | AI-generated fun polls with per-channel independent configuration                          | ✅      |
 | **🌐 WebUI Dashboard**            | Vue.js-based web management interface with dark theme and JWT authentication              | ✅      |
 | **📱 Post Link Support**          | RAG tools support post link references, answers traceable to original messages            | ✅      |
+| **🔒 Anonymous Submission**       | Submission review system supports anonymous submission mode for privacy protection       | ✅      |
+| **📊 Vector Store Management**    | WebUI supports vector store collection management, including purge and document deletion | ✅      |
+| **📈 Stats & Pagination**         | New statistics API endpoints; summary queries support pagination offset                  | ✅      |
 
 ---
 
