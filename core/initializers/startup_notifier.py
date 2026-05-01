@@ -33,7 +33,7 @@ from core.infrastructure.database.manager import get_db_manager
 class StartupNotifier:
     """启动通知器"""
 
-    def __init__(self, version: str = "1.8.3", system_config_manager: SystemConfigManager = None):
+    def __init__(self, version: str = "1.8.4", system_config_manager: SystemConfigManager = None):
         self.logger = logging.getLogger(__name__)
         self.version = version
         self.system_config_manager = system_config_manager

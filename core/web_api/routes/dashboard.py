@@ -60,7 +60,7 @@ async def get_dashboard():
             "success": True,
             "data": {
                 "bot_status": get_bot_state(),
-                "version": "1.8.3",
+                "version": "1.8.4",
                 "channel_count": len(channels),
                 "schedule_count": len(schedules),
                 "forwarding_enabled": forwarding_config.get("enabled", False),

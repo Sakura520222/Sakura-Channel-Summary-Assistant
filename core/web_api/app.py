@@ -27,6 +27,7 @@ from .routes import (
     ai_config,
     auth,
     channels,
+    commands,
     dashboard,
     forwarding,
     interaction,
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
     app.include_router(dashboard.router, prefix="/api", tags=["仪表板"])
     app.include_router(channels.router, prefix="/api/channels", tags=["频道管理"])
+    app.include_router(commands.router, prefix="/api/commands", tags=["命令中心"])
     app.include_router(ai_config.router, prefix="/api/ai", tags=["AI 配置"])
     app.include_router(schedules.router, prefix="/api/schedules", tags=["定时任务"])
     app.include_router(forwarding.router, prefix="/api/forwarding", tags=["转发规则"])

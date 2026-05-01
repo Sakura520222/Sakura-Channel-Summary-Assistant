@@ -14,13 +14,23 @@
 提供频道总结定时任务的查看、设置和清除功能。
 """
 
+import json
 import logging
+import os
+from datetime import UTC, datetime
 
+import aiofiles
+import aiofiles.ospath
 from fastapi import APIRouter, HTTPException
 
-from core.config import normalize_channel_id
+from core.config import LAST_SUMMARY_FILE, normalize_channel_id
+from core.infrastructure.utils.constants import POLL_REGENERATIONS_FILE
 from core.web_api.deps import get_config, write_config
-from core.web_api.schemas.schedule import ScheduleInfo, ScheduleUpdateRequest
+from core.web_api.schemas.schedule import (
+    LastSummaryTimeUpdateRequest,
+    ScheduleInfo,
+    ScheduleUpdateRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +72,149 @@ async def list_schedules():
     except Exception as e:
         logger.error(f"获取定时任务列表失败: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# ==================== 上次总结时间 ====================
+
+
+def _serialize_summary_time_entry(channel: str, data: dict) -> dict:
+    """序列化单个频道的上次总结时间记录。"""
+    time_value = data.get("time")
+    if isinstance(time_value, datetime):
+        time_text = time_value.isoformat()
+    else:
+        time_text = str(time_value) if time_value is not None else ""
+    return {
+        "channel": channel,
+        "time": time_text,
+        "summary_message_ids": data.get("summary_message_ids", []),
+        "poll_message_ids": data.get("poll_message_ids", []),
+        "button_message_ids": data.get("button_message_ids", []),
+    }
+
+
+def _clean_summary_channel(channel: str) -> str:
+    """清理 WebUI 自动补全可能带入的频道展示文本。"""
+    channel = channel.strip()
+    if " (" in channel and channel.endswith(")"):
+        channel = channel.rsplit(" (", maxsplit=1)[0]
+    return normalize_channel_id(channel)
+
+
+@router.get("/summary-times")
+async def list_last_summary_times():
+    """读取所有频道的上次总结时间记录。"""
+    try:
+        from core.summary_time_manager import load_last_summary_time
+
+        data = load_last_summary_time(include_report_ids=True) or {}
+        items = [_serialize_summary_time_entry(channel, value) for channel, value in data.items()]
+        return {
+            "success": True,
+            "data": {
+                "items": items,
+                "total": len(items),
+                "file_exists": await aiofiles.ospath.exists(LAST_SUMMARY_FILE),
+                "file_path": LAST_SUMMARY_FILE,
+            },
+        }
+    except Exception as e:
+        logger.error(f"读取上次总结时间失败: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.put("/summary-times/{channel:path}")
+async def update_last_summary_time(channel: str, request: LastSummaryTimeUpdateRequest):
+    """更新指定频道的上次总结时间记录。"""
+    try:
+        from core.summary_time_manager import save_last_summary_time
+
+        channel = _clean_summary_channel(channel)
+        try:
+            time_to_save = datetime.fromisoformat(request.time.replace("Z", "+00:00"))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="时间格式无效，请使用 ISO 8601 格式") from e
+        if time_to_save.tzinfo is None:
+            time_to_save = time_to_save.replace(tzinfo=UTC)
+
+        save_last_summary_time(
+            channel,
+            time_to_save,
+            summary_message_ids=request.summary_message_ids,
+            poll_message_ids=request.poll_message_ids,
+            button_message_ids=request.button_message_ids,
+        )
+        logger.info(f"已通过 WebUI 更新上次总结时间: {channel}")
+        return {"success": True, "message": f"上次总结时间已更新: {channel}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新上次总结时间失败: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.delete("/summary-times/{channel:path}")
+async def delete_last_summary_time(channel: str):
+    """删除指定频道的上次总结时间记录。"""
+    try:
+        channel = _clean_summary_channel(channel)
+        if not await aiofiles.ospath.exists(LAST_SUMMARY_FILE):
+            return {"success": False, "message": "上次总结时间文件不存在"}
+
+        async with aiofiles.open(LAST_SUMMARY_FILE, encoding="utf-8") as f:
+            content = (await f.read()).strip()
+        data = json.loads(content) if content else {}
+        if channel not in data:
+            return {"success": False, "message": f"该频道无上次总结时间记录: {channel}"}
+
+        del data[channel]
+        if data:
+            async with aiofiles.open(LAST_SUMMARY_FILE, "w", encoding="utf-8") as f:
+                await f.write(json.dumps(data, ensure_ascii=False, indent=2))
+        else:
+            await _remove_file_if_exists(LAST_SUMMARY_FILE)
+
+        logger.info(f"已通过 WebUI 删除上次总结时间: {channel}")
+        return {"success": True, "message": f"上次总结时间已删除: {channel}"}
+    except Exception as e:
+        logger.error(f"删除上次总结时间失败: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.delete("/summary-times")
+async def delete_all_last_summary_times():
+    """删除全部上次总结时间记录文件。"""
+    try:
+        removed = await _remove_file_if_exists(LAST_SUMMARY_FILE)
+        message = "已删除全部上次总结时间记录" if removed else "上次总结时间文件不存在"
+        logger.info(f"已通过 WebUI 删除全部上次总结时间记录: removed={removed}")
+        return {"success": True, "message": message, "data": {"removed": removed}}
+    except Exception as e:
+        logger.error(f"删除全部上次总结时间失败: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.delete("/poll-regenerations")
+async def delete_poll_regenerations_file():
+    """删除投票重新生成记录文件。"""
+    try:
+        removed = await _remove_file_if_exists(POLL_REGENERATIONS_FILE)
+        message = "已删除投票重新生成记录文件" if removed else "投票重新生成记录文件不存在"
+        logger.info(f"已通过 WebUI 删除投票重新生成记录文件: removed={removed}")
+        return {"success": True, "message": message, "data": {"removed": removed}}
+    except Exception as e:
+        logger.error(f"删除投票重新生成记录文件失败: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+async def _remove_file_if_exists(path: str) -> bool:
+    """异步删除文件，返回是否实际删除。"""
+    import asyncio
+
+    if not await aiofiles.ospath.exists(path):
+        return False
+    await asyncio.to_thread(os.remove, path)
+    return True
 
 
 @router.get("/{channel:path}")
