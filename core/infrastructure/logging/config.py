@@ -269,7 +269,8 @@ def setup_component_logging(
         _clear_handlers(target_logger)
 
         for handler in shared_handlers:
-            target_logger.addHandler(handler)
+            if handler not in target_logger.handlers:
+                target_logger.addHandler(handler)
 
         target_logger.propagate = False
 

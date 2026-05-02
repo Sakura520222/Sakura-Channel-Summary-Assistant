@@ -18,31 +18,11 @@ import logging
 
 from telethon.tl.types import Message
 
-from core.config import ADMIN_LIST
 from core.handlers.userbot_client import get_userbot_client
 from core.i18n.i18n import t
+from core.infrastructure.utils.auth import check_admin_permission
 
 logger = logging.getLogger(__name__)
-
-
-async def _check_admin_permission(message: Message, command_name: str) -> bool:
-    """
-    检查命令发送者是否为管理员。
-
-    Args:
-        message: Telegram 消息对象
-        command_name: 命令名称，用于日志记录
-
-    Returns:
-        bool: 具有管理员权限返回 True，否则返回 False
-    """
-    sender_id = message.sender_id
-    if sender_id not in ADMIN_LIST and ADMIN_LIST != ["me"]:
-        logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command_name}")
-        await message.reply(t("error.permission_denied"))
-        return False
-
-    return True
 
 
 async def handle_userbot_status(client, message: Message):
@@ -54,7 +34,7 @@ async def handle_userbot_status(client, message: Message):
         message: 消息对象
     """
     try:
-        if not await _check_admin_permission(message, "/userbot_status"):
+        if not await check_admin_permission(message, "/userbot_status"):
             return
 
         userbot = get_userbot_client()
@@ -120,7 +100,7 @@ async def handle_userbot_join(client, message: Message):
         message: 消息对象
     """
     try:
-        if not await _check_admin_permission(message, "/userbot_join"):
+        if not await check_admin_permission(message, "/userbot_join"):
             return
 
         userbot = get_userbot_client()
@@ -175,7 +155,7 @@ async def handle_userbot_leave(client, message: Message):
         message: 消息对象
     """
     try:
-        if not await _check_admin_permission(message, "/userbot_leave"):
+        if not await check_admin_permission(message, "/userbot_leave"):
             return
 
         userbot = get_userbot_client()
@@ -220,7 +200,7 @@ async def handle_userbot_list(client, message: Message):
         message: 消息对象
     """
     try:
-        if not await _check_admin_permission(message, "/userbot_list"):
+        if not await check_admin_permission(message, "/userbot_list"):
             return
 
         userbot = get_userbot_client()

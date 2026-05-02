@@ -65,7 +65,9 @@ def create_app() -> FastAPI:
     # JWT 认证中间件（在 CORS 之后，路由之前）
     app.add_middleware(AuthMiddleware)
 
-    # 精简访问日志中间件（记录最终响应状态与耗时）
+    # 精简访问日志中间件。
+    # FastAPI add_middleware 按 LIFO 顺序执行；这里最后注册，使访问日志位于最外层，
+    # 以便记录所有 API 请求（包括被认证中间件拒绝的 401 响应）的状态与耗时。
     app.add_middleware(AccessLogMiddleware)
 
     # 注册 API 路由

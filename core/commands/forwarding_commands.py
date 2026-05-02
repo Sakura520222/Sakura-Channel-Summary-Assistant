@@ -22,8 +22,8 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-from core.config import ADMIN_LIST
 from core.i18n.i18n import get_text as t
+from core.infrastructure.utils.auth import check_admin_permission
 
 if TYPE_CHECKING:
     from telethon import TelegramClient
@@ -32,26 +32,6 @@ if TYPE_CHECKING:
     from core.forwarding.forwarding_handler import ForwardingHandler
 
 logger = logging.getLogger(__name__)
-
-
-async def _check_admin_permission(message: "Message", command_name: str) -> bool:
-    """
-    检查命令发送者是否为管理员。
-
-    Args:
-        message: Telegram 消息对象
-        command_name: 命令名称，用于日志记录
-
-    Returns:
-        bool: 具有管理员权限返回 True，否则返回 False
-    """
-    sender_id = message.sender_id
-    if sender_id not in ADMIN_LIST and ADMIN_LIST != ["me"]:
-        logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command_name}")
-        await message.reply(t("error.permission_denied"))
-        return False
-
-    return True
 
 
 async def cmd_forwarding_status(
@@ -63,7 +43,7 @@ async def cmd_forwarding_status(
     用法: /forwarding
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding"):
+        if not await check_admin_permission(message, "/forwarding"):
             return
 
         status_text = (
@@ -102,7 +82,7 @@ async def cmd_forwarding_enable(
     用法: /forwarding_enable
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_enable"):
+        if not await check_admin_permission(message, "/forwarding_enable"):
             return
 
         if handler.enabled:
@@ -138,7 +118,7 @@ async def cmd_forwarding_disable(
     用法: /forwarding_disable
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_disable"):
+        if not await check_admin_permission(message, "/forwarding_disable"):
             return
 
         if not handler.enabled:
@@ -174,7 +154,7 @@ async def cmd_forwarding_stats(
     用法: /forwarding_stats [频道URL]
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_stats"):
+        if not await check_admin_permission(message, "/forwarding_stats"):
             return
 
         # 解析参数
@@ -241,7 +221,7 @@ async def cmd_forwarding_footer(
     /forwarding_footer https://t.me/source https://t.me/target clear
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_footer"):
+        if not await check_admin_permission(message, "/forwarding_footer"):
             return
 
         # 解析参数
@@ -333,7 +313,7 @@ async def cmd_forwarding_default_footer(
     - 禁用：所有转发规则都不会添加底栏（包括自定义底栏）
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_default_footer"):
+        if not await check_admin_permission(message, "/forwarding_default_footer"):
             return
 
         # 解析参数
@@ -377,7 +357,7 @@ async def cmd_forwarding_add_rule(
     示例: /forwarding_add_rule https://t.me/source https://t.me/target
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_add_rule"):
+        if not await check_admin_permission(message, "/forwarding_add_rule"):
             return
 
         # 解析参数
@@ -453,7 +433,7 @@ async def cmd_forwarding_add_and_enable(
     示例: /forwarding https://t.me/source https://t.me/target
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding"):
+        if not await check_admin_permission(message, "/forwarding"):
             return
 
         # 解析参数
@@ -535,7 +515,7 @@ async def cmd_forwarding_remove_rule(
     示例: /forwarding_remove_rule https://t.me/source https://t.me/target
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_remove_rule"):
+        if not await check_admin_permission(message, "/forwarding_remove_rule"):
             return
 
         # 解析参数
@@ -721,7 +701,7 @@ async def cmd_forwarding_keywords(
     /forwarding_keywords https://t.me/source https://t.me/target clear
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_keywords"):
+        if not await check_admin_permission(message, "/forwarding_keywords"):
             return
 
         # 解析参数
@@ -854,7 +834,7 @@ async def cmd_forwarding_blacklist(
     /forwarding_blacklist https://t.me/source https://t.me/target clear
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_blacklist"):
+        if not await check_admin_permission(message, "/forwarding_blacklist"):
             return
 
         # 解析参数
@@ -987,7 +967,7 @@ async def cmd_forwarding_patterns(
     /forwarding_patterns https://t.me/source https://t.me/target clear
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_patterns"):
+        if not await check_admin_permission(message, "/forwarding_patterns"):
             return
 
         # 解析参数
@@ -1138,7 +1118,7 @@ async def cmd_forwarding_blacklist_patterns(
     /forwarding_blacklist_patterns https://t.me/source https://t.me/target clear
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_blacklist_patterns"):
+        if not await check_admin_permission(message, "/forwarding_blacklist_patterns"):
             return
 
         # 解析参数
@@ -1293,7 +1273,7 @@ async def cmd_forwarding_copy_mode(
     /forwarding_copy_mode https://t.me/source https://t.me/target off
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_copy_mode"):
+        if not await check_admin_permission(message, "/forwarding_copy_mode"):
             return
 
         # 解析参数
@@ -1380,7 +1360,7 @@ async def cmd_forwarding_original_only(
     /forwarding_original_only https://t.me/source https://t.me/target off
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_original_only"):
+        if not await check_admin_permission(message, "/forwarding_original_only"):
             return
 
         # 解析参数
@@ -1467,7 +1447,7 @@ async def cmd_forwarding_rule_info(
     示例: /forwarding_rule_info https://t.me/source https://t.me/target
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_rule_info"):
+        if not await check_admin_permission(message, "/forwarding_rule_info"):
             return
 
         # 解析参数
@@ -1580,7 +1560,7 @@ async def cmd_forwarding_help(
     有参数：显示指定命令的详细用法
     """
     try:
-        if not await _check_admin_permission(message, "/forwarding_help"):
+        if not await check_admin_permission(message, "/forwarding_help"):
             return
 
         # 解析参数

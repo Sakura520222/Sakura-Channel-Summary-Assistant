@@ -42,6 +42,7 @@ class TestStartQABot:
         _, kwargs = mock_popen.call_args
         assert kwargs["env"]["SAKURA_LOG_COMPONENT"] == "qa"
         assert kwargs["env"]["SAKURA_COMPONENT_LOG_FILE"] == "qa-bot.log"
+        assert kwargs["env"]["QA_BOT_TOKEN"] == "test_token"
 
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "False"})
     def test_start_qa_bot_disabled(self):

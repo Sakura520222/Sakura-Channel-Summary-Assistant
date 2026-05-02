@@ -15,6 +15,7 @@
 from telethon import Button
 
 CALLBACK_PREFIX = "mainbot"
+MAX_CALLBACK_DATA_BYTES = 64
 
 MENU_MAIN = "main"
 MENU_BASIC = "basic"
@@ -41,6 +42,24 @@ CMD_SHOW_SCHEDULE = "show_schedule"
 CMD_SHOW_POLL = "show_poll"
 CMD_CONFIG_HELP = "config_help"
 
+CONFIG_HELP_AI_COMMANDS = (
+    ("/showprompt", "查看当前总结提示词"),
+    ("/setprompt", "设置总结提示词"),
+    ("/showpollprompt", "查看投票提示词"),
+    ("/setpollprompt", "设置投票提示词"),
+    ("/showaicfg", "查看 AI 配置"),
+    ("/setaicfg", "设置 AI 配置"),
+)
+
+CONFIG_HELP_CHANNEL_COMMANDS = (
+    ("/showchannelschedule", "查看频道时间配置"),
+    ("/setchannelschedule", "设置频道时间配置"),
+    ("/deletechannelschedule", "删除频道时间配置"),
+    ("/channelpoll", "查看频道投票配置"),
+    ("/setchannelpoll", "设置频道投票配置"),
+    ("/deletechannelpoll", "删除频道投票配置"),
+)
+
 MENU_TITLES = {
     MENU_MAIN: "🌸 Sakura Bot 主菜单",
     MENU_BASIC: "📌 基础高频功能",
@@ -57,32 +76,34 @@ MENU_DESCRIPTIONS = {
     MENU_CONFIG: "配置类功能入口。为避免误操作，写入类配置只展示用法提示。",
 }
 
-CONFIG_HELP_TEXT = """⚙️ **配置入口说明**
+
+def _format_config_help_commands(commands: tuple[tuple[str, str], ...]) -> str:
+    """格式化配置帮助命令列表。"""
+    return "\n".join(f"{command} - {description}" for command, description in commands)
+
+
+CONFIG_HELP_TEXT = f"""⚙️ **配置入口说明**
 
 以下配置类命令通常需要参数或多步输入，按钮不会直接执行危险操作。
 
 **AI 与提示词**
-/showprompt - 查看当前总结提示词
-/setprompt - 设置总结提示词
-/showpollprompt - 查看投票提示词
-/setpollprompt - 设置投票提示词
-/showaicfg - 查看 AI 配置
-/setaicfg - 设置 AI 配置
+{_format_config_help_commands(CONFIG_HELP_AI_COMMANDS)}
 
 **频道与定时**
-/showchannelschedule - 查看频道时间配置
-/setchannelschedule - 设置频道时间配置
-/deletechannelschedule - 删除频道时间配置
-/channelpoll - 查看频道投票配置
-/setchannelpoll - 设置频道投票配置
-/deletechannelpoll - 删除频道投票配置
+{_format_config_help_commands(CONFIG_HELP_CHANNEL_COMMANDS)}
 
 **提示**：如需修改配置，请发送对应命令并按提示操作。"""
 
 
 def build_callback(action: str, value: str) -> bytes:
-    """构建主 Bot 内联按钮回调数据。"""
-    return f"{CALLBACK_PREFIX}:{action}:{value}".encode()
+    """构建主 Bot 内联按钮回调数据。
+
+    Telegram callback_data 限制为 64 字节，新增菜单项时需保持 action/value 简短。
+    """
+    callback_data = f"{CALLBACK_PREFIX}:{action}:{value}".encode()
+    if len(callback_data) > MAX_CALLBACK_DATA_BYTES:
+        raise ValueError("Telegram callback_data 不能超过 64 字节")
+    return callback_data
 
 
 def build_menu_text(menu: str = MENU_MAIN) -> str:

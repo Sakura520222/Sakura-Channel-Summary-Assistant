@@ -39,7 +39,12 @@ PUBLIC_PATHS = {
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
-    """JWT 认证中间件"""
+    """JWT 认证中间件。
+
+    注意：当前继承 BaseHTTPMiddleware，适用于现有 WebUI JSON API。
+    BaseHTTPMiddleware 对流式响应和 WebSocket 场景存在已知限制，后续如引入
+    相关能力应迁移为纯 ASGI 中间件。
+    """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path
@@ -94,7 +99,12 @@ def _extract_token(request: Request) -> str | None:
 
 
 class AccessLogMiddleware(BaseHTTPMiddleware):
-    """WebUI 精简访问日志中间件"""
+    """WebUI 精简访问日志中间件。
+
+    注意：当前继承 BaseHTTPMiddleware，适用于现有 WebUI JSON API。
+    BaseHTTPMiddleware 对流式响应和 WebSocket 场景存在已知限制，后续如引入
+    相关能力应迁移为纯 ASGI 中间件以降低额外开销。
+    """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         start_time = time.perf_counter()

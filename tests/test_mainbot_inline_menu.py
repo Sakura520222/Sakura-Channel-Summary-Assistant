@@ -17,6 +17,7 @@ from core.telegram.mainbot_keyboards import (
     CMD_CHANNELS,
     CMD_FORWARDING_STATUS,
     MENU_BASIC,
+    MENU_MAIN,
     build_callback,
     build_mainbot_menu_keyboard,
 )
@@ -134,8 +135,29 @@ async def test_unknown_callback_safe_response(mock_event):
 
 
 def test_build_mainbot_menu_keyboard_has_buttons():
-    """测试主菜单按钮构建结果非空。"""
+    """测试主菜单按钮构建结果包含关键入口。"""
     buttons = build_mainbot_menu_keyboard()
 
     assert buttons
     assert all(row for row in buttons)
+    assert len(buttons) == 3
+
+    button_texts = [button.text for row in buttons for button in row]
+    assert "📌 基础功能" in button_texts
+    assert "🤖 QA 控制" in button_texts
+    assert "🔁 频道转发" in button_texts
+    assert "⚙️ 配置入口" in button_texts
+    assert "❓ 完整帮助" in button_texts
+
+
+def test_build_callback_rejects_oversized_data():
+    """测试过长 callback_data 会被拒绝。"""
+    with pytest.raises(ValueError, match="64 字节"):
+        build_callback("cmd", "x" * 80)
+
+
+def test_build_mainbot_menu_keyboard_callback_data_within_limit():
+    """测试主菜单回调数据不超过 Telegram 限制。"""
+    for menu in (MENU_MAIN, MENU_BASIC):
+        buttons = build_mainbot_menu_keyboard(menu)
+        assert all(len(button.data) <= 64 for row in buttons for button in row)

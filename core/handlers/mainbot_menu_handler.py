@@ -119,8 +119,10 @@ class MainBotMenuCommandEvent:
 
 async def handle_mainbot_menu_callback(event, client=None) -> None:
     """处理主 Bot 内联菜单按钮点击。"""
+    answered = False
     try:
         await event.answer()
+        answered = True
 
         data = _decode_callback_data(event.data)
         if not data:
@@ -145,16 +147,17 @@ async def handle_mainbot_menu_callback(event, client=None) -> None:
 
     except Exception as e:
         logger.error(f"处理主菜单回调失败: {type(e).__name__}: {e}", exc_info=True)
-        try:
-            await event.answer("处理按钮操作失败，请稍后再试", alert=True)
-        except Exception:
-            pass
+        if not answered:
+            try:
+                await event.answer("处理按钮操作失败，请稍后再试", alert=True)
+            except Exception:
+                pass
 
 
 def _decode_callback_data(raw_data) -> str:
     """解码 Telethon callback data。"""
     if isinstance(raw_data, bytes):
-        return raw_data.decode(errors="ignore")
+        return raw_data.decode(errors="backslashreplace")
     if isinstance(raw_data, str):
         return raw_data
     return ""
@@ -197,7 +200,14 @@ async def _dispatch_command(event, client, command_key: str) -> None:
         client,
         _COMMAND_TEXTS.get(command_key, f"/{command_key}"),
     )
-    await handler(command_event)
+    try:
+        await handler(command_event)
+    except Exception as e:
+        logger.error(
+            f"处理菜单命令 {command_key} 失败: {type(e).__name__}: {e}",
+            exc_info=True,
+        )
+        await event.respond("❌ 处理菜单命令失败，请稍后再试或查看日志")
 
 
 async def _dispatch_forwarding_command(event, client, command_key: str) -> None:
