@@ -55,6 +55,7 @@ from core.infrastructure.utils.version_utils import (
     git_pull_latest,
     install_dependencies,
 )
+from core.telegram.mainbot_keyboards import build_mainbot_menu_keyboard
 
 # ==================== 系统控制命令 ====================
 
@@ -955,7 +956,11 @@ async def handle_start(event):
 
 {get_text("welcome.tip")}"""
 
-        await event.reply(welcome_message, link_preview=False)
+        await event.reply(
+            welcome_message,
+            link_preview=False,
+            buttons=build_mainbot_menu_keyboard(),
+        )
         logger.info(f"已向用户 {sender_id} 发送欢迎消息")
 
     except Exception as e:
@@ -1025,7 +1030,11 @@ async def handle_help(event):
 
 {get_text("help.tip")}"""
 
-        await event.reply(help_message, link_preview=False)
+        await event.reply(
+            help_message,
+            link_preview=False,
+            buttons=build_mainbot_menu_keyboard(),
+        )
         logger.info(f"已向用户 {sender_id} 发送完整帮助信息")
 
     except Exception as e:

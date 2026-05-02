@@ -493,6 +493,7 @@ LOG_LEVEL=INFO
 LOG_TO_FILE=true
 # Log file path
 LOG_FILE_PATH=logs/sakura-bot.log
+# Component logs use the same directory by default: logs/qa-bot.log, logs/webui.log
 # Maximum size of single log file in bytes (default 10485760 = 10MB)
 LOG_FILE_MAX_SIZE=10485760
 # Number of backup files to keep (0-20)

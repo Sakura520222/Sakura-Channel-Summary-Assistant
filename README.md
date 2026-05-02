@@ -492,6 +492,7 @@ LOG_LEVEL=INFO
 LOG_TO_FILE=true
 # 日志文件路径
 LOG_FILE_PATH=logs/sakura-bot.log
+# 组件日志默认与主日志同目录：logs/qa-bot.log、logs/webui.log
 # 单个日志文件最大大小（字节，默认10485760 = 10MB）
 LOG_FILE_MAX_SIZE=10485760
 # 保留的日志备份文件数量（0-20）

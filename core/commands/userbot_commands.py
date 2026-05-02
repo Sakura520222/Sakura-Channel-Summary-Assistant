@@ -20,6 +20,7 @@ from telethon.tl.types import Message
 
 from core.handlers.userbot_client import get_userbot_client
 from core.i18n.i18n import t
+from core.infrastructure.utils.auth import check_admin_permission
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,9 @@ async def handle_userbot_status(client, message: Message):
         message: 消息对象
     """
     try:
+        if not await check_admin_permission(message, "/userbot_status"):
+            return
+
         userbot = get_userbot_client()
 
         if not userbot:
@@ -96,6 +100,9 @@ async def handle_userbot_join(client, message: Message):
         message: 消息对象
     """
     try:
+        if not await check_admin_permission(message, "/userbot_join"):
+            return
+
         userbot = get_userbot_client()
 
         if not userbot or not userbot.is_available():
@@ -148,6 +155,9 @@ async def handle_userbot_leave(client, message: Message):
         message: 消息对象
     """
     try:
+        if not await check_admin_permission(message, "/userbot_leave"):
+            return
+
         userbot = get_userbot_client()
 
         if not userbot or not userbot.is_available():
@@ -190,6 +200,9 @@ async def handle_userbot_list(client, message: Message):
         message: 消息对象
     """
     try:
+        if not await check_admin_permission(message, "/userbot_list"):
+            return
+
         userbot = get_userbot_client()
 
         if not userbot or not userbot.is_available():

@@ -60,9 +60,15 @@ def start_qa_bot():
             }
 
         logger.info("正在启动问答Bot...")
+        env = os.environ.copy()
+        env.setdefault("SAKURA_LOG_COMPONENT", "qa")
+        env.setdefault("SAKURA_COMPONENT_LOG_FILE", "qa-bot.log")
+
         # 使用subprocess在后台运行qa_bot.py
         _qa_bot_process = subprocess.Popen(
-            [sys.executable, "qa_bot.py"], cwd=os.path.dirname(os.path.abspath(sys.argv[0]))
+            [sys.executable, "qa_bot.py"],
+            cwd=os.path.dirname(os.path.abspath(sys.argv[0])),
+            env=env,
         )
         _qa_bot_start_time = time.time()
 
