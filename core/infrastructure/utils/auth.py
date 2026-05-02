@@ -48,6 +48,7 @@ async def check_admin_permission(
 
     if sender_id is None:
         logger.warning(f"事件缺少 sender_id，无法进行权限检查，命令: {command}")
+        return False
 
     if sender_id not in ADMIN_LIST and ADMIN_LIST != ["me"]:
         logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command}")
