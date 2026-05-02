@@ -155,7 +155,7 @@ class ForwardingHandler:
         try:
             # 从完整配置中提取转发配置
             # 如果没有 forwarding 键，使用空字典作为默认值
-            forwarding_config = copy.deepcopy(event.config.get("forwarding") or {})
+            forwarding_config = event.config.get("forwarding") or {}
 
             # 确保配置结构完整
             if "enabled" not in forwarding_config:
@@ -690,6 +690,7 @@ class ForwardingHandler:
         except ValueError as e:
             # Telethon 在 forward_messages 无法解析 from_peer 实体时会抛出 ValueError，
             # 此时改用监听客户端（通常是 UserBot）进行回退转发。
+            # 注意：这里只处理实体解析失败；网络、权限等错误交由上层转发流程统一记录。
             logger.warning(
                 f"发送客户端无法解析源频道实体，尝试使用监听客户端转发: {type(e).__name__}: {e}"
             )
