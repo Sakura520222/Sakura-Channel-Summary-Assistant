@@ -258,6 +258,66 @@ async def restart_bot():
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@router.post("/database/clear-and-restart")
+async def clear_database_and_restart(request: Request):
+    """一键清空数据库并重启 Bot。"""
+    started_at = time.perf_counter()
+    db = _get_db()
+    if not db or not hasattr(db, "clear_all_data"):
+        raise HTTPException(status_code=503, detail="数据库管理器不可用")
+
+    try:
+        actor = _actor_from_request(request)
+        results = await _maybe_await(db.clear_all_data())
+        failed_tables = [table for table, count in results.items() if count < 0]
+        if failed_tables:
+            message = f"清空数据库部分失败: {', '.join(failed_tables)}"
+            await record_system_audit(
+                action="database.clear_and_restart",
+                actor=actor,
+                params_summary="{}",
+                success=False,
+                message=message,
+                duration_ms=_audit_duration(started_at),
+            )
+            raise HTTPException(status_code=500, detail=message)
+
+        # 写入重启标记并触发优雅关闭；清库后不再写审计，避免重新产生一条审计记录。
+        async with aiofiles.open(RESTART_FLAG_FILE, "w") as f:
+            await f.write("webui_clear_database_restart")
+
+        logger.warning(
+            "已通过 WebUI 清空数据库并请求重启 Bot，操作者=%s，清理结果=%s",
+            actor,
+            results,
+        )
+
+        from core.config import trigger_shutdown
+
+        trigger_shutdown()
+        deleted_total = sum(count for count in results.values() if count > 0)
+        return {
+            "success": True,
+            "message": f"已清空数据库（共 {deleted_total} 条记录），正在重启 Bot...",
+            "data": {"deleted_total": deleted_total, "tables": results},
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        message = f"清空数据库并重启失败: {type(e).__name__}: {e}"
+        await record_system_audit(
+            action="database.clear_and_restart",
+            actor=_actor_from_request(request),
+            params_summary="{}",
+            success=False,
+            message=message,
+            duration_ms=_audit_duration(started_at),
+        )
+        logger.error(message, exc_info=True)
+        raise HTTPException(status_code=500, detail=message) from e
+
+
 @router.post("/qa-bot/start")
 async def start_qa_bot_endpoint(request: Request):
     """启动 QA Bot 子进程。"""

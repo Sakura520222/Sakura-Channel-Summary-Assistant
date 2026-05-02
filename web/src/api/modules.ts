@@ -260,6 +260,11 @@ export async function restartBot() {
   return res.data;
 }
 
+export async function clearDatabaseAndRestart() {
+  const res = await apiClient.post("/system/database/clear-and-restart");
+  return res.data;
+}
+
 export async function startQABot() {
   const res = await apiClient.post("/system/qa-bot/start");
   return res.data;
@@ -559,5 +564,91 @@ export async function searchVectors(query: string, collection?: string | null, t
 
 export async function clearVectorCollection(collection: string) {
   const res = await apiClient.delete(`/vector-store/collections/${collection}/clear`);
+  return res.data;
+}
+
+// ==================== 数据库管理 ====================
+
+export interface TableInfo {
+  table_name: string;
+  table_rows: number;
+  data_size_mb: number;
+  engine: string;
+}
+
+export interface TableColumn {
+  field: string;
+  type: string;
+  null: string;
+  key: string;
+  default: unknown;
+  extra: string;
+}
+
+export interface TableSchema {
+  table_name: string;
+  columns: TableColumn[];
+  primary_key: string | null;
+}
+
+export interface TableRowsData {
+  rows: Record<string, unknown>[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface TableRowQueryParams {
+  page?: number;
+  page_size?: number;
+  search_column?: string | null;
+  search_keyword?: string | null;
+  order_by?: string | null;
+  order_dir?: string;
+}
+
+export async function getDatabaseTables() {
+  const res = await apiClient.get("/tables");
+  return res.data;
+}
+
+export async function getTableSchema(table: string) {
+  const res = await apiClient.get(`/tables/${encodeURIComponent(table)}`);
+  return res.data;
+}
+
+export async function getTableRows(table: string, params: TableRowQueryParams = {}) {
+  const query: Record<string, unknown> = {};
+  if (params.page) query.page = params.page;
+  if (params.page_size) query.page_size = params.page_size;
+  if (params.search_column) query.search_column = params.search_column;
+  if (params.search_keyword) query.search_keyword = params.search_keyword;
+  if (params.order_by) query.order_by = params.order_by;
+  if (params.order_dir) query.order_dir = params.order_dir;
+  const res = await apiClient.get(`/tables/${encodeURIComponent(table)}/rows`, { params: query });
+  return res.data;
+}
+
+export async function createTableRow(table: string, data: Record<string, unknown>) {
+  const res = await apiClient.post(`/tables/${encodeURIComponent(table)}/rows`, { data });
+  return res.data;
+}
+
+export async function updateTableRow(
+  table: string,
+  pk: string | number,
+  data: Record<string, unknown>
+) {
+  const res = await apiClient.put(
+    `/tables/${encodeURIComponent(table)}/rows/${encodeURIComponent(String(pk))}`,
+    { data }
+  );
+  return res.data;
+}
+
+export async function deleteTableRow(table: string, pk: string | number) {
+  const res = await apiClient.delete(
+    `/tables/${encodeURIComponent(table)}/rows/${encodeURIComponent(String(pk))}`
+  );
   return res.data;
 }

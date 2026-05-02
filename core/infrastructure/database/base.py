@@ -395,3 +395,124 @@ class DatabaseManagerBase(ABC):
     def update_summary_request_status(self, request_id: int, status: str) -> bool:
         """更新周报请求状态"""
         pass
+
+    # ============ 数据库管理方法（WebUI） ============
+
+    @abstractmethod
+    def list_tables(self) -> list[dict[str, Any]]:
+        """列出所有用户表及基本信息（表名、行数、数据大小、引擎）
+
+        Returns:
+            [{"table_name": str, "table_rows": int, "data_size_mb": float, "engine": str}]
+        """
+        pass
+
+    @abstractmethod
+    def describe_table(self, table: str) -> list[dict[str, Any]]:
+        """获取表的列信息
+
+        Args:
+            table: 表名
+
+        Returns:
+            [{"field": str, "type": str, "null": str, "key": str, "default": Any, "extra": str}]
+        """
+        pass
+
+    @abstractmethod
+    def get_primary_key(self, table: str) -> str | None:
+        """获取表的主键列名
+
+        Args:
+            table: 表名
+
+        Returns:
+            主键列名，无主键则返回 None
+        """
+        pass
+
+    @abstractmethod
+    def query_table(
+        self,
+        table: str,
+        page: int = 1,
+        page_size: int = 20,
+        search_column: str | None = None,
+        search_keyword: str | None = None,
+        order_by: str | None = None,
+        order_dir: str = "ASC",
+    ) -> dict[str, Any]:
+        """通用分页查询表数据
+
+        Returns:
+            {"rows": list[dict], "total": int, "page": int, "page_size": int}
+        """
+        pass
+
+    @abstractmethod
+    def get_row(self, table: str, pk_column: str, pk_value: Any) -> dict[str, Any] | None:
+        """获取单行数据
+
+        Args:
+            table: 表名
+            pk_column: 主键列名
+            pk_value: 主键值
+
+        Returns:
+            行数据字典，不存在则返回 None
+        """
+        pass
+
+    @abstractmethod
+    def insert_row(self, table: str, data: dict[str, Any]) -> int | None:
+        """插入一行数据
+
+        Args:
+            table: 表名
+            data: 列名→值的字典
+
+        Returns:
+            新行的自增 ID 或 None
+        """
+        pass
+
+    @abstractmethod
+    def update_row(self, table: str, pk_column: str, pk_value: Any, data: dict[str, Any]) -> bool:
+        """更新一行数据
+
+        Args:
+            table: 表名
+            pk_column: 主键列名
+            pk_value: 主键值
+            data: 要更新的列名→值字典
+
+        Returns:
+            是否成功
+        """
+        pass
+
+    @abstractmethod
+    def delete_row(self, table: str, pk_column: str, pk_value: Any) -> bool:
+        """删除一行数据
+
+        Args:
+            table: 表名
+            pk_column: 主键列名
+            pk_value: 主键值
+
+        Returns:
+            是否成功
+        """
+        pass
+
+    @abstractmethod
+    def table_exists(self, table: str) -> bool:
+        """检查表是否存在于白名单中
+
+        Args:
+            table: 表名
+
+        Returns:
+            表是否存在且允许访问
+        """
+        pass

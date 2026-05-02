@@ -259,12 +259,17 @@ if __name__ == "__main__":
                         return None
 
                     flag_content = await asyncio.to_thread(_read_restart_flag)
-                    is_webui_restart = flag_content == "webui_restart"
+                    is_webui_restart = flag_content in {
+                        "webui_restart",
+                        "webui_clear_database_restart",
+                        "webui_command_restart",
+                        "webui_command_update",
+                    }
                 except Exception:
                     pass
 
                 if is_webui_restart:
-                    logger.info("🔄 WebUI 重启：使用 os.execv 替换当前进程...")
+                    logger.info("🔄 WebUI 重启标记 %s：使用 os.execv 替换当前进程...", flag_content)
                     try:
                         os.remove(RESTART_FLAG_FILE)
                     except Exception:

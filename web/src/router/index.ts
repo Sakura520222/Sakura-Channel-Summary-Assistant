@@ -68,6 +68,11 @@ const router = createRouter({
           name: "VectorStore",
           component: () => import("../views/VectorStoreView.vue"),
         },
+        {
+          path: "database",
+          name: "Database",
+          component: () => import("../views/DatabaseView.vue"),
+        },
       ],
     },
   ],
