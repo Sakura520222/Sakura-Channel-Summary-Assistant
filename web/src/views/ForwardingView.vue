@@ -21,10 +21,29 @@
       class="modal-responsive" positive-text="保存" negative-text="取消" @positive-click="handleSaveRule">
       <n-form label-placement="left" label-width="120">
         <n-form-item label="源频道">
-          <n-input v-model:value="ruleForm.source_channel" placeholder="https://t.me/source_channel" />
+          <n-select
+            v-model:value="ruleForm.source_channel"
+            :options="sourceChannelOptions"
+            :loading="sourceChannelsLoading"
+            clearable
+            filterable
+            tag
+            placeholder="选择 UserBot 已加入频道，或手动输入频道链接/ID"
+          />
+          <template #feedback>
+            候选项来自 UserBot 已加入频道；列表为空时可手动输入。
+          </template>
         </n-form-item>
         <n-form-item label="目标频道">
-          <n-input v-model:value="ruleForm.target_channel" placeholder="https://t.me/target_channel" />
+          <n-select
+            v-model:value="ruleForm.target_channel"
+            :options="targetChannelOptions"
+            :loading="targetChannelsLoading"
+            clearable
+            filterable
+            tag
+            placeholder="选择机器人管理频道，或手动输入频道链接/ID"
+          />
         </n-form-item>
         <n-form-item label="复制模式">
           <n-switch v-model:value="ruleForm.copy_mode" />
@@ -35,9 +54,56 @@
         <n-form-item label="黑名单">
           <n-dynamic-tags v-model:value="ruleForm.blacklist" />
         </n-form-item>
+        <n-form-item label="页脚模板">
+          <n-select
+            :options="footerTemplateOptions"
+            clearable
+            placeholder="选择模板并填入自定义页脚"
+            @update:value="applyFooterTemplate"
+          />
+          <template #feedback>
+            留空自定义页脚将使用全局默认底栏；模板可继续手动编辑。
+          </template>
+        </n-form-item>
         <n-form-item label="自定义页脚">
-          <n-input v-model:value="ruleForm.custom_footer" type="textarea" :rows="2"
-            placeholder="📢 来源: {source_title}\n🔗 {source_link}" />
+          <n-input
+            v-model:value="ruleForm.custom_footer"
+            type="textarea"
+            :rows="3"
+            :placeholder="defaultFooterTemplate"
+          />
+        </n-form-item>
+        <n-form-item label="占位符">
+          <n-space size="small" vertical>
+            <n-space size="small">
+              <n-tag
+                v-for="placeholder in footerPlaceholders"
+                :key="placeholder.value"
+                size="small"
+                class="cursor-pointer"
+                @click="insertFooterPlaceholder(placeholder.value)"
+              >
+                {{ placeholder.value }}
+              </n-tag>
+            </n-space>
+            <n-text depth="3" class="placeholder-help">
+              点击可追加到自定义页脚：
+              <span v-for="placeholder in footerPlaceholders" :key="placeholder.value">
+                {{ placeholder.value }} = {{ placeholder.description }}；
+              </span>
+            </n-text>
+          </n-space>
+        </n-form-item>
+        <n-form-item label="快捷说明">
+          <n-space size="small">
+            <n-tag
+              v-for="placeholder in footerPlaceholders"
+              :key="`${placeholder.value}-desc`"
+              size="small"
+            >
+              {{ placeholder.value }}：{{ placeholder.description }}
+            </n-tag>
+          </n-space>
         </n-form-item>
       </n-form>
     </n-modal>
@@ -51,12 +117,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, h } from "vue";
+import { ref, reactive, computed, onMounted, h } from "vue";
 import { NButton, NTag, NSpace, useMessage } from "naive-ui";
-import type { DataTableColumns } from "naive-ui";
+import type { DataTableColumns, SelectOption } from "naive-ui";
 import {
-  getForwardingConfig, toggleForwarding, addForwardingRule,
-  updateForwardingRule, deleteForwardingRule,
+  addForwardingRule,
+  deleteForwardingRule,
+  getChannels,
+  getForwardingConfig,
+  toggleForwarding,
+  updateForwardingRule,
+  userBotListChannels,
+  type ChannelInfo,
+  type UserBotChannel,
 } from "@/api/modules";
 import { getChannelName } from "@/utils/formatters";
 
@@ -68,6 +141,10 @@ const showModal = ref(false);
 const showDeleteModal = ref(false);
 const editingIndex = ref(-1);
 const deleteIndex = ref(-1);
+const sourceChannelsLoading = ref(false);
+const targetChannelsLoading = ref(false);
+const userbotChannels = ref<UserBotChannel[]>([]);
+const targetChannels = ref<string[]>([]);
 
 const ruleForm = reactive({
   source_channel: "",
@@ -77,6 +154,97 @@ const ruleForm = reactive({
   blacklist: [] as string[],
   custom_footer: "",
 });
+
+const footerTemplates = [
+  {
+    label: "全局默认",
+    value: "[Source]({source_link}) {target_channel}\n🌸[助推](https://t.me/boost/{target_channel}) | {assistant_bot} | {submission}",
+  },
+  {
+    label: "简洁来源",
+    value: "📢 来源: {source_title}\n🔗 {source_link}",
+  },
+  {
+    label: "频道署名",
+    value: "Source: {source_title} | {source_link}",
+  },
+  {
+    label: "完整信息",
+    value: "📌 来源频道: {source_title}\n🎯 目标频道: {target_title}\n🆔 消息 ID: {message_id}\n🔗 原文: {source_link}",
+  },
+  {
+    label: "仅原文链接",
+    value: "🔗 {source_link}",
+  },
+  {
+    label: "清空自定义页脚",
+    value: "",
+  },
+];
+
+const defaultFooterTemplate = footerTemplates[0].value;
+
+const footerTemplateOptions = footerTemplates.map((template) => ({
+  label: template.label,
+  value: template.value,
+}));
+
+const footerPlaceholders = [
+  { value: "{source_link}", description: "源消息链接" },
+  { value: "{source_title}", description: "源频道名称" },
+  { value: "{target_title}", description: "目标频道名称" },
+  { value: "{source_channel}", description: "源频道 ID" },
+  { value: "{target_channel}", description: "目标频道用户名或 ID" },
+  { value: "{message_id}", description: "消息 ID" },
+  { value: "{assistant_bot}", description: "助手 BOT 链接" },
+  { value: "{submission}", description: "投稿链接" },
+];
+
+const sourceChannelOptions = computed<SelectOption[]>(() => {
+  const options = userbotChannels.value.map((channel) => {
+    const value = getUserBotChannelValue(channel);
+    const label = channel.username
+      ? `${channel.title} (@${channel.username})`
+      : `${channel.title} (ID: ${channel.id})`;
+
+    return { label, value };
+  });
+
+  return dedupeOptions(options);
+});
+
+const targetChannelOptions = computed<SelectOption[]>(() =>
+  dedupeOptions(targetChannels.value.map((channel) => ({
+    label: getChannelName(channel),
+    value: channel,
+  })))
+);
+
+function getUserBotChannelValue(channel: UserBotChannel) {
+  if (channel.username) return `https://t.me/${channel.username}`;
+  return `-100${channel.id}`;
+}
+
+function dedupeOptions(options: SelectOption[]) {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    const value = String(option.value || "");
+    if (!value || seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
+}
+
+function applyFooterTemplate(value: string | null) {
+  if (value === null) return;
+  ruleForm.custom_footer = value;
+}
+
+function insertFooterPlaceholder(placeholder: string) {
+  ruleForm.custom_footer = ruleForm.custom_footer
+    ? `${ruleForm.custom_footer}${placeholder}`
+    : placeholder;
+}
 
 const columns: DataTableColumns = [
   { title: "#", key: "index", width: 50, render: (_, i) => i + 1 },
@@ -139,6 +307,11 @@ async function handleToggle(enabled: boolean) {
 }
 
 async function handleSaveRule() {
+  if (!ruleForm.source_channel.trim() || !ruleForm.target_channel.trim()) {
+    message.warning("请选择或输入源频道和目标频道");
+    return false;
+  }
+
   try {
     const data = { ...ruleForm, patterns: [], blacklist_patterns: [], forward_original_only: false };
     let res;
@@ -183,5 +356,37 @@ async function loadData() {
   }
 }
 
-onMounted(loadData);
+async function loadSourceChannels() {
+  sourceChannelsLoading.value = true;
+  try {
+    const res = await userBotListChannels();
+    if (res.success) {
+      userbotChannels.value = res.channels || [];
+    } else if (res.message) {
+      message.warning(`UserBot 频道列表不可用：${res.message}`);
+    }
+  } catch {
+    message.warning("加载 UserBot 已加入频道失败，可手动输入源频道");
+  } finally {
+    sourceChannelsLoading.value = false;
+  }
+}
+
+async function loadTargetChannels() {
+  targetChannelsLoading.value = true;
+  try {
+    const res = await getChannels();
+    if (res.success) {
+      targetChannels.value = (res.data.channels || []).map((channel: ChannelInfo) => channel.url);
+    }
+  } catch {
+    message.warning("加载目标频道列表失败，可手动输入目标频道");
+  } finally {
+    targetChannelsLoading.value = false;
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([loadData(), loadSourceChannels(), loadTargetChannels()]);
+});
 </script>

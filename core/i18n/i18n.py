@@ -636,7 +636,7 @@ MESSAGE_ZH_CN = {
     "forwarding.footer.usage": "用法：\n\n/forwarding_footer <源频道> <目标频道> <底栏内容>\n/forwarding_footer <源频道> <目标频道> clear\n\n示例：\n/forwarding_footer https://t.me/source https://t.me/target 📢 来源: {source_title}\\n🔗 {source_link}\n/forwarding_footer https://t.me/source https://t.me/target clear",
     "forwarding.footer.invalid_params": "❌ 参数无效\n\n用法：/forwarding_footer <源频道> <目标频道> <底栏内容>\n\n或使用 clear 清除底栏",
     "forwarding.footer.not_found": "❌ 转发规则不存在\n\n源频道：{source}\n目标频道：{target}",
-    "forwarding.footer.placeholders": "支持的占位符：\n\n{source_link} - 源消息链接\n{source_title} - 源频道名称\n{target_title} - 目标频道名称\n{source_channel} - 源频道ID\n{target_channel} - 目标频道ID\n{message_id} - 消息ID",
+    "forwarding.footer.placeholders": "支持的占位符：\n\n{source_link} - 源消息链接\n{source_title} - 源频道名称\n{target_title} - 目标频道名称\n{source_channel} - 源频道ID\n{target_channel} - 目标频道ID\n{message_id} - 消息ID\n{assistant_bot} - 助手 BOT 链接\n{submission} - 投稿链接",
     "forwarding.default_footer.usage": "用法：\n\n/forwarding_default_footer on - 启用默认底栏\n/forwarding_default_footer off - 禁用默认底栏",
     # ========== 关键词白名单 ==========
     "forwarding.keywords.title": "🏷️ **关键词白名单配置**",
@@ -1384,7 +1384,7 @@ MESSAGE_EN_US = {
     "forwarding.footer.usage": "Usage:\n\n/forwarding_footer <source> <target> <footer content>\n/forwarding_footer <source> <target> clear\n\nExample:\n/forwarding_footer https://t.me/source https://t.me/target Source: {source_title}\\n{source_link}\n/forwarding_footer https://t.me/source https://t.me/target clear",
     "forwarding.footer.invalid_params": "❌ Invalid parameters\n\nUsage: /forwarding_footer <source> <target> <footer content>\n\nOr use clear to clear footer",
     "forwarding.footer.not_found": "❌ Forwarding rule not found\n\nSource: {source}\nTarget: {target}",
-    "forwarding.footer.placeholders": "Supported placeholders:\n\n{source_link} - Source message link\n{source_title} - Source channel name\n{target_title} - Target channel name\n{source_channel} - Source channel ID\n{target_channel} - Target channel ID\n{message_id} - Message ID",
+    "forwarding.footer.placeholders": "Supported placeholders:\n\n{source_link} - Source message link\n{source_title} - Source channel name\n{target_title} - Target channel name\n{source_channel} - Source channel ID\n{target_channel} - Target channel ID\n{message_id} - Message ID\n{assistant_bot} - Assistant bot link\n{submission} - Submission link",
     "forwarding.default_footer.usage": "Usage:\n\n/forwarding_default_footer on - Enable default footer\n/forwarding_default_footer off - Disable default footer",
     # ========== Keyword Whitelist ==========
     "forwarding.keywords.title": "🏷️ **Keyword Whitelist Configuration**",

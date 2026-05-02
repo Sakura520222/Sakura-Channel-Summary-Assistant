@@ -364,8 +364,8 @@ class ForwardingHandler:
                 )
             else:
                 # 使用转发模式（显示转发来源）
-                await self.sending_client.forward_messages(
-                    entity=target_channel,
+                await self._forward_messages_with_fallback(
+                    target_channel=target_channel,
                     messages=message,
                     from_peer=message.chat_id,
                 )
@@ -608,8 +608,8 @@ class ForwardingHandler:
                     )
             else:
                 # 转发模式：使用forward_messages批量转发
-                await self.sending_client.forward_messages(
-                    entity=target_channel,
+                await self._forward_messages_with_fallback(
+                    target_channel=target_channel,
                     messages=media_group_messages,
                     from_peer=message.chat_id,
                 )
@@ -642,6 +642,35 @@ class ForwardingHandler:
         except Exception as e:
             logger.error(f"转发媒体组失败: {type(e).__name__}: {e}", exc_info=True)
             return False
+
+    async def _forward_messages_with_fallback(
+        self,
+        target_channel: str,
+        messages: "Message | list[Message]",
+        from_peer: int,
+    ) -> None:
+        """转发消息，发送客户端无法解析源实体时回退到监听客户端。
+
+        Args:
+            target_channel: 目标频道
+            messages: 待转发消息或消息列表
+            from_peer: 源频道 ID
+        """
+        try:
+            await self.sending_client.forward_messages(
+                entity=target_channel,
+                messages=messages,
+                from_peer=from_peer,
+            )
+        except ValueError as e:
+            logger.warning(
+                f"发送客户端无法解析源频道实体，尝试使用监听客户端转发: {type(e).__name__}: {e}"
+            )
+            await self.monitoring_client.forward_messages(
+                entity=target_channel,
+                messages=messages,
+                from_peer=from_peer,
+            )
 
     async def _forward_media_group_with_download(
         self,
@@ -917,6 +946,12 @@ class ForwardingHandler:
             # 模式1：自定义底栏（优先级最高）
             custom_footer = rule.get("custom_footer", "").strip()
             if custom_footer:
+                assistant_bot_link = ""
+                submission_link = ""
+                if QA_BOT_USERNAME:
+                    assistant_bot_link = f"[助手BOT](https://t.me/{QA_BOT_USERNAME})"
+                    submission_link = f"[投稿](https://t.me/{QA_BOT_USERNAME}?start=submit)"
+
                 # 安全替换占位符（使用 .replace() 避免 str.format() 的大括号冲突）
                 mapping = {
                     "{source_link}": source_link,
@@ -925,6 +960,8 @@ class ForwardingHandler:
                     "{source_channel}": source_channel,
                     "{target_channel}": target_username if target_username else target_channel,
                     "{message_id}": str(message.id),
+                    "{assistant_bot}": assistant_bot_link,
+                    "{submission}": submission_link,
                 }
 
                 footer_text = custom_footer
