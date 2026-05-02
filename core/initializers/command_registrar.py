@@ -108,6 +108,7 @@ from core.commands.userbot_commands import (
     handle_userbot_list,
     handle_userbot_status,
 )
+from core.handlers.mainbot_menu_handler import handle_mainbot_menu_callback
 from core.handlers.mainbot_request_handler import get_mainbot_request_handler
 from core.history_handlers import handle_export, handle_history, handle_stats
 from core.services.poll.poll_regeneration_handlers import (
@@ -559,6 +560,17 @@ class CommandRegistrar:
 
     def _register_callback_handlers(self, client: "TelegramClient") -> None:
         """注册回调查询处理器"""
+
+        # 主 Bot 内联菜单回调
+        async def handle_menu_callback(event):
+            await handle_mainbot_menu_callback(event, client)
+
+        client.add_event_handler(
+            handle_menu_callback,
+            CallbackQuery(func=lambda e: e.data and e.data.startswith(b"mainbot:")),
+        )
+        self.logger.info("主 Bot 内联菜单回调处理器已注册")
+
         # 投票重新生成回调
         client.add_event_handler(
             handle_poll_regeneration_callback,

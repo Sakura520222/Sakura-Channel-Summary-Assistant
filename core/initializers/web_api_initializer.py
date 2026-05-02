@@ -24,6 +24,36 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _setup_webui_logging() -> str:
+    """初始化 WebUI 独立日志
+
+    Returns:
+        WebUI 日志文件路径
+    """
+    from core.infrastructure.logging import setup_component_logging
+    from core.settings import get_settings
+
+    settings = get_settings()
+    return setup_component_logging(
+        component_name="WebUI",
+        logger_names=[
+            "core.web_api",
+            "core.web_api.access",
+            "uvicorn",
+            "uvicorn.error",
+            "uvicorn.access",
+        ],
+        log_level=settings.log.logging_level,
+        log_to_file=settings.log.log_to_file,
+        base_log_file_path=settings.log.log_file_path,
+        component_log_file_name="webui.log",
+        log_file_max_size=settings.log.log_file_max_size,
+        log_file_backup_count=settings.log.log_file_backup_count,
+        log_to_console=settings.log.log_to_console,
+        log_colorize=settings.log.log_colorize,
+    )
+
+
 class WebAPIInitializer:
     """WebUI API 服务器初始化器"""
 
@@ -53,6 +83,9 @@ class WebAPIInitializer:
 
             host = getattr(webui_settings, "host", "0.0.0.0")
             port = getattr(webui_settings, "port", 8080)
+
+            log_file_path = _setup_webui_logging()
+            logger.info(f"WebUI 日志已启用: {log_file_path}")
 
             await self._start_server(host, port)
             return True

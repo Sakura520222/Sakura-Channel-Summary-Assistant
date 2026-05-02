@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .middleware import AuthMiddleware
+from .middleware import AccessLogMiddleware, AuthMiddleware
 from .routes import (
     ai_config,
     auth,
@@ -64,6 +64,9 @@ def create_app() -> FastAPI:
 
     # JWT 认证中间件（在 CORS 之后，路由之前）
     app.add_middleware(AuthMiddleware)
+
+    # 精简访问日志中间件（记录最终响应状态与耗时）
+    app.add_middleware(AccessLogMiddleware)
 
     # 注册 API 路由
     app.include_router(auth.router, prefix="/api/auth", tags=["认证"])

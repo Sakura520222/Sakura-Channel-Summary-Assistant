@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import core.system.process_manager as process_manager
 from core.system.process_manager import (
     check_qa_bot_health,
     format_uptime,
@@ -26,7 +27,7 @@ class TestStartQABot:
     """启动QA Bot测试"""
 
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "True", "QA_BOT_TOKEN": "test_token"})
-    @patch("core.process_manager.subprocess.Popen")
+    @patch("core.system.process_manager.subprocess.Popen")
     def test_start_qa_bot_success(self, mock_popen):
         """测试成功启动QA Bot"""
         mock_process = MagicMock()
@@ -38,14 +39,15 @@ class TestStartQABot:
         assert result["success"] is True
         assert result["pid"] == 12345
         mock_popen.assert_called_once()
+        _, kwargs = mock_popen.call_args
+        assert kwargs["env"]["SAKURA_LOG_COMPONENT"] == "qa"
+        assert kwargs["env"]["SAKURA_COMPONENT_LOG_FILE"] == "qa-bot.log"
 
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "False"})
     def test_start_qa_bot_disabled(self):
         """测试QA Bot未启用"""
         # 重置全局变量
-        import core.process_manager
-
-        core.process_manager._qa_bot_process = None
+        process_manager._qa_bot_process = None
 
         result = start_qa_bot()
 
@@ -55,9 +57,7 @@ class TestStartQABot:
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "True", "QA_BOT_TOKEN": ""})
     def test_start_qa_bot_no_token(self):
         """测试未配置token"""
-        import core.process_manager
-
-        core.process_manager._qa_bot_process = None
+        process_manager._qa_bot_process = None
 
         result = start_qa_bot()
 
@@ -67,11 +67,9 @@ class TestStartQABot:
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "True", "QA_BOT_TOKEN": "test"})
     def test_start_qa_bot_already_running(self):
         """测试QA Bot已在运行"""
-        import core.process_manager
-
         mock_process = MagicMock()
         mock_process.pid = 12345
-        core.process_manager._qa_bot_process = mock_process
+        process_manager._qa_bot_process = mock_process
 
         result = start_qa_bot()
 
@@ -85,25 +83,21 @@ class TestStopQABot:
 
     def test_stop_qa_bot_success(self):
         """测试成功停止QA Bot"""
-        import core.process_manager
-
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_process.wait.return_value = None
-        core.process_manager._qa_bot_process = mock_process
+        process_manager._qa_bot_process = mock_process
 
         result = stop_qa_bot()
 
         assert result["success"] is True
         mock_process.terminate.assert_called_once()
-        assert core.process_manager._qa_bot_process is None
+        assert process_manager._qa_bot_process is None
 
     def test_stop_qa_bot_not_running(self):
         """测试停止未运行的QA Bot"""
-        import core.process_manager
-
-        core.process_manager._qa_bot_process = None
-        core.process_manager._qa_bot_start_time = None
+        process_manager._qa_bot_process = None
+        process_manager._qa_bot_start_time = None
 
         result = stop_qa_bot()
 
@@ -116,10 +110,8 @@ class TestGetQABotProcess:
 
     def test_get_qa_bot_process(self):
         """测试获取进程引用"""
-        import core.process_manager
-
         mock_process = MagicMock()
-        core.process_manager._qa_bot_process = mock_process
+        process_manager._qa_bot_process = mock_process
 
         result = get_qa_bot_process()
 
@@ -131,16 +123,14 @@ class TestRestartQABot:
     """重启QA Bot测试"""
 
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "True", "QA_BOT_TOKEN": "test"})
-    @patch("core.process_manager.subprocess.Popen")
-    @patch("core.process_manager.time.sleep")
+    @patch("core.system.process_manager.subprocess.Popen")
+    @patch("core.system.process_manager.time.sleep")
     def test_restart_qa_bot_success(self, mock_sleep, mock_popen):
         """测试成功重启QA Bot"""
-        import core.process_manager
-
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_process.wait.return_value = None
-        core.process_manager._qa_bot_process = mock_process
+        process_manager._qa_bot_process = mock_process
         mock_popen.return_value = mock_process
 
         result = restart_qa_bot()
@@ -157,13 +147,11 @@ class TestGetQABotStatus:
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "True", "QA_BOT_TOKEN": "test_token"})
     def test_get_status_running(self):
         """测试获取运行中状态"""
-        import core.process_manager
-
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_process.poll.return_value = None  # 进程运行中
-        core.process_manager._qa_bot_process = mock_process
-        core.process_manager._qa_bot_start_time = time.time() - 100
+        process_manager._qa_bot_process = mock_process
+        process_manager._qa_bot_start_time = time.time() - 100
 
         status = get_qa_bot_status()
 
@@ -176,10 +164,8 @@ class TestGetQABotStatus:
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "True", "QA_BOT_TOKEN": "test_token"})
     def test_get_status_not_running(self):
         """测试获取未运行状态"""
-        import core.process_manager
-
-        core.process_manager._qa_bot_process = None
-        core.process_manager._qa_bot_start_time = None
+        process_manager._qa_bot_process = None
+        process_manager._qa_bot_start_time = None
 
         status = get_qa_bot_status()
 
@@ -190,9 +176,7 @@ class TestGetQABotStatus:
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "False"})
     def test_get_status_disabled(self):
         """测试获取禁用状态"""
-        import core.process_manager
-
-        core.process_manager._qa_bot_process = None
+        process_manager._qa_bot_process = None
 
         status = get_qa_bot_status()
 
@@ -201,9 +185,7 @@ class TestGetQABotStatus:
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "True", "QA_BOT_TOKEN": ""})
     def test_get_status_no_token(self):
         """测试未配置token状态"""
-        import core.process_manager
-
-        core.process_manager._qa_bot_process = None
+        process_manager._qa_bot_process = None
 
         status = get_qa_bot_status()
 
@@ -225,9 +207,7 @@ class TestCheckQABotHealth:
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "True", "QA_BOT_TOKEN": ""})
     def test_check_health_no_token(self):
         """测试无token时的健康检查"""
-        import core.process_manager
-
-        core.process_manager._qa_bot_process = None
+        process_manager._qa_bot_process = None
 
         is_healthy, should_restart, message = check_qa_bot_health()
 
@@ -237,13 +217,11 @@ class TestCheckQABotHealth:
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "True", "QA_BOT_TOKEN": "test"})
     def test_check_health_running(self):
         """测试运行中的健康检查"""
-        import core.process_manager
-
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_process.poll.return_value = None
-        core.process_manager._qa_bot_process = mock_process
-        core.process_manager._qa_bot_start_time = time.time()
+        process_manager._qa_bot_process = mock_process
+        process_manager._qa_bot_start_time = time.time()
 
         is_healthy, should_restart, message = check_qa_bot_health()
 
@@ -253,9 +231,7 @@ class TestCheckQABotHealth:
     @patch.dict(os.environ, {"QA_BOT_ENABLED": "True", "QA_BOT_TOKEN": "test"})
     def test_check_health_not_running_should_restart(self):
         """测试未运行时的健康检查"""
-        import core.process_manager
-
-        core.process_manager._qa_bot_process = None
+        process_manager._qa_bot_process = None
 
         is_healthy, should_restart, message = check_qa_bot_health()
 

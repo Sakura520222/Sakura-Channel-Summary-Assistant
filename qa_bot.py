@@ -36,7 +36,9 @@ from core.ai.qa_engine_v3 import get_qa_engine_v3
 from core.ai.quota_manager import get_quota_manager
 from core.config import get_qa_bot_persona
 from core.infrastructure.exceptions import DatabaseError
+from core.infrastructure.logging import setup_component_logging
 from core.qa_user_system import get_qa_user_system
+from core.settings import get_settings
 from core.telegram.keyboards import (
     QA_MENU_ASK,
     QA_MENU_CHANNELS,
@@ -48,34 +50,29 @@ from core.telegram.keyboards import (
 )
 
 
-# 配置日志 - 添加[QA]前缀以便区分
-class QAFormatter(logging.Formatter):
-    """自定义日志格式器，添加[QA]前缀"""
+def _setup_qa_logging() -> None:
+    """初始化 QA Bot 日志系统"""
+    settings = get_settings()
+    component_log_file_name = os.getenv("SAKURA_COMPONENT_LOG_FILE", "qa-bot.log")
 
-    def format(self, record):
-        # 在消息前添加 [QA] 前缀
-        if record.msg and isinstance(record.msg, str):
-            record.msg = f"[QA] {record.msg}"
-        return super().format(record)
+    setup_component_logging(
+        component_name="QA",
+        logger_names=[],
+        log_level=settings.log.logging_level,
+        log_to_file=settings.log.log_to_file,
+        base_log_file_path=settings.log.log_file_path,
+        component_log_file_name=component_log_file_name,
+        log_file_max_size=settings.log.log_file_max_size,
+        log_file_backup_count=settings.log.log_file_backup_count,
+        log_to_console=settings.log.log_to_console,
+        log_colorize=settings.log.log_colorize,
+        configure_root=True,
+    )
 
 
-# 配置基础日志 - 使用 WARNING 作为全局级别，避免第三方库输出过多日志
-logging.basicConfig(
-    level=logging.WARNING, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+_setup_qa_logging()
 
-# 为 QABot 创建独立的 logger 并设置 INFO 级别
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# 为 QABot 的 logger 添加专用 handler
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(QAFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-    logger.addHandler(handler)
-
-# 确保日志不传播到 root logger（避免重复输出）
-logger.propagate = False
 
 # 抑制第三方库的 INFO 日志输出
 logging.getLogger("httpx").setLevel(logging.WARNING)

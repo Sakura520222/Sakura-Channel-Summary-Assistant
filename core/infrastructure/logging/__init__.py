@@ -13,12 +13,14 @@
 提供统一的日志配置管理，支持控制台和文件输出，支持日志轮转。
 """
 
-from .config import setup_logging
+from .config import get_component_log_file_path, setup_component_logging, setup_logging
 from .formatters import ColorFormatter, FileFormatter
 from .handlers import SafeRotatingFileHandler
 
 __all__ = [
     "setup_logging",
+    "setup_component_logging",
+    "get_component_log_file_path",
     "ColorFormatter",
     "FileFormatter",
     "SafeRotatingFileHandler",

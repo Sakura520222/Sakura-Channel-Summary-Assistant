@@ -15,6 +15,7 @@
 """
 
 import logging
+import time
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -23,6 +24,7 @@ from starlette.responses import JSONResponse, Response
 from .auth import verify_token
 
 logger = logging.getLogger(__name__)
+access_logger = logging.getLogger("core.web_api.access")
 
 # 不需要认证的路径
 PUBLIC_PATHS = {
@@ -89,3 +91,43 @@ def _extract_token(request: Request) -> str | None:
         return auth_header[7:]
 
     return None
+
+
+class AccessLogMiddleware(BaseHTTPMiddleware):
+    """WebUI 精简访问日志中间件"""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        start_time = time.perf_counter()
+        path = request.url.path
+
+        try:
+            response = await call_next(request)
+        except Exception as e:
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            client_host = request.client.host if request.client else "unknown"
+            access_logger.error(
+                "WebUI 请求异常: %s %s client=%s elapsed=%.2fms error=%s: %s",
+                request.method,
+                path,
+                client_host,
+                elapsed_ms,
+                type(e).__name__,
+                e,
+                exc_info=True,
+            )
+            raise
+
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        client_host = request.client.host if request.client else "unknown"
+
+        log_method = access_logger.debug if path == "/api/health" else access_logger.info
+        log_method(
+            "WebUI 请求: %s %s status=%s client=%s elapsed=%.2fms",
+            request.method,
+            path,
+            response.status_code,
+            client_host,
+            elapsed_ms,
+        )
+
+        return response
