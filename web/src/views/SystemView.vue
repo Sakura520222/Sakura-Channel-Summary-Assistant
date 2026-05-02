@@ -127,6 +127,15 @@
                 >
                   重启主 Bot
                 </n-button>
+                <n-button
+                  type="error"
+                  strong
+                  secondary
+                  :loading="actionLoading.clearDatabaseRestart"
+                  @click="confirmClearDatabaseRestart"
+                >
+                  清空数据库并重启
+                </n-button>
               </n-space>
               <n-text depth="3">讨论组缓存：{{ cacheSize }} 条</n-text>
             </n-space>
@@ -273,6 +282,7 @@ import {
   type AuditLogItem,
   type BotStatus,
   checkQABotHealth,
+  clearDatabaseAndRestart,
   cleanupAuditLogs,
   cleanupForwardedMessages,
   cleanupPollRegenerations,
@@ -301,6 +311,7 @@ type ActionKey =
   | "qaRestart"
   | "clearCache"
   | "restart"
+  | "clearDatabaseRestart"
   | "cleanupForwarded"
   | "cleanupPolls"
   | "cleanupAudit";
@@ -349,6 +360,7 @@ const actionLoading = reactive<Record<ActionKey, boolean>>({
   qaRestart: false,
   clearCache: false,
   restart: false,
+  clearDatabaseRestart: false,
   cleanupForwarded: false,
   cleanupPolls: false,
   cleanupAudit: false,
@@ -468,6 +480,23 @@ function confirmAction(
     positiveText: "确认执行",
     negativeText: "取消",
     onPositiveClick: () => runAction(key, runner),
+  });
+}
+
+function confirmClearDatabaseRestart() {
+  dialog.error({
+    title: "确认清空数据库并重启？",
+    content:
+      "此操作会删除所有业务数据、用户、订阅、总结、投稿、转发记录和审计记录，仅保留表结构与数据库版本。操作不可撤销，执行后 Bot 将自动重启。",
+    positiveText: "我确认清空并重启",
+    negativeText: "取消",
+    onPositiveClick: () =>
+      confirmAction(
+        "二次确认：永久删除数据库数据",
+        "请再次确认：数据库数据将被清空且无法从 WebUI 恢复。",
+        "clearDatabaseRestart",
+        clearDatabaseAndRestart
+      ),
   });
 }
 

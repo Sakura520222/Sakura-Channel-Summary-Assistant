@@ -29,6 +29,7 @@ from .routes import (
     channels,
     commands,
     dashboard,
+    database,
     forwarding,
     interaction,
     schedules,
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(summaries.router, prefix="/api/summaries", tags=["总结生成"])
     app.include_router(userbot.router, prefix="/api/userbot", tags=["UserBot 管理"])
     app.include_router(vector_store.router, prefix="/api/vector-store", tags=["向量存储"])
+    app.include_router(database.router, prefix="/api/tables", tags=["数据库管理"])
 
     # 注册健康检查端点
     @app.get("/api/health", tags=["健康检查"])

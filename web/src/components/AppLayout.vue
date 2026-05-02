@@ -81,6 +81,7 @@ import {
   SettingOutlined,
   UserOutlined,
   DatabaseOutlined,
+  StorageOutlined,
 } from "./icons";
 
 const router = useRouter();
@@ -103,6 +104,7 @@ const pageTitle = computed(() => {
     "/commands": "命令中心",
     "/stats": "统计数据",
     "/system": "系统运维",
+    "/database": "数据库管理",
     "/userbot": "UserBot 管理",
     "/vector-store": "向量存储",
   };
@@ -120,6 +122,7 @@ const menuOptions: MenuOption[] = [
   { label: "命令中心", key: "/commands", icon: TerminalOutlined },
   { label: "统计数据", key: "/stats", icon: BarChartOutlined },
   { label: "系统运维", key: "/system", icon: SettingOutlined },
+  { label: "数据库管理", key: "/database", icon: StorageOutlined },
   { label: "UserBot", key: "/userbot", icon: UserOutlined },
   { label: "向量存储", key: "/vector-store", icon: DatabaseOutlined },
 ];

@@ -2058,6 +2058,7 @@ class MySQLManager(DatabaseManagerBase):
         tables = [
             "poll_voters",  # 依赖 poll_regenerations
             "poll_regenerations",
+            "submissions",
             "forwarded_messages",
             "forwarding_stats",
             "notification_queue",
@@ -2068,6 +2069,7 @@ class MySQLManager(DatabaseManagerBase):
             "channel_profiles",
             "usage_quota",
             "summaries",
+            "system_audit_logs",
         ]
 
         results = {}
@@ -2983,3 +2985,262 @@ class MySQLManager(DatabaseManagerBase):
         except Exception as e:
             logger.error(f"清理系统审计记录失败: {type(e).__name__}: {e}", exc_info=True)
             return 0
+
+    # ============ 数据库管理方法（WebUI） ============
+
+    # 允许 WebUI 管理的表白名单
+    _ALLOWED_TABLES: set[str] = {
+        "summaries",
+        "db_version",
+        "usage_quota",
+        "channel_profiles",
+        "conversation_history",
+        "users",
+        "subscriptions",
+        "request_queue",
+        "notification_queue",
+        "forwarded_messages",
+        "forwarding_stats",
+        "poll_regenerations",
+        "poll_voters",
+        "system_audit_logs",
+        "submissions",
+    }
+
+    def table_exists(self, table: str) -> bool:
+        """检查表是否在白名单中"""
+        return table.lower() in self._ALLOWED_TABLES
+
+    async def list_tables(self) -> list[dict[str, Any]]:
+        """列出所有白名单表及基本信息"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    placeholders = ", ".join(["%s"] * len(self._ALLOWED_TABLES))
+                    await cursor.execute(
+                        f"""
+                        SELECT
+                            TABLE_NAME as table_name,
+                            TABLE_ROWS as table_rows,
+                            ROUND(DATA_LENGTH / 1024 / 1024, 3) as data_size_mb,
+                            ENGINE as engine
+                        FROM INFORMATION_SCHEMA.TABLES
+                        WHERE TABLE_SCHEMA = DATABASE()
+                          AND TABLE_NAME IN ({placeholders})
+                        ORDER BY TABLE_NAME
+                    """,
+                        list(self._ALLOWED_TABLES),
+                    )
+                    rows = await cursor.fetchall()
+                    if not rows:
+                        return []
+
+                    # InnoDB 的 INFORMATION_SCHEMA.TABLES.TABLE_ROWS 是估算值；
+                    # 使用 UNION ALL 批量获取精确 COUNT，避免逐表 N+1 查询。
+                    count_sql = " UNION ALL ".join(
+                        f"SELECT %s as table_name, COUNT(*) as cnt FROM `{row['table_name']}`"
+                        for row in rows
+                    )
+                    await cursor.execute(count_sql, [row["table_name"] for row in rows])
+                    counts = {
+                        row["table_name"]: int(row["cnt"] or 0) for row in await cursor.fetchall()
+                    }
+
+                    for row in rows:
+                        row["table_rows"] = counts.get(row["table_name"], 0)
+                        row["data_size_mb"] = float(row.get("data_size_mb") or 0)
+                    return list(rows)
+        except Exception as e:
+            logger.error(f"列出数据库表失败: {type(e).__name__}: {e}", exc_info=True)
+            return []
+
+    async def describe_table(self, table: str) -> list[dict[str, Any]]:
+        """获取表的列信息"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(
+                        """
+                        SELECT
+                            COLUMN_NAME as `field`,
+                            COLUMN_TYPE as `type`,
+                            IS_NULLABLE as `null`,
+                            COLUMN_KEY as `key`,
+                            COLUMN_DEFAULT as `default`,
+                            EXTRA as `extra`
+                        FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+                        ORDER BY ORDINAL_POSITION
+                    """,
+                        (table,),
+                    )
+                    return list(await cursor.fetchall())
+        except Exception as e:
+            logger.error(f"获取表结构失败 {table}: {type(e).__name__}: {e}", exc_info=True)
+            return []
+
+    async def get_primary_key(self, table: str) -> str | None:
+        """获取表的主键列名"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(
+                        """
+                        SELECT COLUMN_NAME
+                        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+                        WHERE TABLE_SCHEMA = DATABASE()
+                          AND TABLE_NAME = %s
+                          AND CONSTRAINT_NAME = 'PRIMARY'
+                        LIMIT 1
+                    """,
+                        (table,),
+                    )
+                    row = await cursor.fetchone()
+                    return row["COLUMN_NAME"] if row else None
+        except Exception as e:
+            logger.error(f"获取主键失败 {table}: {type(e).__name__}: {e}", exc_info=True)
+            return None
+
+    async def query_table(
+        self,
+        table: str,
+        page: int = 1,
+        page_size: int = 20,
+        search_column: str | None = None,
+        search_keyword: str | None = None,
+        order_by: str | None = None,
+        order_dir: str = "ASC",
+    ) -> dict[str, Any]:
+        """通用分页查询表数据"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    cols = await self.describe_table(table)
+                    col_names = {c["field"] for c in cols}
+                    where_clause = ""
+                    params: list[Any] = []
+
+                    if search_column and search_keyword:
+                        # 安全校验列名（防止 SQL 注入）
+                        if search_column not in col_names:
+                            return {
+                                "rows": [],
+                                "total": 0,
+                                "page": page,
+                                "page_size": page_size,
+                            }
+                        where_clause = f"WHERE `{search_column}` LIKE %s"
+                        params.append(f"%{search_keyword}%")
+
+                    # 总数
+                    await cursor.execute(
+                        f"SELECT COUNT(*) as cnt FROM `{table}` {where_clause}",
+                        params,
+                    )
+                    total_row = await cursor.fetchone()
+                    total = int(total_row["cnt"]) if total_row else 0
+
+                    # 排序
+                    order_clause = ""
+                    if order_by:
+                        # 安全校验排序列
+                        if order_by in col_names:
+                            direction = "DESC" if order_dir.upper() == "DESC" else "ASC"
+                            order_clause = f"ORDER BY `{order_by}` {direction}"
+
+                    offset = (page - 1) * page_size
+                    await cursor.execute(
+                        f"SELECT * FROM `{table}` {where_clause} {order_clause} LIMIT %s OFFSET %s",
+                        params + [page_size, offset],
+                    )
+                    rows = await cursor.fetchall()
+
+                    return {
+                        "rows": list(rows),
+                        "total": total,
+                        "page": page,
+                        "page_size": page_size,
+                    }
+        except Exception as e:
+            logger.error(f"查询表数据失败 {table}: {type(e).__name__}: {e}", exc_info=True)
+            return {"rows": [], "total": 0, "page": page, "page_size": page_size}
+
+    async def _validate_row_columns(self, table: str, data: dict[str, Any]) -> None:
+        """校验行写入数据的列名是否合法，防止列名注入。"""
+        cols = await self.describe_table(table)
+        col_names = {c["field"] for c in cols}
+        invalid_columns = [key for key in data if key not in col_names]
+        if invalid_columns:
+            raise ValueError(f"非法列名: {', '.join(invalid_columns)}")
+
+    async def get_row(self, table: str, pk_column: str, pk_value: Any) -> dict[str, Any] | None:
+        """获取单行数据"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(
+                        f"SELECT * FROM `{table}` WHERE `{pk_column}` = %s LIMIT 1",
+                        (pk_value,),
+                    )
+                    return await cursor.fetchone()
+        except Exception as e:
+            logger.error(f"获取行数据失败 {table}: {type(e).__name__}: {e}", exc_info=True)
+            return None
+
+    async def insert_row(self, table: str, data: dict[str, Any]) -> int | None:
+        """插入一行数据"""
+        try:
+            await self._validate_row_columns(table, data)
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    columns = ", ".join(f"`{k}`" for k in data.keys())
+                    placeholders = ", ".join(["%s"] * len(data))
+                    values = list(data.values())
+                    await cursor.execute(
+                        f"INSERT INTO `{table}` ({columns}) VALUES ({placeholders})",
+                        values,
+                    )
+                    await conn.commit()
+                    return int(cursor.lastrowid) if cursor.lastrowid else None
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"插入行失败 {table}: {type(e).__name__}: {e}", exc_info=True)
+            raise
+
+    async def update_row(
+        self, table: str, pk_column: str, pk_value: Any, data: dict[str, Any]
+    ) -> bool:
+        """更新一行数据"""
+        try:
+            await self._validate_row_columns(table, data)
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    set_clause = ", ".join(f"`{k}` = %s" for k in data.keys())
+                    values = list(data.values()) + [pk_value]
+                    await cursor.execute(
+                        f"UPDATE `{table}` SET {set_clause} WHERE `{pk_column}` = %s LIMIT 1",
+                        values,
+                    )
+                    await conn.commit()
+                    return cursor.rowcount == 1
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"更新行失败 {table}: {type(e).__name__}: {e}", exc_info=True)
+            raise
+
+    async def delete_row(self, table: str, pk_column: str, pk_value: Any) -> bool:
+        """删除一行数据"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        f"DELETE FROM `{table}` WHERE `{pk_column}` = %s LIMIT 1",
+                        (pk_value,),
+                    )
+                    await conn.commit()
+                    return cursor.rowcount == 1
+        except Exception as e:
+            logger.error(f"删除行失败 {table}: {type(e).__name__}: {e}", exc_info=True)
+            raise

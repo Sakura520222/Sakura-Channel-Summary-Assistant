@@ -16,8 +16,11 @@
 
 import hashlib
 import hmac
+import inspect
 import logging
-from typing import Any
+import time
+from collections.abc import Awaitable
+from typing import Any, TypeVar
 
 from fastapi import HTTPException, Query, status
 
@@ -26,6 +29,8 @@ from core.infrastructure.database.manager import get_db_manager
 from core.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 def get_config() -> dict:
@@ -41,6 +46,62 @@ def write_config(config: dict) -> None:
 def get_database():
     """获取数据库管理器实例"""
     return get_db_manager()
+
+
+def get_database_or_none():
+    """安全获取数据库管理器，失败时返回 None。"""
+    try:
+        return get_db_manager()
+    except Exception as e:
+        logger.debug(f"获取数据库管理器失败: {e}")
+        return None
+
+
+async def maybe_await(value: T | Awaitable[T]) -> T:
+    """兼容同步和异步返回值。"""
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+def actor_from_request(request: Any | None) -> str:
+    """从请求状态中提取 WebUI 操作者。"""
+    user = getattr(getattr(request, "state", None), "user", None)
+    return str(getattr(user, "user_id", "unknown"))
+
+
+def audit_duration(started_at: float) -> int:
+    """计算操作耗时（毫秒）。"""
+    return int((time.perf_counter() - started_at) * 1000)
+
+
+async def record_system_audit(
+    *,
+    action: str,
+    actor: str,
+    target: str = "",
+    params_summary: str = "{}",
+    success: bool,
+    message: str = "",
+    duration_ms: int = 0,
+) -> None:
+    """写入 WebUI 系统运维审计记录，失败时仅记录日志。"""
+    try:
+        db = get_database_or_none()
+        if db and hasattr(db, "add_system_audit_log"):
+            await maybe_await(
+                db.add_system_audit_log(
+                    action=action,
+                    actor=actor,
+                    target=target,
+                    params_summary=params_summary,
+                    success=success,
+                    message=message,
+                    duration_ms=duration_ms,
+                )
+            )
+    except Exception as e:
+        logger.warning(f"写入系统审计记录失败: {e}")
 
 
 def get_bot_state() -> str:

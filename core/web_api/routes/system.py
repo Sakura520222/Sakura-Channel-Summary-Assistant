@@ -16,7 +16,6 @@
 
 import asyncio
 import collections
-import inspect
 import logging
 import time
 from datetime import datetime
@@ -28,69 +27,26 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from core import __version__
 from core.config import RESTART_FLAG_FILE, get_bot_state, set_bot_state
+from core.web_api.deps import (
+    actor_from_request as _actor_from_request,
+)
+from core.web_api.deps import (
+    audit_duration as _audit_duration,
+)
+from core.web_api.deps import (
+    get_database_or_none as _get_db,
+)
+from core.web_api.deps import (
+    maybe_await as _maybe_await,
+)
+from core.web_api.deps import (
+    record_system_audit,
+)
 from core.web_api.schemas.system import BotStatusResponse, CleanupRequest, LogLevelUpdate
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def _actor_from_request(request: Request | Any | None) -> str:
-    """从请求状态中提取 WebUI 操作者。"""
-    user = getattr(getattr(request, "state", None), "user", None)
-    return getattr(user, "user_id", "unknown")
-
-
-def _get_db():
-    """安全获取数据库管理器。"""
-    try:
-        from core.infrastructure.database.manager import get_db_manager
-
-        return get_db_manager()
-    except Exception as e:
-        logger.debug(f"获取数据库管理器失败: {e}")
-        return None
-
-
-async def _maybe_await(value):
-    """兼容同步和异步数据库方法。"""
-    if inspect.isawaitable(value):
-        return await value
-    return value
-
-
-async def record_system_audit(
-    *,
-    action: str,
-    actor: str,
-    target: str = "",
-    params_summary: str = "{}",
-    success: bool,
-    message: str = "",
-    duration_ms: int = 0,
-) -> None:
-    """写入 WebUI 系统运维审计记录，失败时仅记录日志。"""
-    try:
-        db = _get_db()
-        if db and hasattr(db, "add_system_audit_log"):
-            await _maybe_await(
-                db.add_system_audit_log(
-                    action=action,
-                    actor=actor,
-                    target=target,
-                    params_summary=params_summary,
-                    success=success,
-                    message=message,
-                    duration_ms=duration_ms,
-                )
-            )
-    except Exception as e:
-        logger.warning(f"写入系统审计记录失败: {e}")
-
-
-def _audit_duration(started_at: float) -> int:
-    """计算操作耗时（毫秒）。"""
-    return int((time.perf_counter() - started_at) * 1000)
 
 
 def _format_datetime(value) -> str:
@@ -256,6 +212,66 @@ async def restart_bot():
     except Exception as e:
         logger.error(f"请求重启失败: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/database/clear-and-restart")
+async def clear_database_and_restart(request: Request):
+    """一键清空数据库并重启 Bot。"""
+    started_at = time.perf_counter()
+    db = _get_db()
+    if not db or not hasattr(db, "clear_all_data"):
+        raise HTTPException(status_code=503, detail="数据库管理器不可用")
+
+    try:
+        actor = _actor_from_request(request)
+        results = await _maybe_await(db.clear_all_data())
+        failed_tables = [table for table, count in results.items() if count < 0]
+        if failed_tables:
+            message = f"清空数据库部分失败: {', '.join(failed_tables)}"
+            await record_system_audit(
+                action="database.clear_and_restart",
+                actor=actor,
+                params_summary="{}",
+                success=False,
+                message=message,
+                duration_ms=_audit_duration(started_at),
+            )
+            raise HTTPException(status_code=500, detail=message)
+
+        # 写入重启标记并触发优雅关闭；清库后不再写审计，避免重新产生一条审计记录。
+        async with aiofiles.open(RESTART_FLAG_FILE, "w") as f:
+            await f.write("webui_clear_database_restart")
+
+        logger.warning(
+            "已通过 WebUI 清空数据库并请求重启 Bot，操作者=%s，清理结果=%s",
+            actor,
+            results,
+        )
+
+        from core.config import trigger_shutdown
+
+        trigger_shutdown()
+        deleted_total = sum(count for count in results.values() if count > 0)
+        return {
+            "success": True,
+            "message": f"已清空数据库（共 {deleted_total} 条记录），正在重启 Bot...",
+            "data": {"deleted_total": deleted_total, "tables": results},
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        message = f"清空数据库并重启失败: {type(e).__name__}: {e}"
+        await record_system_audit(
+            action="database.clear_and_restart",
+            actor=_actor_from_request(request),
+            params_summary="{}",
+            success=False,
+            message=message,
+            duration_ms=_audit_duration(started_at),
+        )
+        logger.error(message, exc_info=True)
+        raise HTTPException(status_code=500, detail=message) from e
 
 
 @router.post("/qa-bot/start")
