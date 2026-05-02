@@ -412,6 +412,12 @@ export async function updateDefaultCommentWelcome(data: Record<string, unknown>)
 
 // ==================== UserBot ====================
 
+export interface UserBotChannel {
+  id: number;
+  title: string;
+  username?: string | null;
+}
+
 export async function getUserBotStatus() {
   const res = await apiClient.get("/userbot/status");
   return res.data;

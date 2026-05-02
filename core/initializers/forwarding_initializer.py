@@ -98,8 +98,8 @@ class ForwardingInitializer:
             if userbot and rule_count > 0:
                 await self._auto_join_channels(userbot, forwarding_config)
 
-            # 提取源频道ID
-            source_channel_ids = self._extract_source_channels(forwarding_config)
+            # 提取源频道ID（set_config 已填充处理器缓存）
+            source_channel_ids = self.forwarding_handler.source_channel_ids
             self.logger.info(f"转发功能监听的源频道: {source_channel_ids}")
 
             # 注册消息监听器（即使禁用也注册，由 enabled 标志控制是否处理）
@@ -143,25 +143,19 @@ class ForwardingInitializer:
             error_message = result.get("message", "未知错误")
             self.logger.error(f"UserBot 自动加入源频道失败: {error_message}")
 
-    def _extract_source_channels(self, forwarding_config: dict) -> set:
-        """提取所有源频道ID
+    def _get_current_source_channels(self) -> set:
+        """获取当前生效的转发源频道ID集合
 
-        Args:
-            forwarding_config: 转发配置
+        优先从 ForwardingHandler 的实时配置中读取，确保 WebUI 热重载新增的
+        转发规则无需重启即可被监听器识别。
 
         Returns:
-            源频道ID集合
+            当前源频道ID集合
         """
-        source_channels = forwarding_config.get("rules", [])
-        source_channel_ids = set()
+        if not self.forwarding_handler:
+            return set()
 
-        for rule in source_channels:
-            source_url = rule.get("source_channel", "")
-            if source_url:
-                channel_id = source_url.rstrip("/").split("/")[-1]
-                source_channel_ids.add(channel_id)
-
-        return source_channel_ids
+        return self.forwarding_handler.source_channel_ids
 
     async def _register_message_listener(
         self, monitoring_client: "TelegramClient", source_channel_ids: set, is_userbot: bool
@@ -187,10 +181,17 @@ class ForwardingInitializer:
                     f"转发监听器被触发: chat_username={chat_username}, chat_id={chat_id}"
                 )
 
+                current_source_channel_ids = self._get_current_source_channels()
+                if current_source_channel_ids != source_channel_ids:
+                    self.logger.debug(
+                        f"转发源频道配置已动态更新: "
+                        f"{source_channel_ids} -> {current_source_channel_ids}"
+                    )
+
                 # 检查是否是配置的源频道
-                is_source_channel = (chat_username and chat_username in source_channel_ids) or (
-                    chat_id in source_channel_ids
-                )
+                is_source_channel = (
+                    chat_username and chat_username in current_source_channel_ids
+                ) or (chat_id in current_source_channel_ids)
 
                 if not is_source_channel:
                     self.logger.debug(f"频道 {chat_username or chat_id} 不是源频道，跳过")

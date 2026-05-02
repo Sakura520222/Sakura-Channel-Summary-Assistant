@@ -57,7 +57,8 @@ def _setup_webui_logging() -> str:
 class WebAPIInitializer:
     """WebUI API 服务器初始化器"""
 
-    def __init__(self):
+    def __init__(self, config_manager=None):
+        self._config_manager = config_manager
         self._server: Server | None = None
         self._task: asyncio.Task | None = None
 
@@ -104,7 +105,9 @@ class WebAPIInitializer:
         import uvicorn
 
         from core.web_api.app import create_app
+        from core.web_api.deps import configure_config_manager
 
+        configure_config_manager(self._config_manager)
         app = create_app()
 
         config = uvicorn.Config(
