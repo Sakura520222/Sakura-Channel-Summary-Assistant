@@ -14,6 +14,7 @@
 提供 FastAPI 路由的公共依赖项，如认证、数据库访问、配置管理等。
 """
 
+import asyncio
 import hashlib
 import hmac
 import inspect
@@ -32,6 +33,20 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+_config_manager: Any | None = None
+
+
+def configure_config_manager(config_manager: Any | None) -> None:
+    """配置 WebUI 使用的配置管理器
+
+    Args:
+        config_manager: 主进程 ConfigManager 实例，用于保存配置后显式触发热重载
+    """
+    global _config_manager
+    _config_manager = config_manager
+    if config_manager:
+        logger.info("WebUI 配置热重载管理器已注入")
+
 
 def get_config() -> dict:
     """获取当前配置（同步读取 config.json）"""
@@ -41,6 +56,36 @@ def get_config() -> dict:
 def write_config(config: dict) -> None:
     """保存配置（写入 config.json 并触发热更新）"""
     save_config(config)
+    _schedule_config_reload()
+
+
+def _schedule_config_reload() -> None:
+    """安排配置热重载任务
+
+    WebUI 与 Bot 共享事件循环时，保存配置后直接调用 ConfigManager.reload_config()，
+    避免仅依赖 watchdog 文件事件导致热重载延迟或遗漏。
+    """
+    if not _config_manager:
+        logger.debug("未注入配置管理器，跳过显式热重载触发")
+        return
+
+    async def _reload() -> None:
+        try:
+            success, error = await _config_manager.reload_config()
+            if success:
+                logger.info("✅ WebUI 保存配置后已触发热重载")
+            else:
+                logger.error(f"WebUI 保存配置后触发热重载失败: {error}")
+        except Exception as e:
+            logger.error(f"WebUI 配置热重载任务异常: {type(e).__name__}: {e}", exc_info=True)
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        logger.warning("当前无线程运行中的事件循环，跳过 WebUI 显式热重载触发")
+        return
+
+    loop.create_task(_reload())
 
 
 def get_database():

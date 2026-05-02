@@ -15,6 +15,7 @@
 """
 
 import asyncio
+import copy
 import hashlib
 import logging
 from datetime import UTC, datetime
@@ -116,7 +117,7 @@ class ForwardingHandler:
         Args:
             config: 配置字典
         """
-        self._config = config
+        self._config = copy.deepcopy(config)
         logger.info(f"转发配置已更新: {len(config.get('rules', []))} 条规则")
 
     async def on_config_updated(self, event: ConfigChangedEvent):
@@ -130,7 +131,7 @@ class ForwardingHandler:
         try:
             # 从完整配置中提取转发配置
             # 如果没有 forwarding 键，使用空字典作为默认值
-            forwarding_config = event.config.get("forwarding") or {}
+            forwarding_config = copy.deepcopy(event.config.get("forwarding") or {})
 
             # 确保配置结构完整
             if "enabled" not in forwarding_config:

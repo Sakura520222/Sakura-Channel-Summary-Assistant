@@ -75,7 +75,7 @@ class AppBootstrap:
         self.startup_notifier = StartupNotifier(
             version=version, system_config_manager=self.system_config_manager
         )
-        self.web_api_initializer = WebAPIInitializer()
+        self.web_api_initializer = WebAPIInitializer(config_manager=config_manager)
 
     async def run(self) -> None:
         """运行应用引导流程

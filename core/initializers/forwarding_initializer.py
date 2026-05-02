@@ -163,6 +163,20 @@ class ForwardingInitializer:
 
         return source_channel_ids
 
+    def _get_current_source_channels(self) -> set:
+        """获取当前生效的转发源频道ID集合
+
+        优先从 ForwardingHandler 的实时配置中读取，确保 WebUI 热重载新增的
+        转发规则无需重启即可被监听器识别。
+
+        Returns:
+            当前源频道ID集合
+        """
+        if not self.forwarding_handler:
+            return set()
+
+        return self._extract_source_channels(self.forwarding_handler.config or {})
+
     async def _register_message_listener(
         self, monitoring_client: "TelegramClient", source_channel_ids: set, is_userbot: bool
     ) -> None:
@@ -187,10 +201,17 @@ class ForwardingInitializer:
                     f"转发监听器被触发: chat_username={chat_username}, chat_id={chat_id}"
                 )
 
+                current_source_channel_ids = self._get_current_source_channels()
+                if current_source_channel_ids != source_channel_ids:
+                    self.logger.debug(
+                        f"转发源频道配置已动态更新: "
+                        f"{source_channel_ids} -> {current_source_channel_ids}"
+                    )
+
                 # 检查是否是配置的源频道
-                is_source_channel = (chat_username and chat_username in source_channel_ids) or (
-                    chat_id in source_channel_ids
-                )
+                is_source_channel = (
+                    chat_username and chat_username in current_source_channel_ids
+                ) or (chat_id in current_source_channel_ids)
 
                 if not is_source_channel:
                     self.logger.debug(f"频道 {chat_username or chat_id} 不是源频道，跳过")
