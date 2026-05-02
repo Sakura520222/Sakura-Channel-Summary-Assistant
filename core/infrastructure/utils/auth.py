@@ -11,7 +11,8 @@
 """
 命令权限检查工具。
 
-集中处理管理员权限校验，避免各命令模块重复实现相同逻辑。
+集中处理管理员权限校验，目标是逐步替代所有命令模块中的内联权限检查，
+避免重复实现并便于后续统一增加审计日志或调整权限逻辑。
 """
 
 import logging
@@ -44,6 +45,9 @@ async def check_admin_permission(
     """
     sender_id = getattr(event, "sender_id", None)
     command = command_name or _get_event_command(event)
+
+    if sender_id is None:
+        logger.warning(f"事件缺少 sender_id，无法进行权限检查，命令: {command}")
 
     if sender_id not in ADMIN_LIST and ADMIN_LIST != ["me"]:
         logger.warning(f"发送者 {sender_id} 没有权限执行命令 {command}")

@@ -207,7 +207,13 @@ async def _dispatch_command(event, client, command_key: str) -> None:
             f"处理菜单命令 {command_key} 失败: {type(e).__name__}: {e}",
             exc_info=True,
         )
-        await event.respond("❌ 处理菜单命令失败，请稍后再试或查看日志")
+        try:
+            await event.respond("❌ 处理菜单命令失败，请稍后再试或查看日志")
+        except Exception as notify_error:
+            logger.error(
+                f"发送菜单命令失败提示失败: {type(notify_error).__name__}: {notify_error}",
+                exc_info=True,
+            )
 
 
 async def _dispatch_forwarding_command(event, client, command_key: str) -> None:

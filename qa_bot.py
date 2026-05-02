@@ -53,7 +53,7 @@ from core.telegram.keyboards import (
 def _setup_qa_logging() -> None:
     """初始化 QA Bot 日志系统"""
     settings = get_settings()
-    component_name = os.getenv("SAKURA_LOG_COMPONENT", "QA")
+    component_name = os.getenv("SAKURA_LOG_COMPONENT", "qa")
     component_log_file_name = os.getenv("SAKURA_COMPONENT_LOG_FILE", "qa-bot.log")
 
     setup_component_logging(

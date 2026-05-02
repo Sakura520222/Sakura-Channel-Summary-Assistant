@@ -99,6 +99,7 @@ def build_callback(action: str, value: str) -> bytes:
     """构建主 Bot 内联按钮回调数据。
 
     Telegram callback_data 限制为 64 字节，新增菜单项时需保持 action/value 简短。
+    长度校验以 UTF-8 编码后的字节数为准，不能使用字符串字符数代替。
     """
     callback_data = f"{CALLBACK_PREFIX}:{action}:{value}".encode()
     if len(callback_data) > MAX_CALLBACK_DATA_BYTES:

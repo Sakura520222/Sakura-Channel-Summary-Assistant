@@ -17,7 +17,10 @@ from core.telegram.mainbot_keyboards import (
     CMD_CHANNELS,
     CMD_FORWARDING_STATUS,
     MENU_BASIC,
+    MENU_CONFIG,
+    MENU_FORWARDING,
     MENU_MAIN,
+    MENU_QA,
     build_callback,
     build_mainbot_menu_keyboard,
 )
@@ -156,8 +159,8 @@ def test_build_callback_rejects_oversized_data():
         build_callback("cmd", "x" * 80)
 
 
-def test_build_mainbot_menu_keyboard_callback_data_within_limit():
+@pytest.mark.parametrize("menu", [MENU_MAIN, MENU_BASIC, MENU_QA, MENU_FORWARDING, MENU_CONFIG])
+def test_build_mainbot_menu_keyboard_callback_data_within_limit(menu):
     """测试主菜单回调数据不超过 Telegram 限制。"""
-    for menu in (MENU_MAIN, MENU_BASIC):
-        buttons = build_mainbot_menu_keyboard(menu)
-        assert all(len(button.data) <= 64 for row in buttons for button in row)
+    buttons = build_mainbot_menu_keyboard(menu)
+    assert all(len(button.data) <= 64 for row in buttons for button in row)
