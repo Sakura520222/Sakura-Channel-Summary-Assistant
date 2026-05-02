@@ -47,6 +47,8 @@
 | **RAG 功能** | [快速启动](User-RAG-Quickstart.md) | [技术文档](Developer-RAG-Feature-V3.md) |
 | **投票功能** | [配置指南](User-Poll-Feature.md) | - |
 | **WebUI 面板** | [WebUI 指南](User-WebUI-Guide.md) | - |
+| **转发管理** | [WebUI 指南](User-WebUI-Guide.md) | [架构设计](Developer-Architecture.md) |
+| **数据库管理** | [WebUI 指南](User-WebUI-Guide.md) | [架构设计](Developer-Architecture.md) |
 | **代码质量** | - | [Ruff 指南](Developer-Ruff-Script-Guide.md) |
 | **系统架构** | - | [架构设计](Developer-Architecture.md) |
 

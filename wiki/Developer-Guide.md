@@ -90,8 +90,8 @@ Sakura-Bot 使用以下技术栈：
 
 ### 数据存储
 
-- **SQLite** - 轻量级关系数据库（WAL 模式）
-- **aiosqlite** - 异步 SQLite 操作
+- **MySQL** - 生产数据库，承载总结、队列、投稿、转发统计等关系数据
+- **aiomysql** - 异步 MySQL 连接池和查询执行
 - **ChromaDB** - 向量数据库（RAG 功能）
 
 ### AI/ML
@@ -119,19 +119,18 @@ Sakura-Bot 使用以下技术栈：
 ```
 Sakura-Bot/
 ├── core/                    # 核心模块
-│   ├── ai_client.py        # AI 客户端
-│   ├── config.py           # 配置管理
-│   ├── database.py         # 数据库操作
-│   ├── conversation_manager.py  # 会话管理
-│   ├── intent_parser.py    # 意图解析
-│   ├── memory_manager.py   # 记忆管理
-│   ├── qa_engine_v3.py     # 问答引擎
-│   ├── vector_store.py     # 向量存储
-│   ├── reranker.py         # 重排序
-│   └── telegram/           # Telegram 相关
-│       ├── client.py       # 客户端
-│       ├── messaging.py    # 消息处理
-│       └── poll_handlers.py # 投票处理
+│   ├── ai/                 # AI 客户端、RAG、向量存储、工具调用
+│   ├── bootstrap/          # AppBootstrap 初始化编排
+│   ├── commands/           # 主 Bot 命令处理器
+│   ├── config/             # 配置管理、事件总线、文件监听
+│   ├── forwarding/         # 频道转发、过滤、媒体处理
+│   ├── handlers/           # Telegram/UserBot/Web 事件处理
+│   ├── infrastructure/     # 数据库、日志、异常、通用工具
+│   ├── initializers/       # 启动初始化步骤
+│   ├── system/             # 调度、进程、关闭、错误处理
+│   ├── telegram/           # Telegram 键盘和客户端辅助
+│   └── web_api/            # FastAPI WebUI 后端 API
+├── web/                     # Vue 3 + Vite + TypeScript WebUI 前端
 ├── tests/                   # 测试代码
 ├── data/                    # 数据文件
 ├── wiki/                    # 项目文档

@@ -5,7 +5,7 @@
 > **分类**: 开发者文档  
 > **类型**: 教程  
 > **难度**: ⭐  
-> **更新时间**: 2026-02-25
+> **更新时间**: 2026-05-02
 
 [← 返回开发者文档](Developer-Guide.md) | [Wiki 首页](Home.md)
 
@@ -15,7 +15,8 @@
 
 - **Python 3.11+**（推荐 3.13）
 - **Git**
-- **PostgreSQL/MySQL**（可选，用于测试）
+- **MySQL**（必需，项目当前仅支持 MySQL）
+- **Node.js 20+ / npm**（可选，用于 WebUI 前端开发与构建）
 - **Docker**（可选，用于容器化测试）
 
 ---
@@ -58,6 +59,19 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt  # 如果存在
 ```
 
+### 步骤 2.1：安装 WebUI 前端依赖（可选）
+
+如果需要开发或本地构建 WebUI：
+
+```bash
+cd web
+npm install
+npm run build
+cd ..
+```
+
+Docker 构建和项目更新流程会处理前端构建；仅修改 Python 后端时通常不需要手动执行。
+
 ### 步骤 3：配置环境变量
 
 ```bash
@@ -69,6 +83,17 @@ nano data/.env
 ```
 
 填写必要的配置项（参考[用户快速开始](User-Getting-Started.md)）。
+
+当前版本仅支持 MySQL，请至少配置以下数据库项：
+
+```env
+DATABASE_TYPE=mysql
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=your_mysql_user
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_DATABASE=sakura_bot_db
+```
 
 ### 步骤 4：安装 Pre-commit 钩子（推荐）
 
@@ -176,18 +201,18 @@ docker-compose up -d
 Sakura-Bot/
 ├── core/                      # 核心模块
 │   ├── __init__.py
-│   ├── ai_client.py          # AI 客户端
-│   ├── config.py             # 配置管理
-│   ├── database.py           # 数据库操作
-│   ├── conversation_manager.py  # 会话管理
-│   ├── intent_parser.py      # 意图解析
-│   ├── memory_manager.py     # 记忆管理
-│   ├── qa_engine_v3.py       # 问答引擎
-│   ├── vector_store.py       # 向量存储
-│   ├── reranker.py           # 重排序
-│   ├── command_handlers/     # 命令处理
+│   ├── ai/                   # AI、RAG、向量存储和工具调用
+│   ├── bootstrap/            # 应用启动编排
+│   ├── commands/             # 命令处理
+│   ├── config/               # 配置管理、事件总线、热重载
+│   ├── forwarding/           # 频道转发功能
+│   ├── handlers/             # 事件处理器
+│   ├── infrastructure/       # 数据库、日志、异常和工具
+│   ├── initializers/         # 初始化步骤
+│   ├── system/               # 调度、进程和关闭管理
 │   ├── telegram/             # Telegram 相关
-│   └── utils/                # 工具函数
+│   └── web_api/              # FastAPI WebUI API
+├── web/                       # Vue 3 + Vite WebUI 前端
 ├── tests/                     # 测试代码
 │   ├── __init__.py
 │   ├── conftest.py           # pytest 配置

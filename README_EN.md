@@ -27,6 +27,8 @@ Sakura Channel Summary Assistant is a sophisticated Telegram channel management 
 - 🤖 **Customizable AI Configuration** - Support for OpenAI-compatible APIs (DeepSeek, OpenAI, etc.)
 - 📊 **Interactive Polls** - Engage your community with AI-generated polls
 - 📝 **History Management** - Track, export, and analyze all summaries
+- 🌐 **WebUI Dashboard** - Manage channels, forwarding, database, and system status from a browser
+- 📤 **Reliable Forwarding** - Filtering, footer templates, UserBot fallback, and hot-reload deduplication
 
 ---
 
@@ -140,6 +142,10 @@ python main.py
 | **🔒 Anonymous Submission**       | Submission review system supports anonymous submission mode for privacy protection       | ✅      |
 | **📊 Vector Store Management**    | WebUI supports vector store collection management, including purge and document deletion | ✅      |
 | **📈 Stats & Pagination**         | New statistics API endpoints; summary queries support pagination offset                  | ✅      |
+| **🗄️ WebUI Database Management**  | WebUI supports MySQL table browsing, paginated queries, and controlled row operations     | ✅      |
+| **🧭 Main Bot Inline Menu**        | Welcome and help messages provide button-based access to common admin functions          | ✅      |
+| **⚡ Instant WebUI Config Reload** | Saving config in WebUI explicitly triggers hot reload to reduce restart requirements     | ✅      |
+| **🛡️ Forwarding Fallback & Dedup** | Falls back to UserBot when Bot forwarding fails and deduplicates config reload events     | ✅      |
 
 ---
 
@@ -153,6 +159,8 @@ python main.py
 | -------- | ------- | --------------------------------------- | -------- |
 | `/start` | `/开始` | View welcome message and introduction   | `/start` |
 | `/help`  | `/帮助` | Display complete command list and usage | `/help`  |
+
+> `/start` and `/help` include inline menu buttons, allowing admins to quickly access channel, forwarding, system, and QA Bot management functions.
 
 #### Core Functions
 
@@ -301,6 +309,9 @@ MYSQL_POOL_TIMEOUT=30
 - Support forward mode (show source) and copy mode (no source)
 - Automatically record forwarded messages to avoid duplicates
 - Provide detailed forwarding statistics
+- Forwarding management commands are restricted to administrators
+- Falls back to the UserBot/monitoring client when the Bot cannot resolve or forward a target entity
+- Supports hot-reload deduplication after config saves or WebUI edits to avoid duplicate rule refreshes
 
 **Configuration**:
 Configure forwarding rules in `data/config.json`:
@@ -338,9 +349,21 @@ Configure forwarding rules in `data/config.json`:
 
 **Footer Customization**:
 - Support custom footer text for forwarded messages
-- Available template variables: `{source_title}`, `{target_title}`, `{source_channel}`, `{target_channel}`, `{message_id}`
+- Available template variables: `{source_link}`, `{source_title}`, `{target_title}`, `{source_channel}`, `{target_channel}`, `{message_id}`, `{assistant_bot}`, `{submission}`
 - Example: `/forwarding_footer https://t.me/source https://t.me/target "📢 Source: {source_title}"`
 - Support default footer enable/disable
+
+### WebUI Dashboard
+
+The WebUI provides a browser-based administration panel for dashboards, channel and schedule management, on-demand summaries, forwarding rules, statistics, and controlled system operations.
+
+**Latest capabilities**:
+- **Database Management**: browse MySQL tables, query with pagination, and perform controlled row operations for troubleshooting
+- **Instant Config Reload**: saving config from WebUI explicitly triggers hot reload for AI, scheduler, and forwarding settings
+- **Forwarding Rule Management**: edit footer templates and insert placeholders without manually editing `config.json`
+- **System Operations**: view runtime status, change log level, pause/resume jobs, and trigger graceful restart
+
+> ⚠️ Database management and system operations are high-risk features. Enable WebUI only on trusted networks and make sure JWT authentication and admin IDs are configured correctly.
 
 #### Forwarding Rule Management
 
