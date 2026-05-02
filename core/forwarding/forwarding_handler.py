@@ -73,6 +73,7 @@ class ForwardingHandler:
         self._event_bus = event_bus
         self._enabled = False
         self._config = {}
+        self._source_channel_ids: set[str] = set()
         # 媒体组缓存：{grouped_id: [messages]}
         # 用于收集媒体组的所有消息（Bot无法访问频道历史）
         self._media_group_cache: dict[int, list[Message]] = {}
@@ -110,6 +111,11 @@ class ForwardingHandler:
         """获取转发配置"""
         return self._config
 
+    @property
+    def source_channel_ids(self) -> set[str]:
+        """获取当前转发规则源频道ID集合"""
+        return self._source_channel_ids.copy()
+
     def set_config(self, config: dict[str, Any]):
         """
         设置转发配置
@@ -118,7 +124,25 @@ class ForwardingHandler:
             config: 配置字典
         """
         self._config = copy.deepcopy(config)
+        self._source_channel_ids = self._extract_source_channel_ids(self._config)
         logger.info(f"转发配置已更新: {len(config.get('rules', []))} 条规则")
+
+    @staticmethod
+    def _extract_source_channel_ids(config: dict[str, Any]) -> set[str]:
+        """从转发配置中提取源频道ID集合
+
+        Args:
+            config: 转发配置字典
+
+        Returns:
+            源频道ID集合
+        """
+        source_channel_ids = set()
+        for rule in config.get("rules", []):
+            source_url = rule.get("source_channel", "")
+            if source_url:
+                source_channel_ids.add(source_url.rstrip("/").split("/")[-1])
+        return source_channel_ids
 
     async def on_config_updated(self, event: ConfigChangedEvent):
         """配置更新处理
@@ -146,6 +170,7 @@ class ForwardingHandler:
 
             # 更新配置和启用状态
             self._config = forwarding_config
+            self._source_channel_ids = self._extract_source_channel_ids(forwarding_config)
             self._enabled = forwarding_config.get("enabled", False)
 
             # 记录状态变化
@@ -667,11 +692,18 @@ class ForwardingHandler:
             logger.warning(
                 f"发送客户端无法解析源频道实体，尝试使用监听客户端转发: {type(e).__name__}: {e}"
             )
-            await self.monitoring_client.forward_messages(
-                entity=target_channel,
-                messages=messages,
-                from_peer=from_peer,
-            )
+            try:
+                await self.monitoring_client.forward_messages(
+                    entity=target_channel,
+                    messages=messages,
+                    from_peer=from_peer,
+                )
+            except Exception as fallback_e:
+                logger.error(
+                    f"监听客户端回退转发也失败: {type(fallback_e).__name__}: {fallback_e}",
+                    exc_info=True,
+                )
+                raise
 
     async def _forward_media_group_with_download(
         self,
@@ -947,11 +979,7 @@ class ForwardingHandler:
             # 模式1：自定义底栏（优先级最高）
             custom_footer = rule.get("custom_footer", "").strip()
             if custom_footer:
-                assistant_bot_link = ""
-                submission_link = ""
-                if QA_BOT_USERNAME:
-                    assistant_bot_link = f"[助手BOT](https://t.me/{QA_BOT_USERNAME})"
-                    submission_link = f"[投稿](https://t.me/{QA_BOT_USERNAME}?start=submit)"
+                assistant_bot_link, submission_link = self._build_qa_bot_links()
 
                 # 安全替换占位符（使用 .replace() 避免 str.format() 的大括号冲突）
                 mapping = {
@@ -985,15 +1013,31 @@ class ForwardingHandler:
             else:
                 footer_parts.append(target_channel)
 
-            if QA_BOT_USERNAME:
-                footer_parts.append(f"| [助手BOT](https://t.me/{QA_BOT_USERNAME})")
-                footer_parts.append(f"| [投稿](https://t.me/{QA_BOT_USERNAME}?start=submit)")
+            assistant_bot_link, submission_link = self._build_qa_bot_links()
+            if assistant_bot_link:
+                footer_parts.append(f"| {assistant_bot_link}")
+                footer_parts.append(f"| {submission_link}")
 
             return " ".join(footer_parts)
 
         except Exception as e:
             logger.error(f"生成底栏失败: {type(e).__name__}: {e}", exc_info=True)
             return ""
+
+    @staticmethod
+    def _build_qa_bot_links() -> tuple[str, str]:
+        """构建 QA Bot 相关链接
+
+        Returns:
+            助手 BOT 链接和投稿链接
+        """
+        if not QA_BOT_USERNAME:
+            return "", ""
+
+        return (
+            f"[助手BOT](https://t.me/{QA_BOT_USERNAME})",
+            f"[投稿](https://t.me/{QA_BOT_USERNAME}?start=submit)",
+        )
 
     async def get_statistics(self, channel_id: str = None) -> dict[str, Any]:
         """

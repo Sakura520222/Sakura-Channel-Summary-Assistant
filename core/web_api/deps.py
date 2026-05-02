@@ -65,13 +65,14 @@ def _schedule_config_reload() -> None:
     WebUI 与 Bot 共享事件循环时，保存配置后直接调用 ConfigManager.reload_config()，
     避免仅依赖 watchdog 文件事件导致热重载延迟或遗漏。
     """
-    if not _config_manager:
+    config_manager = _config_manager
+    if not config_manager:
         logger.debug("未注入配置管理器，跳过显式热重载触发")
         return
 
     async def _reload() -> None:
         try:
-            success, error = await _config_manager.reload_config()
+            success, error = await config_manager.reload_config()
             if success:
                 logger.info("✅ WebUI 保存配置后已触发热重载")
             else:

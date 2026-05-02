@@ -175,7 +175,7 @@ class ForwardingInitializer:
         if not self.forwarding_handler:
             return set()
 
-        return self._extract_source_channels(self.forwarding_handler.config or {})
+        return self.forwarding_handler.source_channel_ids
 
     async def _register_message_listener(
         self, monitoring_client: "TelegramClient", source_channel_ids: set, is_userbot: bool

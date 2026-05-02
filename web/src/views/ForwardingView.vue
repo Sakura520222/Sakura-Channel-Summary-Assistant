@@ -76,33 +76,25 @@
         <n-form-item label="占位符">
           <n-space size="small" vertical>
             <n-space size="small">
-              <n-tag
+              <n-tooltip
                 v-for="placeholder in footerPlaceholders"
                 :key="placeholder.value"
-                size="small"
-                class="cursor-pointer"
-                @click="insertFooterPlaceholder(placeholder.value)"
               >
-                {{ placeholder.value }}
-              </n-tag>
+                <template #trigger>
+                  <n-tag
+                    size="small"
+                    class="cursor-pointer"
+                    @click="insertFooterPlaceholder(placeholder.value)"
+                  >
+                    {{ placeholder.value }}
+                  </n-tag>
+                </template>
+                {{ placeholder.description }}
+              </n-tooltip>
             </n-space>
             <n-text depth="3" class="placeholder-help">
-              点击可追加到自定义页脚：
-              <span v-for="placeholder in footerPlaceholders" :key="placeholder.value">
-                {{ placeholder.value }} = {{ placeholder.description }}；
-              </span>
+              点击标签可追加到自定义页脚，悬停查看说明。
             </n-text>
-          </n-space>
-        </n-form-item>
-        <n-form-item label="快捷说明">
-          <n-space size="small">
-            <n-tag
-              v-for="placeholder in footerPlaceholders"
-              :key="`${placeholder.value}-desc`"
-              size="small"
-            >
-              {{ placeholder.value }}：{{ placeholder.description }}
-            </n-tag>
           </n-space>
         </n-form-item>
       </n-form>
@@ -118,7 +110,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, h } from "vue";
-import { NButton, NTag, NSpace, useMessage } from "naive-ui";
+import { NButton, NTag, NSpace, NTooltip, useMessage } from "naive-ui";
 import type { DataTableColumns, SelectOption } from "naive-ui";
 import {
   addForwardingRule,
@@ -242,7 +234,7 @@ function applyFooterTemplate(value: string | null) {
 
 function insertFooterPlaceholder(placeholder: string) {
   ruleForm.custom_footer = ruleForm.custom_footer
-    ? `${ruleForm.custom_footer}${placeholder}`
+    ? `${ruleForm.custom_footer}${/\s$/.test(ruleForm.custom_footer) ? "" : " "}${placeholder}`
     : placeholder;
 }
 

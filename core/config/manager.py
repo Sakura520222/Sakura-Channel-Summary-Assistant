@@ -179,6 +179,10 @@ class ConfigManager:
                 logger.error(f"配置验证失败: {error_event.error}")
                 return False, rollback_event.error
 
+            if config_dict == self._config_snapshot:
+                logger.debug("配置文件内容与当前快照一致，跳过重复热重载")
+                return True, ""
+
             # 4. 验证成功：原子更新配置快照
             old_config = self._config_snapshot
             async with self._write_lock:
