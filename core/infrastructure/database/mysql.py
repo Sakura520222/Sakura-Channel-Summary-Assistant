@@ -3201,7 +3201,9 @@ class MySQLManager(DatabaseManagerBase):
                         values,
                     )
                     await conn.commit()
-                    return int(cursor.lastrowid or 0)
+                    return int(cursor.lastrowid) if cursor.lastrowid else None
+        except ValueError:
+            raise
         except Exception as e:
             logger.error(f"插入行失败 {table}: {type(e).__name__}: {e}", exc_info=True)
             raise
@@ -3222,6 +3224,8 @@ class MySQLManager(DatabaseManagerBase):
                     )
                     await conn.commit()
                     return cursor.rowcount == 1
+        except ValueError:
+            raise
         except Exception as e:
             logger.error(f"更新行失败 {table}: {type(e).__name__}: {e}", exc_info=True)
             raise

@@ -19,7 +19,8 @@ import hmac
 import inspect
 import logging
 import time
-from typing import Any
+from collections.abc import Awaitable
+from typing import Any, TypeVar
 
 from fastapi import HTTPException, Query, status
 
@@ -28,6 +29,8 @@ from core.infrastructure.database.manager import get_db_manager
 from core.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 def get_config() -> dict:
@@ -54,7 +57,7 @@ def get_database_or_none():
         return None
 
 
-async def maybe_await(value):
+async def maybe_await(value: T | Awaitable[T]) -> T:
     """兼容同步和异步返回值。"""
     if inspect.isawaitable(value):
         return await value
