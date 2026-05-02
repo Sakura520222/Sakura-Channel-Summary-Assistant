@@ -17,8 +17,8 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 
-class RowCreateRequest(BaseModel):
-    """创建行请求"""
+class RowDataRequestBase(BaseModel):
+    """行数据请求基类"""
 
     data: dict[str, Any] = Field(..., description="列名→值的字典")
 
@@ -30,14 +30,9 @@ class RowCreateRequest(BaseModel):
         return v
 
 
-class RowUpdateRequest(BaseModel):
+class RowCreateRequest(RowDataRequestBase):
+    """创建行请求"""
+
+
+class RowUpdateRequest(RowDataRequestBase):
     """更新行请求"""
-
-    data: dict[str, Any] = Field(..., description="要更新的列名→值字典")
-
-    @field_validator("data")
-    @classmethod
-    def validate_data_not_empty(cls, v: dict[str, Any]) -> dict[str, Any]:
-        if not v:
-            raise ValueError("data 不能为空")
-        return v

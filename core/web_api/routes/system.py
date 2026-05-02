@@ -16,7 +16,6 @@
 
 import asyncio
 import collections
-import inspect
 import logging
 import time
 from datetime import datetime
@@ -28,69 +27,26 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from core import __version__
 from core.config import RESTART_FLAG_FILE, get_bot_state, set_bot_state
+from core.web_api.deps import (
+    actor_from_request as _actor_from_request,
+)
+from core.web_api.deps import (
+    audit_duration as _audit_duration,
+)
+from core.web_api.deps import (
+    get_database_or_none as _get_db,
+)
+from core.web_api.deps import (
+    maybe_await as _maybe_await,
+)
+from core.web_api.deps import (
+    record_system_audit,
+)
 from core.web_api.schemas.system import BotStatusResponse, CleanupRequest, LogLevelUpdate
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def _actor_from_request(request: Request | Any | None) -> str:
-    """从请求状态中提取 WebUI 操作者。"""
-    user = getattr(getattr(request, "state", None), "user", None)
-    return getattr(user, "user_id", "unknown")
-
-
-def _get_db():
-    """安全获取数据库管理器。"""
-    try:
-        from core.infrastructure.database.manager import get_db_manager
-
-        return get_db_manager()
-    except Exception as e:
-        logger.debug(f"获取数据库管理器失败: {e}")
-        return None
-
-
-async def _maybe_await(value):
-    """兼容同步和异步数据库方法。"""
-    if inspect.isawaitable(value):
-        return await value
-    return value
-
-
-async def record_system_audit(
-    *,
-    action: str,
-    actor: str,
-    target: str = "",
-    params_summary: str = "{}",
-    success: bool,
-    message: str = "",
-    duration_ms: int = 0,
-) -> None:
-    """写入 WebUI 系统运维审计记录，失败时仅记录日志。"""
-    try:
-        db = _get_db()
-        if db and hasattr(db, "add_system_audit_log"):
-            await _maybe_await(
-                db.add_system_audit_log(
-                    action=action,
-                    actor=actor,
-                    target=target,
-                    params_summary=params_summary,
-                    success=success,
-                    message=message,
-                    duration_ms=duration_ms,
-                )
-            )
-    except Exception as e:
-        logger.warning(f"写入系统审计记录失败: {e}")
-
-
-def _audit_duration(started_at: float) -> int:
-    """计算操作耗时（毫秒）。"""
-    return int((time.perf_counter() - started_at) * 1000)
 
 
 def _format_datetime(value) -> str:

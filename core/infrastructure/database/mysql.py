@@ -3032,13 +3032,22 @@ class MySQLManager(DatabaseManagerBase):
                         list(self._ALLOWED_TABLES),
                     )
                     rows = await cursor.fetchall()
-                    # InnoDB 的 INFORMATION_SCHEMA.TABLES.TABLE_ROWS 是估算值，
-                    # DELETE 后经常仍显示旧行数；WebUI 管理页需要精确计数。
+                    if not rows:
+                        return []
+
+                    # InnoDB 的 INFORMATION_SCHEMA.TABLES.TABLE_ROWS 是估算值；
+                    # 使用 UNION ALL 批量获取精确 COUNT，避免逐表 N+1 查询。
+                    count_sql = " UNION ALL ".join(
+                        f"SELECT %s as table_name, COUNT(*) as cnt FROM `{row['table_name']}`"
+                        for row in rows
+                    )
+                    await cursor.execute(count_sql, [row["table_name"] for row in rows])
+                    counts = {
+                        row["table_name"]: int(row["cnt"] or 0) for row in await cursor.fetchall()
+                    }
+
                     for row in rows:
-                        table_name = row["table_name"]
-                        await cursor.execute(f"SELECT COUNT(*) as cnt FROM `{table_name}`")
-                        count_row = await cursor.fetchone()
-                        row["table_rows"] = int(count_row["cnt"] if count_row else 0)
+                        row["table_rows"] = counts.get(row["table_name"], 0)
                         row["data_size_mb"] = float(row.get("data_size_mb") or 0)
                     return list(rows)
         except Exception as e:
@@ -3106,13 +3115,13 @@ class MySQLManager(DatabaseManagerBase):
         try:
             async with self.pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    cols = await self.describe_table(table)
+                    col_names = {c["field"] for c in cols}
                     where_clause = ""
                     params: list[Any] = []
 
                     if search_column and search_keyword:
                         # 安全校验列名（防止 SQL 注入）
-                        cols = await self.describe_table(table)
-                        col_names = {c["field"] for c in cols}
                         if search_column not in col_names:
                             return {
                                 "rows": [],
@@ -3135,8 +3144,6 @@ class MySQLManager(DatabaseManagerBase):
                     order_clause = ""
                     if order_by:
                         # 安全校验排序列
-                        cols = await self.describe_table(table)
-                        col_names = {c["field"] for c in cols}
                         if order_by in col_names:
                             direction = "DESC" if order_dir.upper() == "DESC" else "ASC"
                             order_clause = f"ORDER BY `{order_by}` {direction}"
@@ -3158,6 +3165,14 @@ class MySQLManager(DatabaseManagerBase):
             logger.error(f"查询表数据失败 {table}: {type(e).__name__}: {e}", exc_info=True)
             return {"rows": [], "total": 0, "page": page, "page_size": page_size}
 
+    async def _validate_row_columns(self, table: str, data: dict[str, Any]) -> None:
+        """校验行写入数据的列名是否合法，防止列名注入。"""
+        cols = await self.describe_table(table)
+        col_names = {c["field"] for c in cols}
+        invalid_columns = [key for key in data if key not in col_names]
+        if invalid_columns:
+            raise ValueError(f"非法列名: {', '.join(invalid_columns)}")
+
     async def get_row(self, table: str, pk_column: str, pk_value: Any) -> dict[str, Any] | None:
         """获取单行数据"""
         try:
@@ -3175,6 +3190,7 @@ class MySQLManager(DatabaseManagerBase):
     async def insert_row(self, table: str, data: dict[str, Any]) -> int | None:
         """插入一行数据"""
         try:
+            await self._validate_row_columns(table, data)
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cursor:
                     columns = ", ".join(f"`{k}`" for k in data.keys())
@@ -3185,29 +3201,30 @@ class MySQLManager(DatabaseManagerBase):
                         values,
                     )
                     await conn.commit()
-                    return cursor.lastrowid or None
+                    return int(cursor.lastrowid or 0)
         except Exception as e:
             logger.error(f"插入行失败 {table}: {type(e).__name__}: {e}", exc_info=True)
-            return None
+            raise
 
     async def update_row(
         self, table: str, pk_column: str, pk_value: Any, data: dict[str, Any]
     ) -> bool:
         """更新一行数据"""
         try:
+            await self._validate_row_columns(table, data)
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cursor:
                     set_clause = ", ".join(f"`{k}` = %s" for k in data.keys())
                     values = list(data.values()) + [pk_value]
                     await cursor.execute(
-                        f"UPDATE `{table}` SET {set_clause} WHERE `{pk_column}` = %s",
+                        f"UPDATE `{table}` SET {set_clause} WHERE `{pk_column}` = %s LIMIT 1",
                         values,
                     )
                     await conn.commit()
-                    return cursor.rowcount > 0
+                    return cursor.rowcount == 1
         except Exception as e:
             logger.error(f"更新行失败 {table}: {type(e).__name__}: {e}", exc_info=True)
-            return False
+            raise
 
     async def delete_row(self, table: str, pk_column: str, pk_value: Any) -> bool:
         """删除一行数据"""
@@ -3215,11 +3232,11 @@ class MySQLManager(DatabaseManagerBase):
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cursor:
                     await cursor.execute(
-                        f"DELETE FROM `{table}` WHERE `{pk_column}` = %s",
+                        f"DELETE FROM `{table}` WHERE `{pk_column}` = %s LIMIT 1",
                         (pk_value,),
                     )
                     await conn.commit()
-                    return cursor.rowcount > 0
+                    return cursor.rowcount == 1
         except Exception as e:
             logger.error(f"删除行失败 {table}: {type(e).__name__}: {e}", exc_info=True)
-            return False
+            raise

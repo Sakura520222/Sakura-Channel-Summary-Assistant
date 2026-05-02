@@ -12,37 +12,32 @@
 数据库管理 API 路由
 
 提供表列表、表结构查看、数据浏览与 CRUD 操作。
+
+安全策略：
+- 表名必须通过数据库管理器白名单校验。
+- 搜索、排序和写入列名必须通过实际表结构校验。
+- 所有写操作都会写入 WebUI 审计日志。
 """
 
+import json
 import logging
+import time
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from core.web_api.deps import (
+    actor_from_request,
+    audit_duration,
+    get_database_or_none,
+    maybe_await,
+    record_system_audit,
+)
 from core.web_api.schemas.database import RowCreateRequest, RowUpdateRequest
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def _get_db():
-    """安全获取数据库管理器。"""
-    try:
-        from core.infrastructure.database.manager import get_db_manager
-
-        return get_db_manager()
-    except Exception as e:
-        logger.debug(f"获取数据库管理器失败: {e}")
-        return None
-
-
-async def _maybe_await(value):
-    """兼容同步和异步数据库方法。"""
-    import inspect
-
-    if inspect.isawaitable(value):
-        return await value
-    return value
 
 
 def _validate_table(db, table: str) -> None:
@@ -56,12 +51,12 @@ def _validate_table(db, table: str) -> None:
 @router.get("")
 async def list_tables():
     """列出所有允许访问的表及基本信息（行数、大小、引擎）。"""
-    db = _get_db()
+    db = get_database_or_none()
     if not db:
-        return {"success": False, "message": "数据库管理器不可用"}
+        raise HTTPException(status_code=503, detail="数据库管理器不可用")
 
     try:
-        tables = await _maybe_await(db.list_tables())
+        tables = await maybe_await(db.list_tables())
         return {"success": True, "data": tables}
     except Exception as e:
         logger.error(f"列出数据库表失败: {type(e).__name__}: {e}", exc_info=True)
@@ -75,12 +70,12 @@ async def get_table_schema(table: str):
     Args:
         table: 表名
     """
-    db = _get_db()
+    db = get_database_or_none()
     _validate_table(db, table)
 
     try:
-        columns = await _maybe_await(db.describe_table(table))
-        pk_column = await _maybe_await(db.get_primary_key(table))
+        columns = await maybe_await(db.describe_table(table))
+        pk_column = await maybe_await(db.get_primary_key(table))
         return {
             "success": True,
             "data": {
@@ -102,14 +97,14 @@ async def query_table_rows(
     search_column: str | None = Query(default=None, description="搜索列名"),
     search_keyword: str | None = Query(default=None, max_length=100, description="搜索关键词"),
     order_by: str | None = Query(default=None, description="排序列名"),
-    order_dir: str = Query(default="ASC", description="排序方向 ASC/DESC"),
+    order_dir: Literal["ASC", "DESC"] = Query(default="ASC", description="排序方向 ASC/DESC"),
 ):
     """分页浏览表数据，支持按列搜索和排序。"""
-    db = _get_db()
+    db = get_database_or_none()
     _validate_table(db, table)
 
     try:
-        result = await _maybe_await(
+        result = await maybe_await(
             db.query_table(
                 table=table,
                 page=page,
@@ -129,17 +124,56 @@ async def query_table_rows(
 @router.post("/{table}/rows")
 async def create_row(table: str, request_data: RowCreateRequest, request: Request):
     """插入新行。"""
-    db = _get_db()
+    started_at = time.perf_counter()
+    actor = actor_from_request(request)
+    db = get_database_or_none()
     _validate_table(db, table)
 
     try:
-        new_id = await _maybe_await(db.insert_row(table, request_data.data))
+        new_id = await maybe_await(db.insert_row(table, request_data.data))
+        await record_system_audit(
+            action="database.row.create",
+            actor=actor,
+            target=table,
+            params_summary=json.dumps(
+                {"columns": list(request_data.data.keys())}, ensure_ascii=False
+            ),
+            success=True,
+            message="插入成功",
+            duration_ms=audit_duration(started_at),
+        )
         if new_id is not None:
             return {"success": True, "message": "插入成功", "data": {"id": new_id}}
         return {"success": True, "message": "插入成功"}
+    except ValueError as e:
+        message = str(e)
+        await record_system_audit(
+            action="database.row.create",
+            actor=actor,
+            target=table,
+            params_summary=json.dumps(
+                {"columns": list(request_data.data.keys())}, ensure_ascii=False
+            ),
+            success=False,
+            message=message,
+            duration_ms=audit_duration(started_at),
+        )
+        raise HTTPException(status_code=400, detail=message) from e
     except Exception as e:
+        message = f"插入行失败: {type(e).__name__}: {e}"
+        await record_system_audit(
+            action="database.row.create",
+            actor=actor,
+            target=table,
+            params_summary=json.dumps(
+                {"columns": list(request_data.data.keys())}, ensure_ascii=False
+            ),
+            success=False,
+            message=message,
+            duration_ms=audit_duration(started_at),
+        )
         logger.error(f"插入行失败 {table}: {type(e).__name__}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail=message) from e
 
 
 @router.put("/{table}/rows/{pk}")
@@ -150,10 +184,12 @@ async def update_row(
     request: Request,
 ):
     """更新一行数据（以主键定位）。"""
-    db = _get_db()
+    started_at = time.perf_counter()
+    actor = actor_from_request(request)
+    db = get_database_or_none()
     _validate_table(db, table)
 
-    pk_column = await _maybe_await(db.get_primary_key(table))
+    pk_column = await maybe_await(db.get_primary_key(table))
     if not pk_column:
         raise HTTPException(status_code=400, detail=f"表 '{table}' 没有主键，无法定位行")
 
@@ -165,24 +201,74 @@ async def update_row(
         pk_value = pk
 
     try:
-        success = await _maybe_await(db.update_row(table, pk_column, pk_value, request_data.data))
+        success = await maybe_await(db.update_row(table, pk_column, pk_value, request_data.data))
         if not success:
             raise HTTPException(status_code=404, detail="未找到匹配的行")
+        await record_system_audit(
+            action="database.row.update",
+            actor=actor,
+            target=f"{table}.{pk_column}={pk}",
+            params_summary=json.dumps(
+                {"columns": list(request_data.data.keys())}, ensure_ascii=False
+            ),
+            success=True,
+            message="更新成功",
+            duration_ms=audit_duration(started_at),
+        )
         return {"success": True, "message": "更新成功"}
-    except HTTPException:
+    except ValueError as e:
+        message = str(e)
+        await record_system_audit(
+            action="database.row.update",
+            actor=actor,
+            target=f"{table}.{pk_column}={pk}",
+            params_summary=json.dumps(
+                {"columns": list(request_data.data.keys())}, ensure_ascii=False
+            ),
+            success=False,
+            message=message,
+            duration_ms=audit_duration(started_at),
+        )
+        raise HTTPException(status_code=400, detail=message) from e
+    except HTTPException as e:
+        await record_system_audit(
+            action="database.row.update",
+            actor=actor,
+            target=f"{table}.{pk_column}={pk}",
+            params_summary=json.dumps(
+                {"columns": list(request_data.data.keys())}, ensure_ascii=False
+            ),
+            success=False,
+            message=str(e.detail),
+            duration_ms=audit_duration(started_at),
+        )
         raise
     except Exception as e:
+        message = f"更新行失败: {type(e).__name__}: {e}"
+        await record_system_audit(
+            action="database.row.update",
+            actor=actor,
+            target=f"{table}.{pk_column}={pk}",
+            params_summary=json.dumps(
+                {"columns": list(request_data.data.keys())}, ensure_ascii=False
+            ),
+            success=False,
+            message=message,
+            duration_ms=audit_duration(started_at),
+        )
         logger.error(f"更新行失败 {table}: {type(e).__name__}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail=message) from e
 
 
 @router.delete("/{table}/rows/{pk}")
 async def delete_row(table: str, pk: str, request: Request):
     """删除一行数据（以主键定位）。"""
-    db = _get_db()
+    started_at = time.perf_counter()
+    actor = actor_from_request(request)
+    db = get_database_or_none()
     _validate_table(db, table)
 
-    pk_column = await _maybe_await(db.get_primary_key(table))
+    pk_column = await maybe_await(db.get_primary_key(table))
     if not pk_column:
         raise HTTPException(status_code=400, detail=f"表 '{table}' 没有主键，无法定位行")
 
@@ -193,12 +279,37 @@ async def delete_row(table: str, pk: str, request: Request):
         pk_value = pk
 
     try:
-        success = await _maybe_await(db.delete_row(table, pk_column, pk_value))
+        success = await maybe_await(db.delete_row(table, pk_column, pk_value))
         if not success:
             raise HTTPException(status_code=404, detail="未找到匹配的行")
+        await record_system_audit(
+            action="database.row.delete",
+            actor=actor,
+            target=f"{table}.{pk_column}={pk}",
+            success=True,
+            message="删除成功",
+            duration_ms=audit_duration(started_at),
+        )
         return {"success": True, "message": "删除成功"}
-    except HTTPException:
+    except HTTPException as e:
+        await record_system_audit(
+            action="database.row.delete",
+            actor=actor,
+            target=f"{table}.{pk_column}={pk}",
+            success=False,
+            message=str(e.detail),
+            duration_ms=audit_duration(started_at),
+        )
         raise
     except Exception as e:
+        message = f"删除行失败: {type(e).__name__}: {e}"
+        await record_system_audit(
+            action="database.row.delete",
+            actor=actor,
+            target=f"{table}.{pk_column}={pk}",
+            success=False,
+            message=message,
+            duration_ms=audit_duration(started_at),
+        )
         logger.error(f"删除行失败 {table}: {type(e).__name__}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail=message) from e
