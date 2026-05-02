@@ -169,8 +169,7 @@ class ForwardingHandler:
             new_rules_count = len(forwarding_config.get("rules", []))
 
             # 更新配置和启用状态
-            self._config = forwarding_config
-            self._source_channel_ids = self._extract_source_channel_ids(forwarding_config)
+            self.set_config(forwarding_config)
             self._enabled = forwarding_config.get("enabled", False)
 
             # 记录状态变化
@@ -689,6 +688,8 @@ class ForwardingHandler:
                 from_peer=from_peer,
             )
         except ValueError as e:
+            # Telethon 在 forward_messages 无法解析 from_peer 实体时会抛出 ValueError，
+            # 此时改用监听客户端（通常是 UserBot）进行回退转发。
             logger.warning(
                 f"发送客户端无法解析源频道实体，尝试使用监听客户端转发: {type(e).__name__}: {e}"
             )

@@ -115,12 +115,10 @@ def test_forwarding_initializer_reads_current_source_channels_from_handler_cache
 @pytest.mark.asyncio
 async def test_config_manager_reload_skips_unchanged_snapshot():
     """配置内容未变化时应跳过重复事件发布。"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        f.write('{"version": 1}')
-        f.flush()
-        config_file = Path(f.name)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_file = Path(tmpdir) / "config.json"
+        await asyncio.to_thread(config_file.write_text, '{"version": 1}', encoding="utf-8")
 
-    try:
         manager = ConfigManager(asyncio.get_running_loop())
         assert manager.initialize_sync(config_file)[0] is True
 
@@ -132,5 +130,3 @@ async def test_config_manager_reload_skips_unchanged_snapshot():
         assert success is True
         assert error == ""
         event_bus.publish.assert_not_awaited()
-    finally:
-        await asyncio.to_thread(config_file.unlink, missing_ok=True)

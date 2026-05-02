@@ -234,7 +234,7 @@ function applyFooterTemplate(value: string | null) {
 
 function insertFooterPlaceholder(placeholder: string) {
   ruleForm.custom_footer = ruleForm.custom_footer
-    ? `${ruleForm.custom_footer}${/\s$/.test(ruleForm.custom_footer) ? "" : " "}${placeholder}`
+    ? `${ruleForm.custom_footer}${ruleForm.custom_footer.endsWith(" ") ? "" : " "}${placeholder}`
     : placeholder;
 }
 
